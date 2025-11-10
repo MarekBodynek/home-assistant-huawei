@@ -119,10 +119,10 @@
     - condition: or
       conditions:
         - condition: state
-          entity_id: weather.forecast_home
+          entity_id: weather.forecast_dom
           state: 'cloudy'
         - condition: state
-          entity_id: weather.forecast_home
+          entity_id: weather.forecast_dom
           state: 'rainy'
   action:
     # Załaduj baterię do wyższego poziomu przed dniem z małą produkcją PV

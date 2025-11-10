@@ -88,9 +88,6 @@ views:
           - entity: sensor.pomiar_mocy_moc_czynna
             name: Sieć
 
-      # Karta: Energia dziś
-      - type: energy-date-selection
-
   - title: Statystyki
     icon: mdi:chart-bar
     cards:
@@ -114,7 +111,3 @@ views:
           - sensor.inwerter_dzienna_produkcja
         days_to_show: 30
         chart_type: bar
-
-      # Karta: Bilans energii
-      - type: energy-distribution
-        title: Bilans energii
