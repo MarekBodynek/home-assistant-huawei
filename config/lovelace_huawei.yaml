@@ -17,10 +17,10 @@ views:
           - entity: sensor.akumulatory_moc_ladowania_rozladowania
             name: Moc ładowania/rozładowania
             icon: mdi:battery-charging
-          - entity: sensor.akumulatory_napiecie_linii_baterii
+          - entity: sensor.akumulator_1_napiecie_linii_baterii
             name: Napięcie baterii
-          - entity: sensor.akumulator_1_pack_1_max_temperature
-            name: Temperatura max
+          - entity: sensor.akumulator_1_bms_temperature
+            name: Temperatura BMS
 
       # Karta: Inwerter
       - type: entities
