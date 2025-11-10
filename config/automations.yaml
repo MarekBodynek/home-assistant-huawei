@@ -1,0 +1,142 @@
+# Automatyzacje dla systemu Huawei Solar z baterią Luna 2000
+# Tryb: PV PRIORITY - priorytet ładowania z fotowoltaiki
+
+# ===================================================================
+# AUTOMATYKA 1: Włączenie ładowania w najtańszych godzinach (taryfa nocna)
+# ===================================================================
+- id: huawei_cheap_charging_start
+  alias: "Huawei - Ładowanie w taniej taryfie"
+  description: "Włącza priorytet ładowania baterii z sieci w godzinach taniej energii"
+  trigger:
+    # Taryfa nocna G12 - dostosuj godziny do swojej taryfy
+    - platform: time
+      at: "22:00:00"
+  condition:
+    # Warunek: bateria poniżej 80% (dostosuj próg według potrzeb)
+    - condition: numeric_state
+      entity_id: sensor.battery_state_of_capacity
+      below: 80
+  action:
+    # Ustaw tryb pracy na "Time of Use" z priorytetem ładowania
+    - service: huawei_solar.set_tou_periods
+      data:
+        device_id: >
+          {{ device_id('huawei_solar_inverter') }}
+        periods:
+          - start_time: "22:00"
+            end_time: "06:00"
+            charge_flag: 1  # 1 = ładowanie dozwolone
+            days_effective: [1,2,3,4,5,6,7]  # wszystkie dni tygodnia
+    - service: notify.persistent_notification
+      data:
+        title: "⚡ Huawei Solar"
+        message: "Włączono ładowanie baterii w taniej taryfie ({{ now().strftime('%H:%M') }})"
+
+# ===================================================================
+# AUTOMATYKA 2: Przerwanie ładowania po osiągnięciu 90%
+# ===================================================================
+- id: huawei_stop_charging_high_soc
+  alias: "Huawei - Stop ładowania przy 90%"
+  description: "Zatrzymuje ładowanie z sieci gdy bateria osiągnie 90%"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.battery_state_of_capacity
+      above: 90
+  condition:
+    # Warunek: trwa taryfa nocna
+    - condition: time
+      after: "22:00:00"
+      before: "06:00:00"
+  action:
+    - service: huawei_solar.set_tou_periods
+      data:
+        device_id: >
+          {{ device_id('huawei_solar_inverter') }}
+        periods:
+          - start_time: "22:00"
+            end_time: "06:00"
+            charge_flag: 0  # 0 = ładowanie wstrzymane
+            days_effective: [1,2,3,4,5,6,7]
+    - service: notify.persistent_notification
+      data:
+        title: "✅ Huawei Solar"
+        message: "Bateria naładowana do {{ states('sensor.battery_state_of_capacity') }}%, stop ładowania"
+
+# ===================================================================
+# AUTOMATYKA 3: Powrót do trybu PV Priority po zakończeniu taniej taryfy
+# ===================================================================
+- id: huawei_pv_priority_mode
+  alias: "Huawei - Tryb PV Priority (dzień)"
+  description: "Przełącza na priorytet ładowania z PV w ciągu dnia"
+  trigger:
+    - platform: time
+      at: "06:00:00"
+  action:
+    # Przywrócenie trybu PV Priority
+    - service: huawei_solar.set_tou_periods
+      data:
+        device_id: >
+          {{ device_id('huawei_solar_inverter') }}
+        periods:
+          - start_time: "06:00"
+            end_time: "22:00"
+            charge_flag: 2  # 2 = tylko z PV (priorytet fotowoltaiki)
+            days_effective: [1,2,3,4,5,6,7]
+    - service: notify.persistent_notification
+      data:
+        title: "☀️ Huawei Solar"
+        message: "Przełączono na tryb PV PRIORITY ({{ now().strftime('%H:%M') }})"
+
+# ===================================================================
+# AUTOMATYKA 4: Awaryjne ładowanie przy krytycznie niskim stanie baterii
+# ===================================================================
+- id: huawei_emergency_charging
+  alias: "Huawei - Awaryjne ładowanie (SOC<15%)"
+  description: "Włącza ładowanie z sieci gdy bateria poniżej 15%"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.battery_state_of_capacity
+      below: 15
+  action:
+    - service: huawei_solar.forcible_charge
+      data:
+        device_id: >
+          {{ device_id('huawei_solar_inverter') }}
+        power: 5000  # Moc ładowania w W (dla Luna 2000 15kWh max 5kW)
+        duration: 120  # Czas w minutach
+    - service: notify.persistent_notification
+      data:
+        title: "⚠️ Huawei Solar - Alarm"
+        message: "Niski stan baterii ({{ states('sensor.battery_state_of_capacity') }}%)! Rozpoczęto awaryjne ładowanie."
+
+# ===================================================================
+# AUTOMATYKA 5: Optymalizacja według prognozy pogody
+# ===================================================================
+- id: huawei_weather_optimization
+  alias: "Huawei - Optymalizacja według pogody"
+  description: "Zwiększa ładowanie nocą jeśli prognozowane są chmury"
+  trigger:
+    - platform: time
+      at: "21:00:00"
+  condition:
+    # Sprawdź prognozę na jutro (wymaga integracji pogody)
+    - condition: or
+      conditions:
+        - condition: state
+          entity_id: weather.forecast_home
+          state: 'cloudy'
+        - condition: state
+          entity_id: weather.forecast_home
+          state: 'rainy'
+  action:
+    # Załaduj baterię do wyższego poziomu przed dniem z małą produkcją PV
+    - service: huawei_solar.forcible_charge
+      data:
+        device_id: >
+          {{ device_id('huawei_solar_inverter') }}
+        power: 3000
+        duration: 480  # 8 godzin
+    - service: notify.persistent_notification
+      data:
+        title: "🌧️ Huawei Solar"
+        message: "Prognozowane zachmurzenie. Zwiększono ładowanie nocne."

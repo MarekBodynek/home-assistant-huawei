@@ -1,0 +1,55 @@
+# Skrypty dla Huawei Solar
+
+# Skrypt do ręcznego wymuszenia ładowania
+force_battery_charge:
+  alias: "Wymuś ładowanie baterii"
+  sequence:
+    - service: huawei_solar.forcible_charge
+      data:
+        device_id: >
+          {{ device_id('huawei_solar_inverter') }}
+        power: 5000
+        duration: 60
+    - service: notify.persistent_notification
+      data:
+        title: "🔋 Huawei Solar"
+        message: "Uruchomiono ręczne ładowanie baterii"
+
+# Skrypt do zatrzymania ładowania
+stop_battery_charge:
+  alias: "Zatrzymaj ładowanie baterii"
+  sequence:
+    - service: huawei_solar.stop_forcible_charge
+      data:
+        device_id: >
+          {{ device_id('huawei_solar_inverter') }}
+    - service: notify.persistent_notification
+      data:
+        title: "🛑 Huawei Solar"
+        message: "Zatrzymano ładowanie baterii"
+
+# Skrypt do przełączenia w tryb TOU (Time of Use)
+enable_tou_mode:
+  alias: "Włącz tryb TOU"
+  sequence:
+    - service: select.select_option
+      data:
+        entity_id: select.battery_working_mode
+        option: "Time of Use"
+    - service: notify.persistent_notification
+      data:
+        title: "⏰ Huawei Solar"
+        message: "Włączono tryb Time of Use"
+
+# Skrypt do przełączenia w tryb Maximise Self Consumption
+enable_self_consumption:
+  alias: "Włącz Maksymalną Autoconsumpcję"
+  sequence:
+    - service: select.select_option
+      data:
+        entity_id: select.battery_working_mode
+        option: "Maximise Self Consumption"
+    - service: notify.persistent_notification
+      data:
+        title: "🏠 Huawei Solar"
+        message: "Włączono tryb Maksymalnej Autoconsumpcji"

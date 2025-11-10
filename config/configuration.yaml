@@ -1,0 +1,52 @@
+# Home Assistant - Konfiguracja dla Huawei Solar
+# Dokumentacja: https://www.home-assistant.io/docs/configuration/
+
+# Podstawowa konfiguracja
+homeassistant:
+  name: Dom
+  latitude: 52.2297
+  longitude: 21.0122
+  elevation: 100
+  unit_system: metric
+  time_zone: Europe/Warsaw
+  currency: PLN
+
+# Frontend
+frontend:
+  themes: !include_dir_merge_named themes
+
+# Logowanie
+logger:
+  default: info
+  logs:
+    huawei_solar: debug
+
+# Historia
+history:
+
+# Logbook
+logbook:
+
+# Rekorder - przechowywanie danych
+recorder:
+  purge_keep_days: 30
+  db_url: sqlite:////config/home-assistant_v2.db
+
+# Energia
+energy:
+
+# Automatyzacje
+automation: !include automations.yaml
+
+# Skrypty
+script: !include scripts.yaml
+
+# Sceny
+scene: !include scenes.yaml
+
+# HTTP
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 127.0.0.1
+    - ::1
