@@ -14,7 +14,7 @@
   condition:
     # Warunek: bateria poniżej 80% (dostosuj próg według potrzeb)
     - condition: numeric_state
-      entity_id: sensor.battery_state_of_capacity
+      entity_id: sensor.akumulatory_stan_pojemnosci
       below: 80
   action:
     # Ustaw tryb pracy na "Time of Use" z priorytetem ładowania
@@ -40,7 +40,7 @@
   description: "Zatrzymuje ładowanie z sieci gdy bateria osiągnie 90%"
   trigger:
     - platform: numeric_state
-      entity_id: sensor.battery_state_of_capacity
+      entity_id: sensor.akumulatory_stan_pojemnosci
       above: 90
   condition:
     # Warunek: trwa taryfa nocna
@@ -60,7 +60,7 @@
     - service: notify.persistent_notification
       data:
         title: "✅ Huawei Solar"
-        message: "Bateria naładowana do {{ states('sensor.battery_state_of_capacity') }}%, stop ładowania"
+        message: "Bateria naładowana do {{ states('sensor.akumulatory_stan_pojemnosci') }}%, stop ładowania"
 
 # ===================================================================
 # AUTOMATYKA 3: Powrót do trybu PV Priority po zakończeniu taniej taryfy
@@ -95,7 +95,7 @@
   description: "Włącza ładowanie z sieci gdy bateria poniżej 15%"
   trigger:
     - platform: numeric_state
-      entity_id: sensor.battery_state_of_capacity
+      entity_id: sensor.akumulatory_stan_pojemnosci
       below: 15
   action:
     - service: huawei_solar.forcible_charge
@@ -107,7 +107,7 @@
     - service: notify.persistent_notification
       data:
         title: "⚠️ Huawei Solar - Alarm"
-        message: "Niski stan baterii ({{ states('sensor.battery_state_of_capacity') }}%)! Rozpoczęto awaryjne ładowanie."
+        message: "Niski stan baterii ({{ states('sensor.akumulatory_stan_pojemnosci') }}%)! Rozpoczęto awaryjne ładowanie."
 
 # ===================================================================
 # AUTOMATYKA 5: Optymalizacja według prognozy pogody

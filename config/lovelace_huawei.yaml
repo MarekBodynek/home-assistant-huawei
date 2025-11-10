@@ -1,0 +1,120 @@
+# Dashboard Huawei Solar - bez optymalizatorów
+# Ten dashboard pokazuje tylko najważniejsze dane z instalacji PV
+
+title: Huawei Solar PV
+views:
+  - title: Przegląd
+    icon: mdi:solar-power
+    cards:
+      # Karta: Stan baterii
+      - type: entities
+        title: Bateria Luna 2000
+        icon: mdi:battery-high
+        entities:
+          - entity: sensor.akumulatory_stan_pojemnosci
+            name: Stan naładowania (SOC)
+            icon: mdi:battery-80
+          - entity: sensor.akumulatory_moc_ladowania_rozladowania
+            name: Moc ładowania/rozładowania
+            icon: mdi:battery-charging
+          - entity: sensor.akumulatory_napiecie_szyny_dc
+            name: Napięcie DC
+          - entity: sensor.akumulatory_maksymalna_temperatura
+            name: Temperatura
+
+      # Karta: Inwerter
+      - type: entities
+        title: Inwerter SUN2000-10KTL-M1
+        icon: mdi:solar-power-variant
+        entities:
+          - entity: sensor.inwerter_moc_czynna
+            name: Moc wyjściowa (AC)
+            icon: mdi:flash
+          - entity: sensor.inwerter_moc_wejsciowa
+            name: Moc wejściowa (DC/PV)
+            icon: mdi:solar-panel
+          - entity: sensor.inwerter_wydajnosc
+            name: Wydajność
+          - entity: sensor.inwerter_status_urzadzenia
+            name: Status urządzenia
+
+      # Karta: Produkcja energii
+      - type: entities
+        title: Produkcja energii
+        icon: mdi:chart-line
+        entities:
+          - entity: sensor.inwerter_calkowita_produkcja_energii
+            name: Całkowita produkcja
+            icon: mdi:counter
+          - entity: sensor.inwerter_dzienny_uzysk
+            name: Dzienny uzysk
+            icon: mdi:weather-sunny
+          - entity: sensor.inwerter_godzinny_uzysk
+            name: Uzysk w ostatniej godzinie
+            icon: mdi:clock-outline
+
+      # Karta: Sieć i moc
+      - type: entities
+        title: Wymiana z siecią
+        icon: mdi:transmission-tower
+        entities:
+          - entity: sensor.licznik_moc_czynna
+            name: Moc w sieci
+            icon: mdi:transmission-tower
+          - entity: sensor.licznik_calkowita_energia_pobrana_ze_sieci
+            name: Energia ze sieci (pobrana)
+          - entity: sensor.licznik_calkowita_energia_oddana_do_sieci
+            name: Energia do sieci (oddana)
+
+      # Karta: Tryb pracy
+      - type: entities
+        title: Tryb pracy baterii
+        icon: mdi:cog
+        entities:
+          - entity: select.tryb_pracy_baterii
+            name: Tryb pracy
+          - entity: switch.wlacz_ladowanie_baterii
+            name: Wymuś ładowanie
+
+      # Wizualizacja mocy (wykres)
+      - type: history-graph
+        title: Historia mocy (24h)
+        hours_to_show: 24
+        entities:
+          - entity: sensor.inwerter_moc_czynna
+            name: Moc wyjściowa
+          - entity: sensor.akumulatory_moc_ladowania_rozladowania
+            name: Bateria
+          - entity: sensor.licznik_moc_czynna
+            name: Sieć
+
+      # Karta: Energia dziś
+      - type: energy-date-selection
+
+  - title: Statystyki
+    icon: mdi:chart-bar
+    cards:
+      # Karta: Statystyki baterii
+      - type: statistics-graph
+        title: Bateria - ostatni tydzień
+        stat_types:
+          - mean
+          - min
+          - max
+        entities:
+          - sensor.akumulatory_stan_pojemnosci
+        days_to_show: 7
+
+      # Karta: Produkcja dzienna
+      - type: statistics-graph
+        title: Produkcja dzienna
+        stat_types:
+          - sum
+        entities:
+          - sensor.inwerter_dzienny_uzysk
+        days_to_show: 30
+        chart_type: bar
+
+      # Karta: Bilans energii
+      - type: energy-distribution
+        title: Bilans energii

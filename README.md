@@ -261,6 +261,56 @@ action:
 
 ---
 
+## 📊 Dashboard bez optymalizatorów
+
+System zawiera gotowy dashboard z najważniejszymi danymi PV bez zbędnych encji optymalizatorów (JV22*).
+
+**Plik:** `config/lovelace_huawei.yaml`
+
+### Instalacja dashboardu
+
+**Metoda 1: Przez interfejs (zalecana)**
+1. Otwórz Home Assistant
+2. Przejdź do **Settings** → **Dashboards**
+3. Kliknij **+ ADD DASHBOARD**
+4. Wybierz **New dashboard from scratch**
+5. Nazwa: "Huawei Solar PV"
+6. Kliknij trzy kropki (⋮) → **Edit Dashboard**
+7. Trzy kropki → **Raw configuration editor**
+8. Skopiuj zawartość pliku `lovelace_huawei.yaml` i wklej
+9. Zapisz (Save)
+
+**Metoda 2: Tryb YAML (dla zaawansowanych)**
+
+Edytuj `configuration.yaml` i dodaj:
+```yaml
+lovelace:
+  mode: yaml
+  dashboards:
+    lovelace-huawei:
+      mode: yaml
+      title: Huawei Solar PV
+      icon: mdi:solar-power
+      show_in_sidebar: true
+      filename: lovelace_huawei.yaml
+```
+
+**Dashboard zawiera:**
+- Stan baterii Luna 2000 (SOC, moc, temperatura)
+- Moc invertera (wyjściowa, wejściowa, wydajność)
+- Produkcja energii (całkowita, dzienna, godzinna)
+- Wymiana z siecią
+- Tryb pracy baterii
+- Wykresy historyczne (24h)
+- Statystyki tygodniowe i miesięczne
+
+**Ukryte encje:**
+- Wszystkie optymalizatory (JV22*)
+- Szczegółowe dane techniczne
+- Zbędne statusy urządzeń
+
+---
+
 ## 📊 Dostępne skrypty
 
 W pliku `scripts.yaml` dostępne są ręczne skrypty:
