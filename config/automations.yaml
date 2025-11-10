@@ -20,8 +20,7 @@
     # Ustaw tryb pracy na "Time of Use" z priorytetem ładowania
     - service: huawei_solar.set_tou_periods
       data:
-        device_id: >
-          {{ device_id('huawei_solar_inverter') }}
+        device_id: 450d2d6fd853d7876315d70559e1dd83
         periods:
           - start_time: "22:00"
             end_time: "06:00"
@@ -50,8 +49,7 @@
   action:
     - service: huawei_solar.set_tou_periods
       data:
-        device_id: >
-          {{ device_id('huawei_solar_inverter') }}
+        device_id: 450d2d6fd853d7876315d70559e1dd83
         periods:
           - start_time: "22:00"
             end_time: "06:00"
@@ -75,8 +73,7 @@
     # Przywrócenie trybu PV Priority
     - service: huawei_solar.set_tou_periods
       data:
-        device_id: >
-          {{ device_id('huawei_solar_inverter') }}
+        device_id: 450d2d6fd853d7876315d70559e1dd83
         periods:
           - start_time: "06:00"
             end_time: "22:00"
@@ -100,8 +97,7 @@
   action:
     - service: huawei_solar.forcible_charge
       data:
-        device_id: >
-          {{ device_id('huawei_solar_inverter') }}
+        device_id: 450d2d6fd853d7876315d70559e1dd83
         power: 5000  # Moc ładowania w W (dla Luna 2000 15kWh max 5kW)
         duration: 120  # Czas w minutach
     - service: notify.persistent_notification
@@ -132,8 +128,7 @@
     # Załaduj baterię do wyższego poziomu przed dniem z małą produkcją PV
     - service: huawei_solar.forcible_charge
       data:
-        device_id: >
-          {{ device_id('huawei_solar_inverter') }}
+        device_id: 450d2d6fd853d7876315d70559e1dd83
         power: 3000
         duration: 480  # 8 godzin
     - service: notify.persistent_notification

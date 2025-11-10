@@ -6,8 +6,7 @@ force_battery_charge:
   sequence:
     - service: huawei_solar.forcible_charge
       data:
-        device_id: >
-          {{ device_id('huawei_solar_inverter') }}
+        device_id: 450d2d6fd853d7876315d70559e1dd83
         power: 5000
         duration: 60
     - service: notify.persistent_notification
@@ -21,8 +20,7 @@ stop_battery_charge:
   sequence:
     - service: huawei_solar.stop_forcible_charge
       data:
-        device_id: >
-          {{ device_id('huawei_solar_inverter') }}
+        device_id: 450d2d6fd853d7876315d70559e1dd83
     - service: notify.persistent_notification
       data:
         title: "🛑 Huawei Solar"
