@@ -17,10 +17,10 @@ views:
           - entity: sensor.akumulatory_moc_ladowania_rozladowania
             name: Moc ładowania/rozładowania
             icon: mdi:battery-charging
-          - entity: sensor.akumulatory_napiecie_szyny_dc
-            name: Napięcie DC
-          - entity: sensor.akumulatory_maksymalna_temperatura
-            name: Temperatura
+          - entity: sensor.akumulatory_napiecie_linii_baterii
+            name: Napięcie baterii
+          - entity: sensor.akumulator_1_pack_1_max_temperature
+            name: Temperatura max
 
       # Karta: Inwerter
       - type: entities
@@ -33,8 +33,8 @@ views:
           - entity: sensor.inwerter_moc_wejsciowa
             name: Moc wejściowa (DC/PV)
             icon: mdi:solar-panel
-          - entity: sensor.inwerter_wydajnosc
-            name: Wydajność
+          - entity: sensor.inwerter_sprawnosc
+            name: Sprawność
           - entity: sensor.inwerter_status_urzadzenia
             name: Status urządzenia
 
@@ -46,10 +46,10 @@ views:
           - entity: sensor.inwerter_calkowita_produkcja_energii
             name: Całkowita produkcja
             icon: mdi:counter
-          - entity: sensor.inwerter_dzienny_uzysk
-            name: Dzienny uzysk
+          - entity: sensor.inwerter_dzienna_produkcja
+            name: Dzienna produkcja
             icon: mdi:weather-sunny
-          - entity: sensor.inwerter_godzinny_uzysk
+          - entity: sensor.inwerter_godzinowy_uzysk
             name: Uzysk w ostatniej godzinie
             icon: mdi:clock-outline
 
@@ -58,12 +58,12 @@ views:
         title: Wymiana z siecią
         icon: mdi:transmission-tower
         entities:
-          - entity: sensor.licznik_moc_czynna
+          - entity: sensor.pomiar_mocy_moc_czynna
             name: Moc w sieci
             icon: mdi:transmission-tower
-          - entity: sensor.licznik_calkowita_energia_pobrana_ze_sieci
+          - entity: sensor.pomiar_mocy_zuzycie
             name: Energia ze sieci (pobrana)
-          - entity: sensor.licznik_calkowita_energia_oddana_do_sieci
+          - entity: sensor.pomiar_mocy_eksport
             name: Energia do sieci (oddana)
 
       # Karta: Tryb pracy
@@ -71,10 +71,10 @@ views:
         title: Tryb pracy baterii
         icon: mdi:cog
         entities:
-          - entity: select.tryb_pracy_baterii
+          - entity: select.akumulatory_tryb_pracy
             name: Tryb pracy
-          - entity: switch.wlacz_ladowanie_baterii
-            name: Wymuś ładowanie
+          - entity: switch.akumulatory_ladowanie_z_sieci
+            name: Ładowanie z sieci
 
       # Wizualizacja mocy (wykres)
       - type: history-graph
@@ -85,7 +85,7 @@ views:
             name: Moc wyjściowa
           - entity: sensor.akumulatory_moc_ladowania_rozladowania
             name: Bateria
-          - entity: sensor.licznik_moc_czynna
+          - entity: sensor.pomiar_mocy_moc_czynna
             name: Sieć
 
       # Karta: Energia dziś
@@ -111,7 +111,7 @@ views:
         stat_types:
           - sum
         entities:
-          - sensor.inwerter_dzienny_uzysk
+          - sensor.inwerter_dzienna_produkcja
         days_to_show: 30
         chart_type: bar
 
