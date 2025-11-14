@@ -6,6 +6,15 @@ views:
   - title: Przegląd
     icon: mdi:solar-power
     cards:
+      # Karta: Prognoza pogody (pełna szerokość - przewijaj w prawo dla więcej godzin)
+      - type: weather-forecast
+        entity: weather.forecast_dom
+        show_forecast: true
+        forecast_type: hourly
+        show_current: true
+        view_layout:
+          grid-column: 1 / -1
+
       # Karta: Stan baterii
       - type: entities
         title: Bateria Luna 2000
@@ -73,6 +82,68 @@ views:
             name: Tryb pracy
           - entity: switch.akumulatory_ladowanie_z_sieci
             name: Ładowanie z sieci
+          - entity: input_number.battery_target_soc
+            name: Docelowy SOC (obliczony o 04:00)
+
+      # Karta: Ceny energii i RCE
+      - type: entities
+        title: Ceny energii
+        icon: mdi:cash-multiple
+        entities:
+          - entity: sensor.strefa_taryfowa
+            name: Strefa taryfowa G12w
+            icon: mdi:clock-time-four-outline
+          - entity: sensor.pstryk_current_buy_price
+            name: Cena RCE (bieżąca kupno)
+            icon: mdi:chart-line
+          - entity: sensor.cena_zakupu_energii
+            name: Cena zakupu (z sieci)
+            icon: mdi:cash-minus
+          - entity: sensor.cena_sprzedazy_energii
+            name: Cena sprzedaży (do sieci)
+            icon: mdi:cash-plus
+          - entity: sensor.rce_srednia_wieczorna
+            name: RCE średnia wieczorna (19-22h)
+            icon: mdi:chart-timeline
+
+      # Karta: Prognoza PV i bilans
+      - type: entities
+        title: Prognoza PV i bilans mocy
+        icon: mdi:solar-power-variant
+        entities:
+          - entity: sensor.prognoza_pv_dzisiaj
+            name: Prognoza PV dziś (pozostało)
+            icon: mdi:solar-power
+          - entity: sensor.prognoza_pv_jutro
+            name: Prognoza PV jutro
+            icon: mdi:solar-power
+          - entity: sensor.prognoza_pv_6h
+            name: Prognoza PV następne 6h
+            icon: mdi:solar-power-variant
+          - entity: sensor.nadwyzka_pv
+            name: Nadwyżka PV
+            icon: mdi:solar-power
+          - entity: sensor.deficyt_mocy
+            name: Deficyt mocy
+            icon: mdi:flash-alert
+
+      # Karta: Sezon grzewczy i temperatura
+      - type: entities
+        title: Sezon grzewczy i temperatura
+        icon: mdi:thermometer
+        entities:
+          - entity: sensor.temperatura_zewnetrzna
+            name: Temperatura zewnętrzna
+            icon: mdi:thermometer
+          - entity: binary_sensor.sezon_grzewczy
+            name: Sezon grzewczy aktywny
+            icon: mdi:radiator
+          - entity: binary_sensor.pc_co_aktywne
+            name: Pompa ciepła CO aktywna
+            icon: mdi:heat-pump
+          - entity: binary_sensor.okno_cwu
+            name: Okno CWU aktywne
+            icon: mdi:water-boiler
 
       # Wizualizacja mocy (wykres)
       - type: history-graph

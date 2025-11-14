@@ -1,0 +1,185 @@
+forcible_charge:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: huawei_solar
+    duration:
+      required: true
+      default: 60
+      selector:
+        number:
+          min: 1
+          max: 1440
+          unit_of_measurement: "minutes"
+          mode: box
+    power:
+      required: true
+      default: 1000
+      selector:
+        text:
+
+forcible_discharge:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: huawei_solar
+    duration:
+      required: true
+      default: 60
+      selector:
+        number:
+          min: 1
+          max: 1440
+          unit_of_measurement: "minutes"
+          mode: box
+    power:
+      required: true
+      default: 1000
+      selector:
+        text:
+
+forcible_charge_soc:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: huawei_solar
+    target_soc:
+      required: true
+      default: 50
+      selector:
+        number:
+          min: 12
+          max: 100
+          unit_of_measurement: "%"
+    power:
+      required: true
+      default: 1000
+      selector:
+        text:
+
+forcible_discharge_soc:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: huawei_solar
+    target_soc:
+      required: true
+      default: 15
+      selector:
+        number:
+          min: 12
+          max: 100
+          unit_of_measurement: "%"
+    power:
+      required: true
+      default: 1000
+      selector:
+        text:
+
+stop_forcible_charge:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: huawei_solar
+
+reset_maximum_feed_grid_power:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: huawei_solar
+
+set_di_active_power_scheduling:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: huawei_solar
+
+set_zero_power_grid_connection:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: huawei_solar
+
+set_maximum_feed_grid_power:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: huawei_solar
+    power:
+      required: true
+      default: 0
+      selector:
+        text:
+
+set_maximum_feed_grid_power_percent:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: huawei_solar
+    power_percentage:
+      required: true
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+
+set_tou_periods:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: huawei_solar
+    periods:
+      required: true
+      selector:
+        text:
+          multiline: true
+
+set_capacity_control_periods:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: huawei_solar
+    periods:
+      required: true
+      selector:
+        text:
+          multiline: true
+
+set_fixed_charge_periods:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: huawei_solar
+    periods:
+      required: true
+      selector:
+        text:
+          multiline: true

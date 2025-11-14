@@ -1,0 +1,10 @@
+# Input numbers dla algorytmu zarządzania baterią
+
+battery_target_soc:
+  name: "Docelowy SOC baterii"
+  min: 20
+  max: 95
+  step: 5
+  initial: 70
+  unit_of_measurement: "%"
+  icon: mdi:battery-charging-80

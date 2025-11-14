@@ -1,0 +1,655 @@
+"""
+Algorytm zarządzania baterią Huawei Luna 15kWh
+Implementacja zgodna z ALGORITHM.md
+
+Autor: Claude Code
+Data: 2025-11-11
+"""
+
+import logging
+from datetime import datetime, timedelta
+
+logger = logging.getLogger("battery_algorithm")
+
+# ============================================
+# KONFIGURACJA - PROGI
+# ============================================
+
+# Progi cenowe RCE (zł/kWh)
+RCE_NEGATIVE = 0.00
+RCE_VERY_LOW = 0.20
+RCE_LOW = 0.35
+RCE_MEDIUM = 0.45
+RCE_HIGH = 0.55
+RCE_VERY_HIGH = 0.65
+RCE_EXTREME = 0.75
+
+# Progi prognozy PV (kWh)
+FORECAST_EXCELLENT = 30
+FORECAST_VERY_GOOD = 25
+FORECAST_GOOD = 20
+FORECAST_MEDIUM = 15
+FORECAST_POOR = 12
+FORECAST_BAD = 8
+FORECAST_VERY_BAD = 5
+
+# Progi baterii (%)
+BATTERY_CRITICAL = 10
+BATTERY_LOW = 20
+BATTERY_RESERVE_SUMMER = 30
+BATTERY_RESERVE_WINTER = 45
+BATTERY_GOOD = 70
+BATTERY_HIGH = 85
+BATTERY_MAX = 95
+
+# Temperatura i PC
+TEMP_HEATING_THRESHOLD = 12  # °C
+TEMP_FROST = -10
+TEMP_WINTER = 0
+TEMP_COLD = 5
+
+
+# ============================================
+# FUNKCJA GŁÓWNA - EXECUTE_STRATEGY
+# ============================================
+
+def execute_strategy():
+    """
+    Główna funkcja wykonywana co godzinę
+    """
+    data = collect_input_data()
+
+    if not validate_data(data):
+        logger.error("Dane niekompletne - fallback mode")
+        strategy = get_fallback_strategy(data)
+        apply_battery_mode(strategy)
+        return
+
+    balance = calculate_power_balance(data)
+    strategy = decide_strategy(data, balance)
+    result = apply_battery_mode(strategy)
+
+    log_decision(data, balance, strategy, result)
+    return result
+
+
+# ============================================
+# ZBIERANIE DANYCH
+# ============================================
+
+def collect_input_data():
+    """Zbiera wszystkie dane z sensorów"""
+    try:
+        now = datetime.now()
+
+        return {
+            'timestamp': now,
+            'hour': now.hour,
+            'weekday': now.weekday(),
+            'month': now.month,
+
+            # Taryfa
+            'tariff_zone': get_state('sensor.strefa_taryfowa'),
+
+            # Ceny RCE
+            'rce_now': float(get_state('sensor.tge_rce_current') or 0.45),
+            'rce_evening_avg': float(get_state('sensor.rce_srednia_wieczorna') or 0.55),
+
+            # Bateria
+            'soc': float(get_state('sensor.akumulatory_stan_pojemnosci') or 50),
+            'battery_power': float(get_state('sensor.akumulatory_moc_ladowania_rozladowania') or 0) / 1000,
+            'battery_temp': float(get_state('sensor.akumulator_1_temperatura') or 25),
+
+            # PV i zużycie
+            'pv_power': float(get_state('sensor.inwerter_moc_wejsciowa') or 0) / 1000,
+            'home_load': abs(float(get_state('sensor.pomiar_mocy_moc_czynna') or 0)) / 1000,
+            'grid_power': float(get_state('sensor.pomiar_mocy_moc_czynna') or 0) / 1000,
+
+            # Prognozy
+            'forecast_today': float(get_state('sensor.prognoza_pv_dzisiaj') or 0),
+            'forecast_tomorrow': float(get_state('sensor.prognoza_pv_jutro') or 0),
+            'forecast_6h': float(get_state('sensor.prognoza_pv_6h') or 0),
+
+            # Temperatura i PC
+            'temp_outdoor': float(get_state('sensor.temperatura_zewnetrzna') or 10),
+            'heating_mode': 'heating_season' if get_state('binary_sensor.sezon_grzewczy') == 'on' else 'no_heating',
+            'pc_co_active': get_state('binary_sensor.pc_co_aktywne') == 'on',
+            'cwu_window': get_state('binary_sensor.okno_cwu') == 'on',
+
+            # Target SOC
+            'target_soc': int(float(get_state('input_number.battery_target_soc') or 70)),
+        }
+    except Exception as e:
+        logger.error(f"Błąd zbierania danych: {e}")
+        return {}
+
+
+def validate_data(data):
+    """Sprawdza czy dane są kompletne"""
+    if not data:
+        return False
+
+    critical = ['soc', 'tariff_zone', 'pv_power', 'home_load', 'temp_outdoor']
+
+    for field in critical:
+        if field not in data or data[field] is None:
+            logger.warning(f"Brak danych: {field}")
+            return False
+
+    if not (0 <= data['soc'] <= 100):
+        logger.warning(f"SOC poza zakresem: {data['soc']}")
+        return False
+
+    return True
+
+
+def calculate_power_balance(data):
+    """Oblicza bilansy mocy"""
+    pv = data['pv_power']
+    load = data['home_load']
+
+    if pv > load:
+        surplus = pv - load
+        deficit = 0
+    else:
+        surplus = 0
+        deficit = load - pv
+
+    return {
+        'surplus': surplus,
+        'deficit': deficit,
+        'pv': pv,
+        'load': load
+    }
+
+
+# ============================================
+# GŁÓWNA LOGIKA DECYZYJNA
+# ============================================
+
+def decide_strategy(data, balance):
+    """Główna funkcja decyzyjna"""
+    soc = data['soc']
+
+    # BEZPIECZEŃSTWO
+    if soc <= 10:
+        return {
+            'mode': 'charge_from_grid',
+            'target_soc': 20,
+            'priority': 'critical',
+            'reason': 'SOC krytycznie niskie - bezpieczeństwo baterii'
+        }
+
+    if soc >= 95:
+        if balance['surplus'] > 0:
+            return {
+                'mode': 'discharge_to_grid',
+                'priority': 'high',
+                'reason': 'SOC max, nadwyżka PV - sprzedaj'
+            }
+        else:
+            return {
+                'mode': 'idle',
+                'priority': 'low',
+                'reason': 'SOC max - stop ładowania'
+            }
+
+    # AUTOCONSUMPTION
+    if balance['surplus'] > 0:
+        return handle_pv_surplus(data, balance)
+    elif balance['deficit'] > 0:
+        return handle_power_deficit(data, balance)
+    else:
+        return {
+            'mode': 'idle',
+            'priority': 'low',
+            'reason': 'PV = Load, idealny balans'
+        }
+
+
+def handle_pv_surplus(data, balance):
+    """Nadwyżka PV - co zrobić?"""
+    soc = data['soc']
+    rce_now = data['rce_now']
+    forecast_tomorrow = data['forecast_tomorrow']
+    forecast_6h = data['forecast_6h']
+    hour = data['hour']
+    month = data['month']
+
+    # RCE bardzo niskie
+    if rce_now < RCE_VERY_LOW and soc < 95:
+        return {
+            'mode': 'charge_from_pv',
+            'priority': 'critical',
+            'reason': f'RCE bardzo niskie ({rce_now:.3f}), nie oddawaj za bezcen!'
+        }
+
+    # Jutro pochmurno
+    if forecast_tomorrow < FORECAST_POOR and soc < 85:
+        return {
+            'mode': 'charge_from_pv',
+            'priority': 'very_high',
+            'reason': f'Jutro pochmurno ({forecast_tomorrow:.1f} kWh), magazynuj!'
+        }
+
+    # Wkrótce drogi wieczór
+    if hour in [13, 14, 15, 16]:
+        rce_evening = data['rce_evening_avg']
+        if rce_evening > RCE_HIGH and soc < 70:
+            return {
+                'mode': 'charge_from_pv',
+                'priority': 'high',
+                'reason': f'Za chwilę drogi wieczór (RCE {rce_evening:.3f}), magazynuj!'
+            }
+
+    # Zima - magazynuj każdą kWh
+    if month in [11, 12, 1, 2] and soc < 80:
+        return {
+            'mode': 'charge_from_pv',
+            'priority': 'high',
+            'reason': 'Zima - każda kWh cenna!'
+        }
+
+    # Słaba prognoza 6h
+    if forecast_6h < 5 and soc < 60:
+        return {
+            'mode': 'charge_from_pv',
+            'priority': 'medium',
+            'reason': f'Słaba prognoza 6h ({forecast_6h:.1f} kWh), magazynuj'
+        }
+
+    # DEFAULT: Sprzedaj
+    return {
+        'mode': 'discharge_to_grid',
+        'priority': 'normal',
+        'reason': f'Warunki OK, sprzedaj po RCE {rce_now:.3f} (× 1.23 = {rce_now * 1.23:.3f})'
+    }
+
+
+def handle_power_deficit(data, balance):
+    """Deficyt mocy - skąd pokryć?"""
+    soc = data['soc']
+    tariff = data['tariff_zone']
+    hour = data['hour']
+    temp = data['temp_outdoor']
+    heating_mode = data['heating_mode']
+    target_soc = data['target_soc']
+
+    # Czy ładować z sieci?
+    charge_decision = should_charge_from_grid(data)
+    if charge_decision['should_charge']:
+        return {
+            'mode': 'charge_from_grid',
+            'target_soc': charge_decision['target_soc'],
+            'priority': charge_decision['priority'],
+            'reason': charge_decision['reason']
+        }
+
+    # Arbitraż wieczorny?
+    if hour in [19, 20, 21]:
+        arbitrage = check_arbitrage_opportunity(data)
+        if arbitrage['should_sell']:
+            return {
+                'mode': 'discharge_to_grid',
+                'target_soc': arbitrage['min_soc'],
+                'priority': 'high',
+                'reason': arbitrage['reason']
+            }
+
+    # Sezon grzewczy
+    if heating_mode == 'heating_season':
+        if tariff == 'L1':
+            if soc > 25:
+                return {
+                    'mode': 'discharge_to_home',
+                    'priority': 'critical',
+                    'reason': f'PC pracuje w L1 (temp {temp:.1f}°C) - oszczędzaj L1!'
+                }
+            else:
+                return {
+                    'mode': 'charge_from_grid',
+                    'priority': 'high',
+                    'reason': 'SOC niskie w L1 z PC - doładuj!'
+                }
+        else:  # L2
+            if data['cwu_window']:
+                if soc > 70:
+                    return {
+                        'mode': 'grid_to_home',
+                        'priority': 'medium',
+                        'reason': 'PC CWU w L2 (tanie), oszczędzaj baterię na L1'
+                    }
+                else:
+                    return {
+                        'mode': 'charge_from_grid',
+                        'target_soc': target_soc,
+                        'priority': 'high',
+                        'reason': 'PC w L2 + doładuj baterię na L1'
+                    }
+
+    # Poza sezonem
+    else:
+        if tariff == 'L1' and soc > 20:
+            return {
+                'mode': 'discharge_to_home',
+                'priority': 'high',
+                'reason': 'Oszczędzaj L1 (bez CO)'
+            }
+        elif data['cwu_window']:
+            return {
+                'mode': 'grid_to_home',
+                'priority': 'low',
+                'reason': 'CWU w L2 (tanie), oszczędzaj baterię'
+            }
+
+    # DEFAULT
+    if soc > 15:
+        return {
+            'mode': 'discharge_to_home',
+            'priority': 'normal',
+            'reason': 'Standardowe użycie baterii'
+        }
+    else:
+        return {
+            'mode': 'grid_to_home',
+            'priority': 'critical',
+            'reason': 'SOC za niskie - pobór z sieci'
+        }
+
+
+def should_charge_from_grid(data):
+    """Czy ładować z sieci?"""
+    soc = data['soc']
+    tariff = data['tariff_zone']
+    hour = data['hour']
+    rce_now = data['rce_now']
+    forecast_tomorrow = data['forecast_tomorrow']
+    heating_mode = data['heating_mode']
+    target_soc = data['target_soc']
+
+    # RCE ujemne
+    if rce_now < 0 and soc < 95:
+        return {
+            'should_charge': True,
+            'target_soc': 95,
+            'priority': 'critical',
+            'reason': f'RCE ujemne ({rce_now:.3f})! Płacą Ci za pobór!'
+        }
+
+    # RCE bardzo niskie w południe
+    if rce_now < 0.15 and hour in [11, 12, 13, 14]:
+        if forecast_tomorrow < 10 and soc < 70:
+            return {
+                'should_charge': True,
+                'target_soc': 75,
+                'priority': 'high',
+                'reason': f'RCE bardzo niskie ({rce_now:.3f}) + pochmurno jutro'
+            }
+
+    # NOC L2 - główne ładowanie
+    if tariff == 'L2' and hour in [22, 23, 0, 1, 2, 3, 4, 5]:
+        if soc < target_soc:
+            if forecast_tomorrow < 15:
+                priority = 'critical'
+                reason = f'Noc L2 + pochmurno jutro ({forecast_tomorrow:.1f} kWh) - ładuj do {target_soc}%!'
+            elif forecast_tomorrow < 25:
+                priority = 'high'
+                reason = f'Noc L2 + średnio jutro - ładuj do {target_soc}%'
+            else:
+                priority = 'medium'
+                reason = f'Noc L2 + słonecznie jutro - ładuj do {target_soc}%'
+
+            if heating_mode == 'heating_season':
+                if priority == 'medium':
+                    priority = 'high'
+                elif priority == 'high':
+                    priority = 'critical'
+
+            return {
+                'should_charge': True,
+                'target_soc': target_soc,
+                'priority': priority,
+                'reason': reason
+            }
+
+    # Rano przed końcem L2
+    if tariff == 'L2' and hour in [4, 5]:
+        if forecast_tomorrow < 12 and soc < 85:
+            return {
+                'should_charge': True,
+                'target_soc': 90,
+                'priority': 'critical',
+                'reason': f'Ostatnia szansa w L2! Pochmurno jutro ({forecast_tomorrow:.1f} kWh)'
+            }
+
+    # SOC krytyczne
+    if soc < 15:
+        return {
+            'should_charge': True,
+            'target_soc': 30,
+            'priority': 'critical',
+            'reason': 'SOC krytyczne - bezpieczeństwo'
+        }
+
+    return {
+        'should_charge': False,
+        'target_soc': None,
+        'priority': None,
+        'reason': 'Brak warunków do ładowania z sieci'
+    }
+
+
+def check_arbitrage_opportunity(data):
+    """Czy sprzedawać do sieci (arbitraż)?"""
+    soc = data['soc']
+    rce_now = data['rce_now']
+    forecast_tomorrow = data['forecast_tomorrow']
+    temp = data['temp_outdoor']
+    heating_mode = data['heating_mode']
+    hour = data['hour']
+    month = data['month']
+
+    if hour not in [19, 20, 21]:
+        return {'should_sell': False, 'min_soc': None, 'reason': 'Nie wieczór'}
+
+    if rce_now < 0.50:
+        return {
+            'should_sell': False,
+            'min_soc': None,
+            'reason': f'RCE za niskie ({rce_now:.3f}) do arbitrażu'
+        }
+
+    # Sezon grzewczy
+    if heating_mode == 'heating_season':
+        if temp < -5:
+            min_soc_required = 50
+        elif temp < 5:
+            min_soc_required = 45
+        else:
+            min_soc_required = 40
+
+        if soc < min_soc_required + 20:
+            return {
+                'should_sell': False,
+                'min_soc': None,
+                'reason': f'SOC {soc}% za niskie (min {min_soc_required + 20}%) - PC potrzebuje!'
+            }
+
+        if forecast_tomorrow < 25:
+            return {
+                'should_sell': False,
+                'min_soc': None,
+                'reason': f'Jutro pochmurno ({forecast_tomorrow:.1f} kWh) + PC - nie sprzedawaj!'
+            }
+
+        if rce_now < 0.65:
+            return {
+                'should_sell': False,
+                'min_soc': None,
+                'reason': f'RCE {rce_now:.3f} za niskie przy PC (min 0.65)'
+            }
+
+        min_soc = min_soc_required
+
+    # Poza sezonem
+    else:
+        if soc < 55:
+            return {
+                'should_sell': False,
+                'min_soc': None,
+                'reason': f'SOC {soc}% za niskie do arbitrażu'
+            }
+
+        if forecast_tomorrow < 20:
+            return {
+                'should_sell': False,
+                'min_soc': None,
+                'reason': f'Jutro pochmurno ({forecast_tomorrow:.1f} kWh) - nie sprzedawaj'
+            }
+
+        if rce_now < 0.55:
+            return {
+                'should_sell': False,
+                'min_soc': None,
+                'reason': f'RCE {rce_now:.3f} za niskie (min 0.55)'
+            }
+
+        if month in [5, 6, 7, 8]:
+            min_soc = 30
+        else:
+            min_soc = 35
+
+    potential_kwh = (soc - min_soc) / 100 * 15
+    revenue = potential_kwh * rce_now * 1.23
+
+    return {
+        'should_sell': True,
+        'min_soc': min_soc,
+        'reason': f'ARBITRAŻ! RCE {rce_now:.3f} × 1.23 = {rce_now * 1.23:.3f} zł/kWh, '
+                  f'jutro {forecast_tomorrow:.1f} kWh PV. '
+                  f'Sprzedaj ~{potential_kwh:.1f} kWh = ~{revenue:.2f} zł'
+    }
+
+
+# ============================================
+# APLIKACJA TRYBU BATERII
+# ============================================
+
+def apply_battery_mode(strategy):
+    """Aplikuje strategię do baterii"""
+    mode = strategy['mode']
+
+    logger.info(f"Applying strategy: {mode} - {strategy['reason']}")
+
+    if mode == 'charge_from_pv':
+        set_huawei_mode('Maximise Self Consumption', charge_from_grid=False)
+
+    elif mode == 'charge_from_grid':
+        target_soc = strategy.get('target_soc', 80)
+        set_huawei_mode('Time Of Use', charge_from_grid=True, charge_soc_limit=target_soc)
+
+    elif mode == 'discharge_to_home':
+        set_huawei_mode('Maximise Self Consumption', charge_from_grid=False)
+
+    elif mode == 'discharge_to_grid':
+        min_soc = strategy.get('target_soc', 30)
+        set_huawei_mode('Fully Fed To Grid', discharge_soc_limit=min_soc)
+
+    elif mode == 'grid_to_home':
+        set_huawei_mode('Maximise Self Consumption', charge_from_grid=False)
+
+    elif mode == 'idle':
+        set_huawei_mode('Maximise Self Consumption', charge_from_grid=False)
+
+    return True
+
+
+def set_huawei_mode(working_mode, **kwargs):
+    """Ustawia tryb pracy baterii Huawei"""
+    try:
+        # Ustaw tryb pracy
+        hass.services.call('select', 'select_option', {
+            'entity_id': 'select.akumulatory_tryb_pracy',
+            'option': working_mode
+        })
+
+        # Ustaw ładowanie z sieci
+        if 'charge_from_grid' in kwargs:
+            service = 'turn_on' if kwargs['charge_from_grid'] else 'turn_off'
+            hass.services.call('switch', service, {
+                'entity_id': 'switch.akumulatory_ladowanie_z_sieci'
+            })
+
+        # Ustaw limit SOC ładowania
+        if 'charge_soc_limit' in kwargs:
+            hass.services.call('number', 'set_value', {
+                'entity_id': 'number.akumulatory_limit_ladowania_soc',
+                'value': kwargs['charge_soc_limit']
+            })
+
+        # Ustaw limit SOC rozładowania
+        if 'discharge_soc_limit' in kwargs:
+            hass.services.call('number', 'set_value', {
+                'entity_id': 'number.akumulatory_limit_rozladowania_soc',
+                'value': kwargs['discharge_soc_limit']
+            })
+
+        logger.info(f"Huawei mode set: {working_mode}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Błąd ustawiania trybu Huawei: {e}")
+        return False
+
+
+# ============================================
+# FUNKCJE POMOCNICZE
+# ============================================
+
+def get_state(entity_id):
+    """Pobiera stan encji"""
+    try:
+        state = hass.states.get(entity_id)
+        if state is None:
+            logger.warning(f"Encja nie znaleziona: {entity_id}")
+            return None
+        return state.state
+    except Exception as e:
+        logger.error(f"Błąd pobierania stanu {entity_id}: {e}")
+        return None
+
+
+def get_fallback_strategy(data):
+    """Strategia awaryjna"""
+    soc = data.get('soc', 50)
+
+    if soc < 30:
+        return {
+            'mode': 'charge_from_grid',
+            'target_soc': 50,
+            'priority': 'high',
+            'reason': 'FALLBACK: Brak danych, ładuj'
+        }
+    else:
+        return {
+            'mode': 'idle',
+            'priority': 'low',
+            'reason': 'FALLBACK: Brak danych, idle'
+        }
+
+
+def log_decision(data, balance, strategy, result):
+    """Loguje decyzję"""
+    logger.info(
+        f"DECISION: {data['hour']}:00 | SOC={data['soc']}% | "
+        f"Tariff={data['tariff_zone']} | RCE={data['rce_now']:.3f} | "
+        f"PV={balance['pv']:.1f}kW | Load={balance['load']:.1f}kW | "
+        f"Mode={strategy['mode']} | {strategy['reason']}"
+    )
+
+
+# ============================================
+# URUCHOMIENIE
+# ============================================
+
+execute_strategy()

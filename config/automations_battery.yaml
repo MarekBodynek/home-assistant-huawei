@@ -1,0 +1,216 @@
+# ============================================
+# AUTOMATYZACJE ALGORYTMU ZARZĄDZANIA BATERIĄ
+# Zgodne z harmonogramem z ALGORITHM.md
+# ============================================
+
+# ============================================
+# 04:00 - Oblicz strategię dzienną
+# ============================================
+
+- id: battery_calculate_daily_strategy
+  alias: "[Bateria] Oblicz strategię dzienną 04:00"
+  description: "Oblicza cel ładowania (Target SOC) na podstawie prognozy PV i temperatury"
+  trigger:
+    - platform: time
+      at: "04:00:00"
+  action:
+    - service: python_script.calculate_daily_strategy
+  mode: single
+
+# ============================================
+# CO 1 GODZINĘ - Wykonaj strategię (główna pętla)
+# ============================================
+
+- id: battery_execute_strategy_hourly
+  alias: "[Bateria] Wykonaj strategię (co 1h)"
+  description: "Główna pętla algorytmu - wykonywana co godzinę"
+  trigger:
+    - platform: time_pattern
+      hours: "*"
+      minutes: "00"
+  action:
+    - service: python_script.battery_algorithm
+  mode: single
+
+# ============================================
+# KLUCZOWE MOMENTY - Dodatkowe wykonanie strategii
+# ============================================
+
+- id: battery_execute_strategy_key_moments
+  alias: "[Bateria] Wykonaj strategię (kluczowe momenty)"
+  description: "Dodatkowe wykonanie przy zmianach stref taryfowych"
+  trigger:
+    # Początek okna CWU rano
+    - platform: time
+      at: "04:30:00"
+    # Zmiana L2 → L1 rano
+    - platform: time
+      at: "06:00:00"
+    # Zmiana L1 → L2 południe
+    - platform: time
+      at: "13:00:00"
+    # Zmiana L2 → L1 południe
+    - platform: time
+      at: "15:00:00"
+    # SZCZYT wieczorny + arbitraż
+    - platform: time
+      at: "19:00:00"
+    # Zmiana L1 → L2 wieczór + ładowanie
+    - platform: time
+      at: "22:00:00"
+  action:
+    - service: python_script.battery_algorithm
+  mode: single
+
+# ============================================
+# MONITOROWANIE KRYTYCZNE (co 1 minutę)
+# ============================================
+
+- id: battery_monitor_critical_soc
+  alias: "[Bateria] Monitor SOC krytyczne"
+  description: "Monitoruje SOC i reaguje na krytyczne wartości"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.akumulatory_stan_pojemnosci
+      below: 10
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "🚨 BATERIA KRYTYCZNIE NISKA!"
+        message: "SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}% - wymuszam ładowanie!"
+    - service: python_script.battery_algorithm
+  mode: single
+
+- id: battery_monitor_critical_soc_l1
+  alias: "[Bateria] Monitor SOC niskie w L1"
+  description: "Ostrzeżenie gdy SOC niskie w drogie strefie L1"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.akumulatory_stan_pojemnosci
+      below: 20
+  condition:
+    - condition: state
+      entity_id: sensor.strefa_taryfowa
+      state: "L1"
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "⚠️ Bateria niska w L1"
+        message: "SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}% w drogie strefie L1!"
+  mode: single
+
+- id: battery_monitor_soc_max
+  alias: "[Bateria] Monitor SOC maksymalne"
+  description: "Zatrzymuje ładowanie gdy SOC osiągnie 95%"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.akumulatory_stan_pojemnosci
+      above: 95
+  action:
+    - service: switch.turn_off
+      target:
+        entity_id: switch.akumulatory_ladowanie_z_sieci
+    - service: persistent_notification.create
+      data:
+        title: "✅ Bateria naładowana"
+        message: "SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}% - zatrzymano ładowanie"
+  mode: single
+
+# ============================================
+# POBIERANIE PROGNOZ
+# ============================================
+
+- id: battery_update_forecast_morning
+  alias: "[Bateria] Aktualizuj prognozę PV (04:00)"
+  description: "Pobiera prognozę PV rano przed obliczeniem strategii"
+  trigger:
+    - platform: time
+      at: "03:55:00"
+  action:
+    - service: homeassistant.update_entity
+      target:
+        entity_id:
+          - sensor.energy_production_today
+          - sensor.energy_production_tomorrow
+  mode: single
+
+- id: battery_update_forecast_noon
+  alias: "[Bateria] Aktualizuj prognozę PV (12:00)"
+  description: "Pobiera prognozę PV w południe"
+  trigger:
+    - platform: time
+      at: "12:00:00"
+  action:
+    - service: homeassistant.update_entity
+      target:
+        entity_id:
+          - sensor.energy_production_today
+          - sensor.energy_production_tomorrow
+  mode: single
+
+- id: battery_update_forecast_evening
+  alias: "[Bateria] Aktualizuj prognozę PV (20:00)"
+  description: "Pobiera prognozę PV wieczorem"
+  trigger:
+    - platform: time
+      at: "20:00:00"
+  action:
+    - service: homeassistant.update_entity
+      target:
+        entity_id:
+          - sensor.energy_production_today
+          - sensor.energy_production_tomorrow
+  mode: single
+
+# ============================================
+# POBIERANIE CEN RCE
+# ============================================
+
+- id: battery_fetch_rce_prices
+  alias: "[Bateria] Pobierz ceny RCE (18:00)"
+  description: "Pobiera ceny RCE z Pstryk o 18:00 z losowym opóźnieniem"
+  trigger:
+    - platform: time
+      at: "18:00:00"
+  action:
+    # Losowe opóźnienie 0-15 min
+    - delay:
+        seconds: "{{ range(0, 900) | random }}"
+    - service: homeassistant.update_entity
+      target:
+        entity_id:
+          - sensor.pstryk_current_buy_price
+          - sensor.pstryk_current_sell_price
+  mode: single
+
+# ============================================
+# POWIADOMIENIA DZIENNE
+# ============================================
+
+- id: battery_daily_summary
+  alias: "[Bateria] Podsumowanie dzienne (23:00)"
+  description: "Wysyła podsumowanie dnia o 23:00"
+  trigger:
+    - platform: time
+      at: "23:00:00"
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "📊 Podsumowanie dnia - Bateria"
+        message: |
+          **Bateria:**
+          - Obecny SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%
+          - Target SOC jutro: {{ states('input_number.battery_target_soc') }}%
+
+          **Produkcja PV:**
+          - Dziś: {{ states('sensor.inwerter_dzienna_produkcja') }} kWh
+          - Prognoza jutro: {{ states('sensor.prognoza_pv_jutro') }} kWh
+
+          **Ceny:**
+          - Cena kupna: {{ states('sensor.pstryk_current_buy_price') }} zł/kWh
+          - Cena sprzedaży: {{ states('sensor.pstryk_current_sell_price') }} zł/kWh
+
+          **Pogoda jutro:**
+          - Temp: {{ state_attr('weather.forecast_dom', 'temperature') }}°C
+          - Sezon grzewczy: {{ states('binary_sensor.sezon_grzewczy') }}
+  mode: single

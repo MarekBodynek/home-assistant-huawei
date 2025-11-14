@@ -1,0 +1,1085 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
+            "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]",
+            "reconfigure_successful": "[%key:common::config_flow::abort::reconfigure_successful%]"
+        },
+        "error": {
+            "cannot_connect": "Verbinden mislukt",
+            "invalid_auth": "Ongeldige authenticatie",
+            "invalid_slave_ids": "Slave IDs moeten een kommagescheiden lijst van gehele getallen zijn",
+            "read_error": "Lezen van de omvormer is mislukt.",
+            "slave_cannot_connect": "Verbinden met extra slave mislukt",
+            "unknown": "Onverwachte fout"
+        },
+        "step": {
+            "network_login": {
+                "data": {
+                    "password": "Wachtwoord",
+                    "username": "Gebruikersnaam"
+                },
+                "description": "Vul de 'Installer' inlogggegevens in"
+            },
+            "setup_network": {
+                "data": {
+                    "enable_parameter_configuration": "Geavanceerd: Verhoog rechten",
+                    "host": "Host",
+                    "port": "Poort",
+                    "slave_ids": "Slave-IDs: AUTO voor automatische ontdekking, anders een door komma's gescheiden lijst"
+                }
+            },
+            "setup_serial": {
+                "data": {
+                    "port": "Selecteer toestel",
+                    "slave_ids": "Slave IDs (kommagescheiden)"
+                },
+                "title": "Toestel"
+            },
+            "setup_serial_manual_path": {
+                "data": {
+                    "port": "Pad van het USB Toestel"
+                },
+                "title": "Pad"
+            },
+            "user": {
+                "data": {
+                    "type": "Verbindingstype"
+                },
+                "title": "Selecteer verbindingstype"
+            }
+        }
+    },
+    "entity": {
+        "number": {
+            "mppt_scanning_interval": {
+                "name": "MPPT scan interval"
+            },
+            "active_power_percentage_derating": {
+                "name": "Vermogensbeperking (percentage)"
+            },
+            "active_power_fixed_value_derating": {
+                "name": "Vermogensbeperking"
+            },
+            "storage_maximum_charging_power": {
+                "name": "Maximum laadvermogen"
+            },
+            "storage_maximum_discharging_power": {
+                "name": "Maximum ontlaadvermogen"
+            },
+            "storage_charging_cutoff_capacity": {
+                "name": "Maximum batterijpercentage"
+            },
+            "storage_discharging_cutoff_capacity": {
+                "name": "Minimum batterijpercentage"
+            },
+            "storage_backup_power_state_of_charge": {
+                "name": "Noodvermogen batterijpercentage"
+            },
+            "storage_grid_charge_cutoff_state_of_charge": {
+                "name": "Maximum batterijpercentage van stroomnet"
+            },
+            "storage_power_of_charge_from_grid": {
+                "name": "Maximum laadvermogen van stroomnet"
+            },
+            "storage_capacity_control_soc_peak_shaving": {
+                "name": "Piekvermogen gereserveerd batterijpercentage"
+            },
+            "emma_maximum_feed_grid_power_percent": {
+                "name": "Maximum feed grid power (%)"
+            },
+            "emma_maximum_feed_grid_power_watt": {
+                "name": "Maximum feed grid power"
+            }
+        },
+        "sensor": {
+            "rated_power": {
+                "name": "Nominaal vermogen"
+            },
+            "p_max": {
+                "name": "Maximaal actief vermogen"
+            },
+            "input_power": {
+                "name": "Ingangsvermogen"
+            },
+            "line_voltage_a_b": {
+                "name": "A-B lijnspanning"
+            },
+            "line_voltage_b_c": {
+                "name": "B-C lijnspanning"
+            },
+            "line_voltage_c_a": {
+                "name": "C-A lijnspanning"
+            },
+            "phase_a_voltage": {
+                "name": "Fase A spanning"
+            },
+            "phase_b_voltage": {
+                "name": "Fase B spanning"
+            },
+            "phase_c_voltage": {
+                "name": "Fase C spanning"
+            },
+            "phase_a_current": {
+                "name": "Fase A stroom"
+            },
+            "phase_b_current": {
+                "name": "Fase B stroom"
+            },
+            "phase_c_current": {
+                "name": "Fase C stroom"
+            },
+            "active_grid_a_current": {
+                "name": "Fase A stroom"
+            },
+            "active_grid_b_current": {
+                "name": "Fase B stroom"
+            },
+            "active_grid_c_current": {
+                "name": "Fase C stroom"
+            },
+            "day_active_power_peak": {
+                "name": "Dagelijkse piek vermogen"
+            },
+            "active_power": {
+                "name": "Werkelijk vermogen"
+            },
+            "reactive_power": {
+                "name": "Schijnbaar vermogen"
+            },
+            "power_factor": {
+                "name": "Arbeidsfactor"
+            },
+            "efficiency": {
+                "name": "Efficientie"
+            },
+            "internal_temperature": {
+                "name": "Interne temperatuur"
+            },
+            "insulation_resistance": {
+                "name": "Isolatieweerstand"
+            },
+            "device_status": {
+                "name": "Toestel status"
+            },
+            "startup_time": {
+                "name": "Opstarttijd"
+            },
+            "shutdown_time": {
+                "name": "Afsluittijd"
+            },
+            "accumulated_yield_energy": {
+                "name": "Totale opbrengst"
+            },
+            "daily_yield_energy": {
+                "name": "Dagelijkse opbrengst"
+            },
+            "monthly_yield_energy": {
+                "name": "Monthly yield"
+            },
+            "yearly_yield_energy": {
+                "name": "Yearly yield"
+            },
+            "hourly_yield_energy": {
+                "name": "Uur opbrengst"
+            },
+            "state_1": {
+                "name": "Inverterstatus"
+            },
+            "state_2_0": {
+                "name": "Vergrendelstatus"
+            },
+            "state_2_1": {
+                "name": "PV connectiestatus"
+            },
+            "state_2_2": {
+                "name": "DSP gegevensverzameling"
+            },
+            "state_3_0": {
+                "name": "Off-grid status"
+            },
+            "state_3_1": {
+                "name": "Off-grid schakelaar"
+            },
+            "nb_online_optimizers": {
+                "name": "Optimizers online"
+            },
+            "output_power": {
+                "name": "Uitgangsvermogen"
+            },
+            "voltage_to_ground": {
+                "name": "Spanning naar aarde"
+            },
+            "output_voltage": {
+                "name": "Uitgangsspanning"
+            },
+            "output_current": {
+                "name": "Uitgangsstroom"
+            },
+            "input_voltage": {
+                "name": "Ingangsspanning"
+            },
+            "input_current": {
+                "name": "Ingangsstroom"
+            },
+            "temperature": {
+                "name": "Temperatuur"
+            },
+            "total_dc_input_power": {
+                "name": "Totale DC ingangsenergie"
+            },
+            "running_status": {
+                "name": "Operationele status"
+            },
+            "alarm": {
+                "name": "Alarm"
+            },
+            "meter_status": {
+                "name": "Meter status"
+            },
+            "single_phase_meter_voltage": {
+                "name": "Spanning"
+            },
+            "single_phase_meter_current": {
+                "name": "Stroom"
+            },
+            "power_meter_active_power": {
+                "name": "Vermogen"
+            },
+            "power_meter_reactive_power": {
+                "name": "Schijnbaar vermogen"
+            },
+            "active_grid_power_factor": {
+                "name": "Arbeidsfactor"
+            },
+            "active_grid_frequency": {
+                "name": "Frequentie"
+            },
+            "grid_exported_energy": {
+                "name": "Geëxporteerd"
+            },
+            "grid_accumulated_energy": {
+                "name": "Verbruik"
+            },
+            "grid_accumulated_reactive_power": {
+                "name": "Blind vermogen"
+            },
+            "grid_a_voltage": {
+                "name": "Fase A spanning"
+            },
+            "grid_b_voltage": {
+                "name": "Fase B spanning"
+            },
+            "grid_c_voltage": {
+                "name": "Fase C spanning"
+            },
+            "grid_a_current": {
+                "name": "Fase A stroom"
+            },
+            "grid_b_current": {
+                "name": "Fase B stroom"
+            },
+            "grid_c_current": {
+                "name": "Fase C stroom"
+            },
+            "active_grid_a_b_voltage": {
+                "name": "A-B lijnspanning"
+            },
+            "active_grid_b_c_voltage": {
+                "name": "B-C lijnspanning"
+            },
+            "active_grid_c_a_voltage": {
+                "name": "C-A lijnspanning"
+            },
+            "active_grid_a_power": {
+                "name": "Fase A werkelijk vermogen"
+            },
+            "active_grid_b_power": {
+                "name": "Fase B werkelijk vermogen"
+            },
+            "active_grid_c_power": {
+                "name": "Fase C werkelijk vermogen"
+            },
+            "storage_maximum_charge_power": {
+                "name": "Maximaal laadvermogen"
+            },
+            "storage_maximum_discharge_power": {
+                "name": "Maximaal ontladingsvermogen"
+            },
+            "storage_rated_capacity": {
+                "name": "Beoordeelde capaciteit"
+            },
+            "storage_state_of_capacity": {
+                "name": "Batterijpercentage"
+            },
+            "storage_running_status": {
+                "name": "Status"
+            },
+            "storage_bus_voltage": {
+                "name": "Busspanning"
+            },
+            "storage_bus_current": {
+                "name": "Busstroom"
+            },
+            "storage_charge_discharge_power": {
+                "name": "Laad/Ontlaad vermogen"
+            },
+            "storage_total_charge": {
+                "name": "Totale lading"
+            },
+            "storage_total_discharge": {
+                "name": "Totale ontlading"
+            },
+            "storage_current_day_charge_capacity": {
+                "name": "Dag Lading"
+            },
+            "storage_current_day_discharge_capacity": {
+                "name": "Dag Ontlading"
+            },
+            "alarms": {
+                "name": "Alarmen"
+            },
+            "current_electricity_generation_statistics_time": {
+                "name": "Huidige energieopwekkingstatistiekentijd"
+            },
+            "storage_capacity_control_periods": {
+                "name": "Dagelijkse piek vermogen"
+            },
+            "pv_01_voltage": {
+                "name": "PV 1 spanning"
+            },
+            "pv_01_current": {
+                "name": "PV 1 stroom"
+            },
+            "pv_02_voltage": {
+                "name": "PV 2 spanning"
+            },
+            "pv_02_current": {
+                "name": "PV 2 stroom"
+            },
+            "pv_03_voltage": {
+                "name": "PV 3 spanning"
+            },
+            "pv_03_current": {
+                "name": "PV 3 stroom"
+            },
+            "pv_04_voltage": {
+                "name": "PV 4 spanning"
+            },
+            "pv_04_current": {
+                "name": "PV 4 stroom"
+            },
+            "pv_05_voltage": {
+                "name": "PV 5 spanning"
+            },
+            "pv_05_current": {
+                "name": "PV 5 stroom"
+            },
+            "pv_06_voltage": {
+                "name": "PV 6 spanning"
+            },
+            "pv_06_current": {
+                "name": "PV 6 stroom"
+            },
+            "pv_07_voltage": {
+                "name": "PV 7 spanning"
+            },
+            "pv_07_current": {
+                "name": "PV 7 stroom"
+            },
+            "pv_08_voltage": {
+                "name": "PV 8 spanning"
+            },
+            "pv_08_current": {
+                "name": "PV 8 stroom"
+            },
+            "pv_09_voltage": {
+                "name": "PV 9 spanning"
+            },
+            "pv_09_current": {
+                "name": "PV 9 stroom"
+            },
+            "pv_10_voltage": {
+                "name": "PV 10 spanning"
+            },
+            "pv_10_current": {
+                "name": "PV 10 stroom"
+            },
+            "pv_11_voltage": {
+                "name": "PV 11 spanning"
+            },
+            "pv_11_current": {
+                "name": "PV 11 stroom"
+            },
+            "pv_12_voltage": {
+                "name": "PV 12 spanning"
+            },
+            "pv_12_current": {
+                "name": "PV 12 stroom"
+            },
+            "pv_13_voltage": {
+                "name": "PV 13 spanning"
+            },
+            "pv_13_current": {
+                "name": "PV 13 stroom"
+            },
+            "pv_14_voltage": {
+                "name": "PV 14 spanning"
+            },
+            "pv_14_current": {
+                "name": "PV 14 stroom"
+            },
+            "pv_15_voltage": {
+                "name": "PV 15 spanning"
+            },
+            "pv_15_current": {
+                "name": "PV 15 stroom"
+            },
+            "pv_16_voltage": {
+                "name": "PV 16 spanning"
+            },
+            "pv_16_current": {
+                "name": "PV 16 stroom"
+            },
+            "pv_17_voltage": {
+                "name": "PV 17 spanning"
+            },
+            "pv_17_current": {
+                "name": "PV 17 stroom"
+            },
+            "pv_18_voltage": {
+                "name": "PV 18 spanning"
+            },
+            "pv_18_current": {
+                "name": "PV 18 stroom"
+            },
+            "pv_19_voltage": {
+                "name": "PV 19 spanning"
+            },
+            "pv_19_current": {
+                "name": "PV 19 stroom"
+            },
+            "pv_20_voltage": {
+                "name": "PV 20 spanning"
+            },
+            "pv_20_current": {
+                "name": "PV 20 stroom"
+            },
+            "pv_21_voltage": {
+                "name": "PV 21 spanning"
+            },
+            "pv_21_current": {
+                "name": "PV 21 stroom"
+            },
+            "pv_22_voltage": {
+                "name": "PV 22 spanning"
+            },
+            "pv_22_current": {
+                "name": "PV 22 stroom"
+            },
+            "pv_23_voltage": {
+                "name": "PV 23 spanning"
+            },
+            "pv_23_current": {
+                "name": "PV 23 stroom"
+            },
+            "pv_24_voltage": {
+                "name": "PV 24 spanning"
+            },
+            "pv_24_current": {
+                "name": "PV 24 stroom"
+            },
+            "battery_working_mode": {
+                "name": "Werkmodus"
+            },
+            "battery_remaining_charge_discharge_time": {
+                "name": "Resterende (ont)laadtijd"
+            },
+            "forcible_charge_summary": {
+                "name": "Geforceerd laden"
+            },
+            "active_power_control": {
+                "name": "Active power control"
+            },
+            "soh_calibration_status": {
+                "name": "SOH calibration status"
+            },
+            "pack_1_max_temperature": {
+                "name": "Pack 1 max temperature"
+            },
+            "pack_1_min_temperature": {
+                "name": "Pack 1 min temperature"
+            },
+            "pack_2_max_temperature": {
+                "name": "Pack 2 max temperature"
+            },
+            "pack_2_min_temperature": {
+                "name": "Pack 2 min temperature"
+            },
+            "pack_3_max_temperature": {
+                "name": "Pack 3 max temperature"
+            },
+            "pack_3_min_temperature": {
+                "name": "Pack 3 min temperature"
+            },
+            "pack_1_working_status": {
+                "name": "Pack 1 working status"
+            },
+            "pack_2_working_status": {
+                "name": "Pack 2 working status"
+            },
+            "pack_3_working_status": {
+                "name": "Pack 3 working status"
+            },
+            "pack_1_firmware_version": {
+                "name": "Pack 1 firmware version"
+            },
+            "pack_1_serial_number": {
+                "name": "Pack 1 serial number"
+            },
+            "pack_1_state_of_capacity": {
+                "name": "Pack 1 state of capacity"
+            },
+            "pack_1_charge_discharge_power": {
+                "name": "Pack 1 charge discharge power"
+            },
+            "pack_1_voltage": {
+                "name": "Pack 1 voltage"
+            },
+            "pack_1_current": {
+                "name": "Pack 1 current"
+            },
+            "pack_1_soh_calibration_status": {
+                "name": "Pack 1 SOH calibration status"
+            },
+            "pack_1_total_charge": {
+                "name": "Pack 1 total charge"
+            },
+            "pack_1_total_discharge": {
+                "name": "Pack 1 total discharge"
+            },
+            "pack_2_firmware_version": {
+                "name": "Pack 2 firmware version"
+            },
+            "pack_2_serial_number": {
+                "name": "Pack 2 serial number"
+            },
+            "pack_2_state_of_capacity": {
+                "name": "Pack 2 state of capacity"
+            },
+            "pack_2_charge_discharge_power": {
+                "name": "Pack 2 charge discharge power"
+            },
+            "pack_2_voltage": {
+                "name": "Pack 2 voltage"
+            },
+            "pack_2_current": {
+                "name": "Pack 2 current"
+            },
+            "pack_2_soh_calibration_status": {
+                "name": "Pack 2 SOH calibration status"
+            },
+            "pack_2_total_charge": {
+                "name": "Pack 2 total charge"
+            },
+            "pack_2_total_discharge": {
+                "name": "Pack 2 total discharge"
+            },
+            "pack_3_firmware_version": {
+                "name": "Pack 3 firmware version"
+            },
+            "pack_3_serial_number": {
+                "name": "Pack 3 serial number"
+            },
+            "pack_3_state_of_capacity": {
+                "name": "Pack 3 state of capacity"
+            },
+            "pack_3_charge_discharge_power": {
+                "name": "Pack 3 charge discharge power"
+            },
+            "pack_3_voltage": {
+                "name": "Pack 3 voltage"
+            },
+            "pack_3_current": {
+                "name": "Pack 3 current"
+            },
+            "pack_3_soh_calibration_status": {
+                "name": "Pack 3 SOH calibration status"
+            },
+            "pack_3_total_charge": {
+                "name": "Pack 3 total charge"
+            },
+            "pack_3_total_discharge": {
+                "name": "Pack 3 total discharge"
+            },
+            "bms_temperature": {
+                "name": "BMS temperature"
+            },
+            "storage_lg_resu_time_of_use_price_periods": {
+                "name": "TOU price periods"
+            },
+            "storage_huawei_luna2000_time_of_use_price_periods": {
+                "name": "TOU price periods"
+            },
+            "storage_huawei_luna2000_time_of_use_charging_and_discharging_periods": {
+                "name": "TOU charging and discharging periods"
+            },
+            "storage_lg_resu_time_of_use_charging_and_discharging_periods": {
+                "name": "TOU charging and discharging periods"
+            },
+            "storage_fixed_charging_and_discharging_periods": {
+                "name": "Vaste laadperiodes"
+            },
+            "inverter_total_absorbed_energy": {
+                "name": "Total absorbed energy"
+            },
+            "energy_charged_today": {
+                "name": "Energy charged today"
+            },
+            "total_charged_energy": {
+                "name": "Total charged energy"
+            },
+            "energy_discharged_today": {
+                "name": "Energy discharged today"
+            },
+            "total_discharged_energy": {
+                "name": "Total discharged energy"
+            },
+            "ess_chargeable_energy": {
+                "name": "ESS Chargeable energy"
+            },
+            "ess_dischargeable_energy": {
+                "name": "ESS Dischargeable energy"
+            },
+            "rated_ess_capacity": {
+                "name": "Rated ESS capacity"
+            },
+            "consumption_today": {
+                "name": "Consumption today"
+            },
+            "total_energy_consumption": {
+                "name": "Total energy consumption"
+            },
+            "feed_in_to_grid_today": {
+                "name": "Feed in to grid today"
+            },
+            "supply_from_grid_today": {
+                "name": "Supply from grid today"
+            },
+            "total_supply_from_grid": {
+                "name": "Total supply from grid"
+            },
+            "inverter_energy_yield_today": {
+                "name": "Inverter energy yield today"
+            },
+            "inverter_total_energy_yield": {
+                "name": "Inverter total energy yield"
+            },
+            "pv_yield_today": {
+                "name": "PV yield today"
+            },
+            "total_pv_energy_yield": {
+                "name": "Total PV energy yield"
+            },
+            "pv_output_power": {
+                "name": "PV output power"
+            },
+            "load_power": {
+                "name": "Load power"
+            },
+            "feed_in_power": {
+                "name": "Feed in power"
+            },
+            "battery_charge_discharge_power": {
+                "name": "Battery charge/discharge power"
+            },
+            "inverter_rated_power": {
+                "name": "Nominaal vermogen"
+            },
+            "inverter_active_power": {
+                "name": "Inverter active power"
+            },
+            "state_of_capacity": {
+                "name": "Batterijpercentage"
+            },
+            "ess_chargeable_capacity": {
+                "name": "ESS laadbare capaciteit"
+            },
+            "ess_dischargeable_capacity": {
+                "name": "ESS ontlaadbare capaciteit"
+            },
+            "backup_power_state_of_charge": {
+                "name": "Backup batterijpercentage"
+            },
+            "phase_a_voltage_built_in_energy_sensor": {
+                "name": "Phase A voltage"
+            },
+            "phase_b_voltage_built_in_energy_sensor": {
+                "name": "Phase B voltage"
+            },
+            "phase_c_voltage_built_in_energy_sensor": {
+                "name": "Phase C voltage"
+            },
+            "line_voltage_a_b_built_in_energy_sensor": {
+                "name": "A-B line voltage"
+            },
+            "line_voltage_b_c_built_in_energy_sensor": {
+                "name": "B-C line voltage"
+            },
+            "line_voltage_c_a_built_in_energy_sensor": {
+                "name": "C-A line voltage"
+            },
+            "phase_a_current_built_in_energy_sensor": {
+                "name": "Phase A current"
+            },
+            "phase_b_current_built_in_energy_sensor": {
+                "name": "Phase B current"
+            },
+            "phase_c_current_built_in_energy_sensor": {
+                "name": "Phase C current"
+            },
+            "active_power_built_in_energy_sensor": {
+                "name": "Active power"
+            },
+            "power_factor_built_in_energy_sensor": {
+                "name": "Power factor"
+            },
+            "apparent_power_built_in_energy_sensor": {
+                "name": "Apparent power"
+            },
+            "phase_a_active_power_built_in_energy_sensor": {
+                "name": "Phase A active power"
+            },
+            "phase_b_active_power_built_in_energy_sensor": {
+                "name": "Phase B active power"
+            },
+            "phase_c_active_power_built_in_energy_sensor": {
+                "name": "Phase C active power"
+            },
+            "total_active_energy_built_in_energy_sensor": {
+                "name": "Total active energy"
+            },
+            "total_negative_active_energy_built_in_energy_sensor": {
+                "name": "Total negative active energy"
+            },
+            "total_positive_active_energy_built_in_energy_sensor": {
+                "name": "Total positive active energy"
+            },
+            "phase_a_voltage_external_energy_sensor": {
+                "name": "Phase A voltage"
+            },
+            "phase_b_voltage_external_energy_sensor": {
+                "name": "Phase B voltage"
+            },
+            "phase_c_voltage_external_energy_sensor": {
+                "name": "Phase C voltage"
+            },
+            "line_voltage_a_b_external_energy_sensor": {
+                "name": "A-B line voltage"
+            },
+            "line_voltage_b_c_external_energy_sensor": {
+                "name": "B-C line voltage"
+            },
+            "line_voltage_c_a_external_energy_sensor": {
+                "name": "C-A line voltage"
+            },
+            "phase_a_current_external_energy_sensor": {
+                "name": "Phase A current"
+            },
+            "phase_b_current_external_energy_sensor": {
+                "name": "Phase B current"
+            },
+            "phase_c_current_external_energy_sensor": {
+                "name": "Phase C current"
+            },
+            "active_power_external_energy_sensor": {
+                "name": "Active power"
+            },
+            "power_factor_external_energy_sensor": {
+                "name": "Power factor"
+            },
+            "apparent_power_external_energy_sensor": {
+                "name": "Apparent power"
+            },
+            "phase_a_active_power_external_energy_sensor": {
+                "name": "Phase A active power"
+            },
+            "phase_b_active_power_external_energy_sensor": {
+                "name": "Phase B active power"
+            },
+            "phase_c_active_power_external_energy_sensor": {
+                "name": "Phase C active power"
+            },
+            "total_active_energy_external_energy_sensor": {
+                "name": "Total active energy"
+            },
+            "total_negative_active_energy_external_energy_sensor": {
+                "name": "Total negative active energy"
+            },
+            "total_positive_active_energy_external_energy_sensor": {
+                "name": "Total positive active energy"
+            }
+        },
+        "select": {
+            "storage_excess_pv_energy_use_in_tou": {
+                "name": "Gebruik overtollige PV-energie in gebruikstijdmodus",
+                "state": {
+                    "fed_to_grid": "Voeden aan stroomnet",
+                    "charge": "Laden"
+                }
+            },
+            "storage_capacity_control_mode": {
+                "name": "Capaciteitscontrolemodus",
+                "state": {
+                    "disable": "Uitzetten",
+                    "active_capacity_control": "Actieve capaciteits controle",
+                    "apparent_power_limit": "Schijnbaar vermogen limiet"
+                }
+            },
+            "storage_working_mode_settings": {
+                "name": "Werkmodus",
+                "state": {
+                    "adaptive": "Adaptief",
+                    "fixed_charge_discharge": "Vaste (ont)lading",
+                    "maximise_self_consumption": "Maximaliseer eigen gebruik",
+                    "time_of_use_lg": "Gebruikstijd",
+                    "fully_fed_to_grid": "Volledig aan stroomnet gevoed",
+                    "time_of_use_luna2000": "Gebruikstijd"
+                }
+            },
+            "emma_ess_control_mode": {
+                "name": "ESS regelmodus",
+                "state": {
+                    "reserved_1": "Gereserveerd 1",
+                    "maximum_self_consumption": "Maximaliseer eigen gebruik",
+                    "reserved_3": "Gereserveerd 3",
+                    "fully_fed_to_grid": "Volledig aan stroomnet gevoed",
+                    "time_of_use": "Tijdstip van gebruik",
+                    "third_party_dispatch": "Controle door derde partij"
+                }
+            },
+            "emma_tou_preferred_use_of_surplus_pv_power": {
+                "name": "Gebruik overtollige PV-energie in gebruikstijdmodus",
+                "state": {
+                    "fed_to_grid": "Voeden aan net",
+                    "charge": "Laden"
+                }
+            }
+        },
+        "switch": {
+            "storage_charge_from_grid_function": {
+                "name": "Laden van stroomnet"
+            },
+            "mppt_multimodal_scanning": {
+                "name": "MPPT scanning"
+            },
+            "startup": {
+                "name": "Omvormer AAN/UIT"
+            }
+        }
+    },
+    "services": {
+        "forcible_charge": {
+            "name": "Geforceerd laden",
+            "description": "Batterij geforceerd laden voor een bepaalde tijdsduur",
+            "fields": {
+                "device_id": {
+                    "name": "Batterij",
+                    "description": "Toestel type moet 'Batterij' zijn"
+                },
+                "duration": {
+                    "name": "Tijdsduur",
+                    "description": "Duur van het laden"
+                },
+                "power": {
+                    "name": "Vermogen",
+                    "description": "Gebruikt vermogen voor het laden"
+                }
+            }
+        },
+        "forcible_discharge": {
+            "name": "Geforceerd ontladen",
+            "description": "Batterij geforceerd ontladen voor een bepaalde tijdsduur",
+            "fields": {
+                "device_id": {
+                    "name": "Batterij",
+                    "description": "Toestel type moet 'Batterij' zijn"
+                },
+                "duration": {
+                    "name": "Tijdsduur",
+                    "description": "Duur van het ontladen"
+                },
+                "power": {
+                    "name": "Vermogen",
+                    "description": "Gebruikt vermogen voor het ontladen"
+                }
+            }
+        },
+        "forcible_charge_soc": {
+            "name": "Geforceerd laden tot een ladingsniveau",
+            "description": "Batterij geforceerd laden tot een bepaald ladingsniveau",
+            "fields": {
+                "device_id": {
+                    "name": "Batterij",
+                    "description": "Toestel type moet 'Batterij' zijn"
+                },
+                "target_soc": {
+                    "name": "Doel laadniveau",
+                    "description": "Laadniveau dat moet worden bereikt"
+                },
+                "power": {
+                    "name": "Power",
+                    "description": "Gebruikt vermogen voor het laden"
+                }
+            }
+        },
+        "forcible_discharge_soc": {
+            "name": "Geforceerd ontladen tot een ladingsniveau",
+            "description": "Forcible Discharge of the battery to a certain State of Charge level",
+            "fields": {
+                "device_id": {
+                    "name": "Batterij",
+                    "description": "Toestel type moet 'Batterij' zijn"
+                },
+                "target_soc": {
+                    "name": "Doel laadniveau",
+                    "description": "Laadniveau dat moet worden bereikt"
+                },
+                "power": {
+                    "name": "Vermogen",
+                    "description": "Gebruikt vermogen voor het ontladen"
+                }
+            }
+        },
+        "stop_forcible_charge": {
+            "name": "Stop geforceerd laden",
+            "description": "Annuleer het lopende commando om geforceerd te laden",
+            "fields": {
+                "device_id": {
+                    "name": "Batterij",
+                    "description": "Toestel type moet 'Batterij' zijn"
+                }
+            }
+        },
+        "reset_maximum_feed_grid_power": {
+            "name": "De regeling 'werkelijk vermogen' instellen op 'Maximale teruglevering",
+            "description": "De regeling 'werkelijk vermogen' instellen op standaardmodus 'Onbeperkt'",
+            "fields": {
+                "device_id": {
+                    "name": "Inverter",
+                    "description": "Toestel type moet 'Omvormer' zijn"
+                }
+            }
+        },
+        "set_di_active_power_scheduling": {
+            "name": "De regeling 'werkelijk vermogen' instellen op 'DI actieve planning''",
+            "description": "De regeling 'werkelijk vermogen' instellen op 'DI actieve planning'",
+            "fields": {
+                "device_id": {
+                    "name": "Omvormer",
+                    "description": "Toestel type moet 'Omvormer' zijn"
+                }
+            }
+        },
+        "set_zero_power_grid_connection": {
+            "name": "De regeling 'werkelijk vermogen' instellen op 'Netvoeding zonder stroom'",
+            "description": "De regeling 'werkelijk vermogen' instellen op 'Netvoeding zonder stroom'",
+            "fields": {
+                "device_id": {
+                    "name": "Omvormer",
+                    "description": "Toestel type moet 'Omvormer' zijn"
+                }
+            }
+        },
+        "set_maximum_feed_grid_power": {
+            "name": "Begrenzing van netvoeding",
+            "description": "De regeling 'werkelijk vermogen' instellen op 'Vermogensbeperkte netvoeding' met het opgegeven vermogen",
+            "fields": {
+                "device_id": {
+                    "name": "Omvormer",
+                    "description": "Toestel type moet 'Omvormer' zijn"
+                },
+                "power": {
+                    "name": "vermogen",
+                    "description": "Maximum vermogen"
+                }
+            }
+        },
+        "set_maximum_feed_grid_power_percent": {
+            "name": "Begrenzing van netvoeding (percentage)",
+            "description": "De regeling 'werkelijk vermogen' instellen op 'Vermogensbeperkte netvoeding (%)' met het opgegeven percentage",
+            "fields": {
+                "device_id": {
+                    "name": "Omvormer",
+                    "description": "Toestel type moet 'Omvormer' zijn"
+                },
+                "power_percentage": {
+                    "name": "Vermogen Percentage",
+                    "description": "Maximum Percentage"
+                }
+            }
+        },
+        "set_tou_periods": {
+            "name": "Instellen van gebruikstijdmodus periodes",
+            "description": "Stel gebruikstijdmodus periodes in",
+            "fields": {
+                "device_id": {
+                    "name": "Batterij",
+                    "description": "Toestel type moet 'Batterij' zijn"
+                },
+                "periods": {
+                    "name": "Periodes",
+                    "description": "One periode per regel. Voor Huawei LUNA2000 batterijen: '[start tijd]-[tijd tijd]/[werkzame dagen]/[lading]', met 1=maandag, 7=zondag (voorbeeld: '12:00-14:00/1234567/-'). Voor LG RESU batterijen: '[start tijd]-[end tijd]/[electriciteitsprijs]' (voorbeeld: 13:00-14:00/0.50)"
+                }
+            }
+        },
+        "set_capacity_control_periods": {
+            "name": "Capaciteitscontroleperiodes instellen",
+            "description": "Capaciteitscontroleperiodes instellen",
+            "fields": {
+                "device_id": {
+                    "name": "Batterij",
+                    "description": "Toestel type moet 'Batterij' zijn"
+                },
+                "periods": {
+                    "name": "Periodes",
+                    "description": "Eén periode per regel. Formaat: '[start tijd]-[eind tijd]/[werkzame dagen]/[vermogen]W', met 1=maandag, 7=zondag. Voorbeeld: '00:00-23:59/1234567/2500W'."
+                }
+            }
+        },
+        "set_fixed_charge_periods": {
+            "name": "Vaste laadperiodes instellen",
+            "description": "Vaste laad/ontlaad periodes instellen",
+            "fields": {
+                "device_id": {
+                    "name": "Batterij",
+                    "description": "Toestel type moet 'Batterij' zijn"
+                },
+                "periods": {
+                    "name": "Periodes",
+                    "description": "Eén periode per regel. Formaat: '[start tijd]-[eind tijd]/[vermogen]W'. Voorbeeld: '12:00-15:59/-1000W'."
+                }
+            }
+        }
+    },
+    "device": {
+        "emma": {
+            "name": "EMMA"
+        },
+        "inverter": {
+            "name": "Omvormer"
+        },
+        "connected_energy_storage": {
+            "name": "Batterijen"
+        },
+        "power_meter": {
+            "name": "Elektriciteitsmeter"
+        },
+        "battery_1": {
+            "name": "Batterij 1"
+        },
+        "battery_2": {
+            "name": "Batterij 2"
+        }
+    }
+}

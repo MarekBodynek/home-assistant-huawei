@@ -25,6 +25,9 @@ lovelace:
       icon: mdi:solar-power
       show_in_sidebar: true
       filename: lovelace_huawei.yaml
+  resources:
+    - url: /local/community/apexcharts-card/apexcharts-card.js
+      type: module
 
 # Logowanie
 logger:
@@ -46,8 +49,18 @@ recorder:
 # Energia
 energy:
 
+# Template sensors
+template: !include template_sensors.yaml
+
+# Input numbers
+input_number: !include input_numbers.yaml
+
+# Python Scripts
+python_script:
+
 # Automatyzacje
-automation: !include automations.yaml
+automation manual: !include automations.yaml
+automation battery: !include automations_battery.yaml
 
 # Skrypty
 script: !include scripts.yaml

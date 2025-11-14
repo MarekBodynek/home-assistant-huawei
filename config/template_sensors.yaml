@@ -1,0 +1,231 @@
+# Template sensors dla algorytmu zarządzania baterią
+# Plik generowany automatycznie przez Claude Code
+
+# ============================================
+# STREFY TARYFOWE G12w
+# ============================================
+
+- sensor:
+    - name: "Strefa taryfowa"
+      unique_id: tariff_zone_g12w
+      state: >
+        {% set h = now().hour %}
+        {% if (h >= 22) or (h < 6) %}
+          L2
+        {% elif (h >= 13) and (h < 15) %}
+          L2
+        {% else %}
+          L1
+        {% endif %}
+      icon: mdi:clock-time-four-outline
+      attributes:
+        friendly_name: "Strefa taryfowa G12w"
+        description: "L1 (droga) lub L2 (tania)"
+
+# ============================================
+# SEZON GRZEWCZY I TEMPERATURA
+# ============================================
+
+- binary_sensor:
+    - name: "Sezon grzewczy"
+      unique_id: heating_season
+      state: >
+        {{ states('sensor.temperatura_zewnetrzna') | float(20) < 12 }}
+      icon: >
+        {% if is_state('binary_sensor.sezon_grzewczy', 'on') %}
+          mdi:radiator
+        {% else %}
+          mdi:radiator-off
+        {% endif %}
+      attributes:
+        friendly_name: "Sezon grzewczy aktywny"
+        threshold: "12°C"
+
+- binary_sensor:
+    - name: "PC CO aktywne"
+      unique_id: pc_co_active
+      state: >
+        {{ states('sensor.temperatura_zewnetrzna') | float(20) < 12 }}
+      icon: mdi:heat-pump
+      attributes:
+        friendly_name: "Pompa ciepła - ogrzewanie aktywna"
+
+# ============================================
+# OKNA CWU (Ciepła Woda Użytkowa)
+# ============================================
+
+- binary_sensor:
+    - name: "Okno CWU"
+      unique_id: cwu_window
+      state: >
+        {% set h = now().hour %}
+        {% set m = now().minute %}
+        {% set time_decimal = h + (m / 60.0) %}
+        {{ (time_decimal >= 4.5 and time_decimal < 6) or (time_decimal >= 13 and time_decimal < 15) }}
+      icon: >
+        {% if is_state('binary_sensor.okno_cwu', 'on') %}
+          mdi:water-boiler
+        {% else %}
+          mdi:water-boiler-off
+        {% endif %}
+      attributes:
+        friendly_name: "Okno CWU aktywne"
+        morning_window: "04:30-06:00"
+        afternoon_window: "13:00-15:00"
+
+# ============================================
+# CENY ENERGII - ZAKUP (z sieci)
+# ============================================
+
+- sensor:
+    - name: "Cena zakupu energii"
+      unique_id: energy_buy_price
+      unit_of_measurement: "PLN/kWh"
+      state: >
+        {{ states('sensor.pstryk_current_buy_price') | float(0.65) }}
+      icon: mdi:cash-multiple
+      attributes:
+        friendly_name: "Cena zakupu energii (z Pstryk)"
+        zone: "{{ states('sensor.strefa_taryfowa') }}"
+        source: "Pstryk API"
+        note: "Pstryk już zawiera VAT + wszystkie opłaty"
+
+# ============================================
+# CENY ENERGII - SPRZEDAŻ (do sieci)
+# ============================================
+
+- sensor:
+    - name: "Cena sprzedaży energii"
+      unique_id: energy_sell_price
+      unit_of_measurement: "PLN/kWh"
+      state: >
+        {{ states('sensor.pstryk_current_sell_price') | float(0.55) }}
+      icon: mdi:cash-plus
+      attributes:
+        friendly_name: "Cena sprzedaży energii (z Pstryk)"
+        source: "Pstryk API"
+        note: "Pstryk już zawiera VAT"
+
+# ============================================
+# ŚREDNIA CENA RCE WIECZORNA (19-22h)
+# ============================================
+
+- sensor:
+    - name: "RCE średnia wieczorna"
+      unique_id: rce_evening_average
+      unit_of_measurement: "PLN/kWh"
+      state: >
+        {% set prices = state_attr('sensor.pstryk_current_buy_price', 'hourly_prices') %}
+        {% if prices %}
+          {% set evening_prices = prices | selectattr('hour', 'in', [19, 20, 21]) | map(attribute='price') | list %}
+          {% if evening_prices | length > 0 %}
+            {{ (evening_prices | sum / evening_prices | length) | round(3) }}
+          {% else %}
+            {{ states('sensor.pstryk_current_buy_price') | float(0.65) }}
+          {% endif %}
+        {% else %}
+          {{ states('sensor.pstryk_current_buy_price') | float(0.65) }}
+        {% endif %}
+      icon: mdi:chart-line
+      attributes:
+        friendly_name: "RCE średnia wieczorna (19-22h)"
+        source: "Pstryk API - tabela godzinowa"
+
+# ============================================
+# PROGNOZA PV - POMOCNICZE SENSORY
+# ============================================
+
+- sensor:
+    - name: "Prognoza PV dzisiaj"
+      unique_id: forecast_pv_today
+      unit_of_measurement: "kWh"
+      state: >
+        {{ states('sensor.energy_production_today_remaining') | float(0) }}
+      icon: mdi:solar-power
+      attributes:
+        friendly_name: "Prognoza produkcji PV dziś (pozostało)"
+
+- sensor:
+    - name: "Prognoza PV jutro"
+      unique_id: forecast_pv_tomorrow
+      unit_of_measurement: "kWh"
+      state: >
+        {{ states('sensor.energy_production_tomorrow') | float(0) }}
+      icon: mdi:solar-power
+      attributes:
+        friendly_name: "Prognoza produkcji PV jutro"
+
+- sensor:
+    - name: "Prognoza PV 6h"
+      unique_id: forecast_pv_6h
+      unit_of_measurement: "kWh"
+      state: >
+        {% set now_kwh = states('sensor.energy_current_hour') | float(0) %}
+        {% set h1 = state_attr('sensor.energy_production_today', 'wh_hours')[now().hour + 1] | default(0) | float / 1000 %}
+        {% set h2 = state_attr('sensor.energy_production_today', 'wh_hours')[now().hour + 2] | default(0) | float / 1000 %}
+        {% set h3 = state_attr('sensor.energy_production_today', 'wh_hours')[now().hour + 3] | default(0) | float / 1000 %}
+        {% set h4 = state_attr('sensor.energy_production_today', 'wh_hours')[now().hour + 4] | default(0) | float / 1000 %}
+        {% set h5 = state_attr('sensor.energy_production_today', 'wh_hours')[now().hour + 5] | default(0) | float / 1000 %}
+        {{ (h1 + h2 + h3 + h4 + h5) | round(1) }}
+      icon: mdi:solar-power-variant
+      attributes:
+        friendly_name: "Prognoza PV następne 6h"
+
+# ============================================
+# CEL ŁADOWANIA BATERII (Target SOC)
+# ============================================
+
+- sensor:
+    - name: "Cel SOC baterii"
+      unique_id: battery_target_soc
+      unit_of_measurement: "%"
+      state: >
+        {{ states('input_number.battery_target_soc') | int(70) }}
+      icon: mdi:battery-charging-80
+      attributes:
+        friendly_name: "Docelowy poziom naładowania baterii"
+        description: "Obliczany o 04:00 przez calculate_daily_strategy()"
+
+# ============================================
+# TEMPERATURA ZEWNĘTRZNA (z integracji pogody)
+# ============================================
+
+- sensor:
+    - name: "Temperatura zewnętrzna"
+      unique_id: outdoor_temperature
+      unit_of_measurement: "°C"
+      state: >
+        {{ state_attr('weather.forecast_dom', 'temperature') | float(10) }}
+      icon: mdi:thermometer
+      attributes:
+        friendly_name: "Temperatura na zewnątrz"
+
+# ============================================
+# BILANS MOCY
+# ============================================
+
+- sensor:
+    - name: "Nadwyżka PV"
+      unique_id: pv_surplus
+      unit_of_measurement: "kW"
+      state: >
+        {% set pv = states('sensor.inwerter_moc_wejsciowa') | float(0) / 1000 %}
+        {% set load = states('sensor.pomiar_mocy_moc_czynna') | float(0) / 1000 | abs %}
+        {% set surplus = pv - load %}
+        {{ [surplus, 0] | max | round(2) }}
+      icon: mdi:solar-power
+      attributes:
+        friendly_name: "Nadwyżka energii z PV"
+
+- sensor:
+    - name: "Deficyt mocy"
+      unique_id: power_deficit
+      unit_of_measurement: "kW"
+      state: >
+        {% set pv = states('sensor.inwerter_moc_wejsciowa') | float(0) / 1000 %}
+        {% set load = states('sensor.pomiar_mocy_moc_czynna') | float(0) / 1000 | abs %}
+        {% set deficit = load - pv %}
+        {{ [deficit, 0] | max | round(2) }}
+      icon: mdi:flash-alert
+      attributes:
+        friendly_name: "Deficyt mocy"
