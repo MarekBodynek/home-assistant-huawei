@@ -1,5 +1,5 @@
-# Dashboard Huawei Solar - układ 3-kolumnowy
-# Pogoda na górze (pełna szerokość), potem 3 kolumny z kartami pionowo
+# Dashboard Huawei Solar - układ 2-kolumnowy (szersze karty!)
+# Pogoda na górze, potem 2 szerokie kolumny z kartami pionowo
 
 title: Huawei Solar PV
 views:
@@ -13,10 +13,10 @@ views:
         forecast_type: hourly
         show_current: true
 
-      # 3 kolumny (każda 1/3 szerokości)
+      # Rząd 2: Sezon/Tryb/Bateria | Ceny/Prognoza (2 kolumny)
       - type: horizontal-stack
         cards:
-          # KOLUMNA 1 (lewa)
+          # KOLUMNA LEWA
           - type: vertical-stack
             cards:
               # Sezon grzewczy i temperatura
@@ -63,7 +63,7 @@ views:
                   - entity: sensor.akumulatory_status
                     name: Status baterii
 
-          # KOLUMNA 2 (środkowa)
+          # KOLUMNA PRAWA
           - type: vertical-stack
             cards:
               # Ceny energii
@@ -105,7 +105,10 @@ views:
                     name: Deficyt mocy
                     icon: mdi:flash-alert
 
-          # KOLUMNA 3 (prawa)
+      # Rząd 3: Historia mocy | Produkcja/Wymiana (2 kolumny)
+      - type: horizontal-stack
+        cards:
+          # KOLUMNA LEWA - Historia
           - type: vertical-stack
             cards:
               # Historia mocy (24h)
@@ -120,6 +123,9 @@ views:
                   - entity: sensor.pomiar_mocy_moc_czynna
                     name: Sieć
 
+          # KOLUMNA PRAWA - Produkcja i Wymiana
+          - type: vertical-stack
+            cards:
               # Produkcja energii
               - type: entities
                 title: Produkcja energii
