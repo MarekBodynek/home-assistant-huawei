@@ -51,6 +51,9 @@ recorder:
 # Energia
 energy:
 
+# Aplikacja mobilna
+mobile_app:
+
 # Template sensors
 template: !include template_sensors.yaml
 
