@@ -15,8 +15,8 @@ views:
         show_forecast: true
         forecast_type: hourly
         show_current: true
-        grid_options:
-          columns: 3
+        view_layout:
+          grid-column: 1 / -1
 
       # Rząd 2: Sezon grzewczy | Produkcja energii | Bateria
       - type: entities
