@@ -5,6 +5,9 @@ title: Huawei Solar PV
 views:
   - title: Przegląd
     icon: mdi:solar-power
+    layout:
+      type: grid
+      columns: 3
     cards:
       # KOLUMNA 1 - pozycja 1.1
       - type: weather-forecast
