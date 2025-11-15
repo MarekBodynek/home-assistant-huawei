@@ -11,3 +11,13 @@ services:
       - "8123:8123"
     environment:
       - TZ=Europe/Warsaw
+
+  # Cloudflare Tunnel - wymaga tokena z Cloudflare Dashboard
+  # Instrukcja: zobacz CLOUDFLARE_TUNNEL_SETUP.md
+  # cloudflared:
+  #   container_name: cloudflared
+  #   image: cloudflare/cloudflared:latest
+  #   restart: unless-stopped
+  #   command: tunnel --no-autoupdate run --token WSTAW_TUTAJ_TOKEN_Z_CLOUDFLARE
+  #   depends_on:
+  #     - homeassistant
