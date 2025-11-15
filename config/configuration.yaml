@@ -68,6 +68,10 @@ script: !include scripts.yaml
 # Sceny
 scene: !include scenes.yaml
 
+# Shell commands
+shell_command:
+  git_pull: 'cd /config && git pull'
+
 # HTTP
 http:
   use_x_forwarded_for: true
