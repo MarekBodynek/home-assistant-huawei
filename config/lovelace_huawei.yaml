@@ -9,13 +9,16 @@ views:
       type: grid
       columns: 3
     cards:
-      # Rząd 1: Pogoda | Sezon grzewczy | Produkcja energii
+      # Rząd 1: Pogoda (pełna szerokość)
       - type: weather-forecast
         entity: weather.forecast_dom
         show_forecast: true
         forecast_type: hourly
         show_current: true
+        grid_options:
+          columns: 3
 
+      # Rząd 2: Sezon grzewczy | Produkcja energii | Bateria
       - type: entities
         title: Sezon grzewczy i temperatura
         icon: mdi:thermometer
@@ -44,7 +47,7 @@ views:
             name: Uzysk w ostatniej godzinie
             icon: mdi:clock-outline
 
-      # Rząd 2: Bateria | Prognoza PV | Wymiana z siecią
+      # Rząd 3: Prognoza PV | Wymiana z siecią | Tryb pracy
       - type: entities
         title: Bateria Luna 2000
         icon: mdi:battery-high
@@ -86,7 +89,6 @@ views:
             name: Moc w sieci
             icon: mdi:transmission-tower
 
-      # Rząd 3: Tryb pracy | Ceny energii | Historia mocy
       - type: entities
         title: Tryb pracy baterii
         icon: mdi:cog
@@ -98,6 +100,7 @@ views:
           - entity: input_number.battery_target_soc
             name: Docelowy SOC (obliczony o 04:00)
 
+      # Rząd 4: Ceny energii | Historia mocy
       - type: entities
         title: Ceny energii
         icon: mdi:cash-multiple
