@@ -12,7 +12,18 @@ services:
     environment:
       - TZ=Europe/Warsaw
 
-  # Cloudflare Tunnel - wymaga tokena z Cloudflare Dashboard
+  # Cloudflare Tunnel - DARMOWA subdomena bez własnej domeny
+  # Po uruchomieniu sprawdź logi: docker logs cloudflared
+  # Zobaczysz link: https://xxx.trycloudflare.com
+  cloudflared:
+    container_name: cloudflared
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --url http://homeassistant:8123
+    depends_on:
+      - homeassistant
+
+  # Alternatywnie z własną domeną (zakomentowane):
   # Instrukcja: zobacz CLOUDFLARE_TUNNEL_SETUP.md
   # cloudflared:
   #   container_name: cloudflared
