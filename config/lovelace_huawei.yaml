@@ -47,7 +47,6 @@ views:
             name: Uzysk w ostatniej godzinie
             icon: mdi:clock-outline
 
-      # Rząd 3: Prognoza PV | Wymiana z siecią | Tryb pracy
       - type: entities
         title: Bateria Luna 2000
         icon: mdi:battery-high
@@ -60,6 +59,8 @@ views:
             icon: mdi:battery-charging
           - entity: sensor.akumulatory_status
             name: Status baterii
+
+      # Rząd 3: Prognoza PV | Wymiana z siecią | Tryb pracy
 
       - type: entities
         title: Prognoza PV i bilans mocy
