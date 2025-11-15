@@ -29,30 +29,11 @@ views:
           - entity: sensor.akumulatory_status
             name: Status baterii
 
-      # Karta: Inwerter
-      - type: entities
-        title: Inwerter SUN2000-10KTL-M1
-        icon: mdi:solar-power-variant
-        entities:
-          - entity: sensor.inwerter_moc_czynna
-            name: Moc wyjściowa (AC)
-            icon: mdi:flash
-          - entity: sensor.inwerter_moc_wejsciowa
-            name: Moc wejściowa (DC/PV)
-            icon: mdi:solar-panel
-          - entity: sensor.inwerter_sprawnosc
-            name: Sprawność
-          - entity: sensor.inwerter_status_urzadzenia
-            name: Status urządzenia
-
       # Karta: Produkcja energii
       - type: entities
         title: Produkcja energii
         icon: mdi:chart-line
         entities:
-          - entity: sensor.inwerter_calkowita_produkcja_energii
-            name: Całkowita produkcja
-            icon: mdi:counter
           - entity: sensor.inwerter_dzienna_produkcja
             name: Dzienna produkcja
             icon: mdi:weather-sunny
@@ -68,10 +49,6 @@ views:
           - entity: sensor.pomiar_mocy_moc_czynna
             name: Moc w sieci
             icon: mdi:transmission-tower
-          - entity: sensor.pomiar_mocy_zuzycie
-            name: Energia ze sieci (pobrana)
-          - entity: sensor.pomiar_mocy_eksport
-            name: Energia do sieci (oddana)
 
       # Karta: Tryb pracy
       - type: entities
@@ -93,9 +70,6 @@ views:
           - entity: sensor.strefa_taryfowa
             name: Strefa taryfowa G12w
             icon: mdi:clock-time-four-outline
-          - entity: sensor.pstryk_current_buy_price
-            name: Cena RCE (bieżąca kupno)
-            icon: mdi:chart-line
           - entity: sensor.cena_zakupu_energii
             name: Cena zakupu (z sieci)
             icon: mdi:cash-minus
