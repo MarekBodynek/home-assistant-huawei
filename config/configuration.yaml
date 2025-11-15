@@ -77,6 +77,74 @@ scene: !include scenes.yaml
 shell_command:
   git_pull: 'cd /config && git pull'
 
+# Forecast Solar - REST API dla 3 płaszczyzn
+rest:
+  - resource: https://api.forecast.solar/estimate/watts/52.2297/21.0122/30/90/8.1
+    scan_interval: 3600
+    sensor:
+      - name: "PV Wschód - Prognoza dziś"
+        unique_id: forecast_solar_wschod_today
+        value_template: >
+          {% set today = now().date() | string %}
+          {% set data = value_json.result.watt_hours_day %}
+          {{ data[today] | float(0) / 1000 | round(1) }}
+        unit_of_measurement: "kWh"
+        json_attributes_path: "$.result"
+        json_attributes:
+          - "watt_hours_day"
+          - "watts"
+      - name: "PV Wschód - Prognoza jutro"
+        unique_id: forecast_solar_wschod_tomorrow
+        value_template: >
+          {% set tomorrow = (now().date() + timedelta(days=1)) | string %}
+          {% set data = value_json.result.watt_hours_day %}
+          {{ data[tomorrow] | float(0) / 1000 | round(1) }}
+        unit_of_measurement: "kWh"
+
+  - resource: https://api.forecast.solar/estimate/watts/52.2297/21.0122/30/180/4.05
+    scan_interval: 3600
+    sensor:
+      - name: "PV Południe - Prognoza dziś"
+        unique_id: forecast_solar_poludnie_today
+        value_template: >
+          {% set today = now().date() | string %}
+          {% set data = value_json.result.watt_hours_day %}
+          {{ data[today] | float(0) / 1000 | round(1) }}
+        unit_of_measurement: "kWh"
+        json_attributes_path: "$.result"
+        json_attributes:
+          - "watt_hours_day"
+          - "watts"
+      - name: "PV Południe - Prognoza jutro"
+        unique_id: forecast_solar_poludnie_tomorrow
+        value_template: >
+          {% set tomorrow = (now().date() + timedelta(days=1)) | string %}
+          {% set data = value_json.result.watt_hours_day %}
+          {{ data[tomorrow] | float(0) / 1000 | round(1) }}
+        unit_of_measurement: "kWh"
+
+  - resource: https://api.forecast.solar/estimate/watts/52.2297/21.0122/30/270/4.05
+    scan_interval: 3600
+    sensor:
+      - name: "PV Zachód - Prognoza dziś"
+        unique_id: forecast_solar_zachod_today
+        value_template: >
+          {% set today = now().date() | string %}
+          {% set data = value_json.result.watt_hours_day %}
+          {{ data[today] | float(0) / 1000 | round(1) }}
+        unit_of_measurement: "kWh"
+        json_attributes_path: "$.result"
+        json_attributes:
+          - "watt_hours_day"
+          - "watts"
+      - name: "PV Zachód - Prognoza jutro"
+        unique_id: forecast_solar_zachod_tomorrow
+        value_template: >
+          {% set tomorrow = (now().date() + timedelta(days=1)) | string %}
+          {% set data = value_json.result.watt_hours_day %}
+          {{ data[tomorrow] | float(0) / 1000 | round(1) }}
+        unit_of_measurement: "kWh"
+
 # HTTP
 http:
   use_x_forwarded_for: true

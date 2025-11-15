@@ -146,32 +146,32 @@
       unique_id: forecast_pv_today
       unit_of_measurement: "kWh"
       state: >
-        {% set wschod = states('sensor.energy_production_today_remaining_pv_wschod') | float(0) %}
-        {% set poludnie = states('sensor.energy_production_today_remaining_pv_poludnie') | float(0) %}
-        {% set zachod = states('sensor.energy_production_today_remaining_pv_zachod') | float(0) %}
+        {% set wschod = states('sensor.pv_wschod_prognoza_dzis') | float(0) %}
+        {% set poludnie = states('sensor.pv_poludnie_prognoza_dzis') | float(0) %}
+        {% set zachod = states('sensor.pv_zachod_prognoza_dzis') | float(0) %}
         {{ (wschod + poludnie + zachod) | round(1) }}
       icon: mdi:solar-power
       attributes:
-        friendly_name: "Prognoza produkcji PV dziś (pozostało)"
-        wschod: "{{ states('sensor.energy_production_today_remaining_pv_wschod') | float(0) | round(1) }} kWh"
-        poludnie: "{{ states('sensor.energy_production_today_remaining_pv_poludnie') | float(0) | round(1) }} kWh"
-        zachod: "{{ states('sensor.energy_production_today_remaining_pv_zachod') | float(0) | round(1) }} kWh"
+        friendly_name: "Prognoza produkcji PV dziś"
+        wschod: "{{ states('sensor.pv_wschod_prognoza_dzis') | float(0) | round(1) }} kWh"
+        poludnie: "{{ states('sensor.pv_poludnie_prognoza_dzis') | float(0) | round(1) }} kWh"
+        zachod: "{{ states('sensor.pv_zachod_prognoza_dzis') | float(0) | round(1) }} kWh"
 
 - sensor:
     - name: "Prognoza PV jutro"
       unique_id: forecast_pv_tomorrow
       unit_of_measurement: "kWh"
       state: >
-        {% set wschod = states('sensor.energy_production_tomorrow_pv_wschod') | float(0) %}
-        {% set poludnie = states('sensor.energy_production_tomorrow_pv_poludnie') | float(0) %}
-        {% set zachod = states('sensor.energy_production_tomorrow_pv_zachod') | float(0) %}
+        {% set wschod = states('sensor.pv_wschod_prognoza_jutro') | float(0) %}
+        {% set poludnie = states('sensor.pv_poludnie_prognoza_jutro') | float(0) %}
+        {% set zachod = states('sensor.pv_zachod_prognoza_jutro') | float(0) %}
         {{ (wschod + poludnie + zachod) | round(1) }}
       icon: mdi:solar-power
       attributes:
         friendly_name: "Prognoza produkcji PV jutro"
-        wschod: "{{ states('sensor.energy_production_tomorrow_pv_wschod') | float(0) | round(1) }} kWh"
-        poludnie: "{{ states('sensor.energy_production_tomorrow_pv_poludnie') | float(0) | round(1) }} kWh"
-        zachod: "{{ states('sensor.energy_production_tomorrow_pv_zachod') | float(0) | round(1) }} kWh"
+        wschod: "{{ states('sensor.pv_wschod_prognoza_jutro') | float(0) | round(1) }} kWh"
+        poludnie: "{{ states('sensor.pv_poludnie_prognoza_jutro') | float(0) | round(1) }} kWh"
+        zachod: "{{ states('sensor.pv_zachod_prognoza_jutro') | float(0) | round(1) }} kWh"
 
 - sensor:
     - name: "Prognoza PV 6h"
