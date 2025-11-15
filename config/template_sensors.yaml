@@ -82,13 +82,13 @@
       unique_id: energy_buy_price
       unit_of_measurement: "PLN/kWh"
       state: >
-        {{ states('sensor.pstryk_current_buy_price') | float(0.65) }}
+        {{ states('sensor.pstryk_current_sell_price') | float(0.65) }}
       icon: mdi:cash-multiple
       attributes:
-        friendly_name: "Cena zakupu energii (z Pstryk)"
+        friendly_name: "Cena zakupu energii (RCE z Pstryk)"
         zone: "{{ states('sensor.strefa_taryfowa') }}"
-        source: "Pstryk API"
-        note: "Pstryk już zawiera VAT + wszystkie opłaty"
+        source: "Pstryk SELL prices (RCE)"
+        note: "Używa cen sprzedaży = ceny RCE"
 
 # ============================================
 # CENY ENERGII - SPRZEDAŻ (do sieci)
@@ -115,21 +115,27 @@
       unique_id: rce_evening_average
       unit_of_measurement: "PLN/kWh"
       state: >
-        {% set prices = state_attr('sensor.pstryk_current_buy_price', 'hourly_prices') %}
+        {% set prices = state_attr('sensor.pstryk_current_sell_price', 'All prices') %}
         {% if prices %}
-          {% set evening_prices = prices | selectattr('hour', 'in', [19, 20, 21]) | map(attribute='price') | list %}
+          {% set evening_prices = [] %}
+          {% for p in prices %}
+            {% set hour = p.start.split('T')[1].split(':')[0] | int %}
+            {% if hour in [19, 20, 21] %}
+              {% set evening_prices = evening_prices + [p.price] %}
+            {% endif %}
+          {% endfor %}
           {% if evening_prices | length > 0 %}
             {{ (evening_prices | sum / evening_prices | length) | round(3) }}
           {% else %}
-            {{ states('sensor.pstryk_current_buy_price') | float(0.65) }}
+            {{ states('sensor.pstryk_current_sell_price') | float(0.65) }}
           {% endif %}
         {% else %}
-          {{ states('sensor.pstryk_current_buy_price') | float(0.65) }}
+          {{ states('sensor.pstryk_current_sell_price') | float(0.65) }}
         {% endif %}
       icon: mdi:chart-line
       attributes:
         friendly_name: "RCE średnia wieczorna (19-22h)"
-        source: "Pstryk API - tabela godzinowa"
+        source: "Pstryk SELL API - ceny RCE"
 
 # ============================================
 # PROGNOZA PV - POMOCNICZE SENSORY
