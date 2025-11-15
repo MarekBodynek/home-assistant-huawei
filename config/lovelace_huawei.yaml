@@ -1,156 +1,144 @@
-# Dashboard Huawei Solar - układ 2-kolumnowy (szersze karty!)
-# Pogoda na górze, potem 2 szerokie kolumny z kartami pionowo
+# Dashboard Huawei Solar - 3 kolumny na pełną szerokość ekranu
+# Panel view wymusza pełną szerokość
 
 title: Huawei Solar PV
 views:
   - title: Przegląd
     icon: mdi:solar-power
-    cards:
-      # Pogoda (pełna szerokość)
-      - type: weather-forecast
-        entity: weather.forecast_dom
-        show_forecast: true
-        forecast_type: hourly
-        show_current: true
+    type: panel
+    card:
+      type: vertical-stack
+      cards:
+        # Pogoda
+        - type: weather-forecast
+          entity: weather.forecast_dom
+          show_forecast: true
+          forecast_type: hourly
+          show_current: true
 
-      # Rząd 2: Sezon/Tryb/Bateria | Ceny/Prognoza (2 kolumny)
-      - type: horizontal-stack
-        cards:
-          # KOLUMNA LEWA
-          - type: vertical-stack
-            cards:
-              # Sezon grzewczy i temperatura
-              - type: entities
-                title: Sezon grzewczy i temperatura
-                icon: mdi:thermometer
-                entities:
-                  - entity: sensor.temperatura_zewnetrzna
-                    name: Temperatura zewnętrzna
-                    icon: mdi:thermometer
-                  - entity: binary_sensor.sezon_grzewczy
-                    name: Sezon grzewczy aktywny
-                    icon: mdi:radiator
-                  - entity: binary_sensor.pc_co_aktywne
-                    name: Pompa ciepła CO aktywna
-                    icon: mdi:heat-pump
-                  - entity: binary_sensor.okno_cwu
-                    name: Okno CWU aktywne
-                    icon: mdi:water-boiler
+        # 3 kolumny
+        - type: horizontal-stack
+          cards:
+            # KOLUMNA 1
+            - type: vertical-stack
+              cards:
+                - type: entities
+                  title: Sezon grzewczy i temperatura
+                  icon: mdi:thermometer
+                  entities:
+                    - entity: sensor.temperatura_zewnetrzna
+                      name: Temperatura zewnętrzna
+                      icon: mdi:thermometer
+                    - entity: binary_sensor.sezon_grzewczy
+                      name: Sezon grzewczy aktywny
+                      icon: mdi:radiator
+                    - entity: binary_sensor.pc_co_aktywne
+                      name: Pompa ciepła CO aktywna
+                      icon: mdi:heat-pump
+                    - entity: binary_sensor.okno_cwu
+                      name: Okno CWU aktywne
+                      icon: mdi:water-boiler
 
-              # Tryb pracy baterii
-              - type: entities
-                title: Tryb pracy baterii
-                icon: mdi:cog
-                entities:
-                  - entity: select.akumulatory_tryb_pracy
-                    name: Tryb pracy
-                  - entity: switch.akumulatory_ladowanie_z_sieci
-                    name: Ładowanie z sieci
-                  - entity: input_number.battery_target_soc
-                    name: Docelowy SOC (obliczony o 04:00)
+                - type: entities
+                  title: Tryb pracy baterii
+                  icon: mdi:cog
+                  entities:
+                    - entity: select.akumulatory_tryb_pracy
+                      name: Tryb pracy
+                    - entity: switch.akumulatory_ladowanie_z_sieci
+                      name: Ładowanie z sieci
+                    - entity: input_number.battery_target_soc
+                      name: Docelowy SOC (obliczony o 04:00)
 
-              # Bateria Luna 2000
-              - type: entities
-                title: Bateria Luna 2000
-                icon: mdi:battery-high
-                entities:
-                  - entity: sensor.akumulatory_stan_pojemnosci
-                    name: Stan naładowania (SOC)
-                    icon: mdi:battery-80
-                  - entity: sensor.akumulatory_moc_ladowania_rozladowania
-                    name: Moc ładowania/rozładowania
-                    icon: mdi:battery-charging
-                  - entity: sensor.akumulatory_status
-                    name: Status baterii
+                - type: entities
+                  title: Bateria Luna 2000
+                  icon: mdi:battery-high
+                  entities:
+                    - entity: sensor.akumulatory_stan_pojemnosci
+                      name: Stan naładowania (SOC)
+                      icon: mdi:battery-80
+                    - entity: sensor.akumulatory_moc_ladowania_rozladowania
+                      name: Moc ładowania/rozładowania
+                      icon: mdi:battery-charging
+                    - entity: sensor.akumulatory_status
+                      name: Status baterii
 
-          # KOLUMNA PRAWA
-          - type: vertical-stack
-            cards:
-              # Ceny energii
-              - type: entities
-                title: Ceny energii
-                icon: mdi:cash-multiple
-                entities:
-                  - entity: sensor.strefa_taryfowa
-                    name: Strefa taryfowa G12w
-                    icon: mdi:clock-time-four-outline
-                  - entity: sensor.cena_zakupu_energii
-                    name: Cena zakupu (z sieci)
-                    icon: mdi:cash-minus
-                  - entity: sensor.cena_sprzedazy_energii
-                    name: Cena sprzedaży (do sieci)
-                    icon: mdi:cash-plus
-                  - entity: sensor.rce_srednia_wieczorna
-                    name: RCE średnia wieczorna (19-22h)
-                    icon: mdi:chart-timeline
+            # KOLUMNA 2
+            - type: vertical-stack
+              cards:
+                - type: entities
+                  title: Ceny energii
+                  icon: mdi:cash-multiple
+                  entities:
+                    - entity: sensor.strefa_taryfowa
+                      name: Strefa taryfowa G12w
+                      icon: mdi:clock-time-four-outline
+                    - entity: sensor.cena_zakupu_energii
+                      name: Cena zakupu (z sieci)
+                      icon: mdi:cash-minus
+                    - entity: sensor.cena_sprzedazy_energii
+                      name: Cena sprzedaży (do sieci)
+                      icon: mdi:cash-plus
+                    - entity: sensor.rce_srednia_wieczorna
+                      name: RCE średnia wieczorna (19-22h)
+                      icon: mdi:chart-timeline
 
-              # Prognoza PV i bilans mocy
-              - type: entities
-                title: Prognoza PV i bilans mocy
-                icon: mdi:solar-power-variant
-                entities:
-                  - entity: sensor.prognoza_pv_dzisiaj
-                    name: Prognoza PV dziś (pozostało)
-                    icon: mdi:solar-power
-                  - entity: sensor.prognoza_pv_jutro
-                    name: Prognoza PV jutro
-                    icon: mdi:solar-power
-                  - entity: sensor.prognoza_pv_6h
-                    name: Prognoza PV następne 6h
-                    icon: mdi:solar-power-variant
-                  - entity: sensor.nadwyzka_pv
-                    name: Nadwyżka PV
-                    icon: mdi:solar-power
-                  - entity: sensor.deficyt_mocy
-                    name: Deficyt mocy
-                    icon: mdi:flash-alert
+                - type: entities
+                  title: Prognoza PV i bilans mocy
+                  icon: mdi:solar-power-variant
+                  entities:
+                    - entity: sensor.prognoza_pv_dzisiaj
+                      name: Prognoza PV dziś (pozostało)
+                      icon: mdi:solar-power
+                    - entity: sensor.prognoza_pv_jutro
+                      name: Prognoza PV jutro
+                      icon: mdi:solar-power
+                    - entity: sensor.prognoza_pv_6h
+                      name: Prognoza PV następne 6h
+                      icon: mdi:solar-power-variant
+                    - entity: sensor.nadwyzka_pv
+                      name: Nadwyżka PV
+                      icon: mdi:solar-power
+                    - entity: sensor.deficyt_mocy
+                      name: Deficyt mocy
+                      icon: mdi:flash-alert
 
-      # Rząd 3: Historia mocy | Produkcja/Wymiana (2 kolumny)
-      - type: horizontal-stack
-        cards:
-          # KOLUMNA LEWA - Historia
-          - type: vertical-stack
-            cards:
-              # Historia mocy (24h)
-              - type: history-graph
-                title: Historia mocy (24h)
-                hours_to_show: 24
-                entities:
-                  - entity: sensor.inwerter_moc_czynna
-                    name: Moc wyjściowa
-                  - entity: sensor.akumulatory_moc_ladowania_rozladowania
-                    name: Bateria
-                  - entity: sensor.pomiar_mocy_moc_czynna
-                    name: Sieć
+            # KOLUMNA 3
+            - type: vertical-stack
+              cards:
+                - type: history-graph
+                  title: Historia mocy (24h)
+                  hours_to_show: 24
+                  entities:
+                    - entity: sensor.inwerter_moc_czynna
+                      name: Moc wyjściowa
+                    - entity: sensor.akumulatory_moc_ladowania_rozladowania
+                      name: Bateria
+                    - entity: sensor.pomiar_mocy_moc_czynna
+                      name: Sieć
 
-          # KOLUMNA PRAWA - Produkcja i Wymiana
-          - type: vertical-stack
-            cards:
-              # Produkcja energii
-              - type: entities
-                title: Produkcja energii
-                icon: mdi:chart-line
-                entities:
-                  - entity: sensor.inwerter_dzienna_produkcja
-                    name: Dzienna produkcja
-                    icon: mdi:weather-sunny
-                  - entity: sensor.inwerter_godzinowy_uzysk
-                    name: Uzysk w ostatniej godzinie
-                    icon: mdi:clock-outline
+                - type: entities
+                  title: Produkcja energii
+                  icon: mdi:chart-line
+                  entities:
+                    - entity: sensor.inwerter_dzienna_produkcja
+                      name: Dzienna produkcja
+                      icon: mdi:weather-sunny
+                    - entity: sensor.inwerter_godzinowy_uzysk
+                      name: Uzysk w ostatniej godzinie
+                      icon: mdi:clock-outline
 
-              # Wymiana z siecią
-              - type: entities
-                title: Wymiana z siecią
-                icon: mdi:transmission-tower
-                entities:
-                  - entity: sensor.pomiar_mocy_moc_czynna
-                    name: Moc w sieci
-                    icon: mdi:transmission-tower
+                - type: entities
+                  title: Wymiana z siecią
+                  icon: mdi:transmission-tower
+                  entities:
+                    - entity: sensor.pomiar_mocy_moc_czynna
+                      name: Moc w sieci
+                      icon: mdi:transmission-tower
 
   - title: Statystyki
     icon: mdi:chart-bar
     cards:
-      # Karta: Statystyki baterii
       - type: statistics-graph
         title: Bateria - ostatni tydzień
         stat_types:
@@ -161,7 +149,6 @@ views:
           - sensor.akumulatory_stan_pojemnosci
         days_to_show: 7
 
-      # Karta: Produkcja dzienna
       - type: statistics-graph
         title: Produkcja dzienna
         stat_types:
