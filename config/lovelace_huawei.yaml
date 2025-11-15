@@ -19,23 +19,26 @@ views:
             forecast_type: hourly
             show_current: true
 
-          # Sezon grzewczy i temperatura
+          # Magazynowanie baterii
           - type: entities
-            title: Sezon grzewczy i temperatura
-            icon: mdi:thermometer
+            title: 💰 Magazynowanie Baterii
+            icon: mdi:battery-charging
             entities:
-              - entity: sensor.temperatura_zewnetrzna
-                name: Temperatura zewnętrzna
-                icon: mdi:thermometer
-              - entity: binary_sensor.sezon_grzewczy
-                name: Sezon grzewczy aktywny
-                icon: mdi:radiator
-              - entity: binary_sensor.pc_co_aktywne
-                name: Pompa ciepła CO aktywna
-                icon: mdi:heat-pump
-              - entity: binary_sensor.okno_cwu
-                name: Okno CWU aktywne
-                icon: mdi:water-boiler
+              - entity: input_text.battery_decision_reason
+                name: 🎯 Decyzja
+                icon: mdi:chart-line
+              - entity: input_text.battery_storage_status
+                name: 📊 Analiza
+                icon: mdi:clock-outline
+              - entity: input_text.battery_cheapest_hours
+                name: 💵 Najtańsze godziny
+                icon: mdi:currency-usd
+              - type: divider
+              - entity: sensor.akumulatory_stan_pojemnosci
+                name: 🔋 SOC
+              - entity: input_number.battery_target_soc
+                name: 🎯 Target SOC
+            state_color: true
 
           # Tryb pracy baterii
           - type: entities
@@ -63,31 +66,28 @@ views:
               - entity: sensor.akumulatory_status
                 name: Status baterii
 
-          # Magazynowanie baterii
-          - type: entities
-            title: 💰 Magazynowanie Baterii
-            icon: mdi:battery-charging
-            entities:
-              - entity: input_text.battery_decision_reason
-                name: 🎯 Decyzja
-                icon: mdi:chart-line
-              - entity: input_text.battery_storage_status
-                name: 📊 Analiza
-                icon: mdi:clock-outline
-              - entity: input_text.battery_cheapest_hours
-                name: 💵 Najtańsze godziny
-                icon: mdi:currency-usd
-              - type: divider
-              - entity: sensor.akumulatory_stan_pojemnosci
-                name: 🔋 SOC
-              - entity: input_number.battery_target_soc
-                name: 🎯 Target SOC
-            state_color: true
-
       # SEKCJA 2 (środkowa kolumna)
       - type: grid
         column_span: 1
         cards:
+          # Sezon grzewczy i temperatura
+          - type: entities
+            title: Sezon grzewczy i temperatura
+            icon: mdi:thermometer
+            entities:
+              - entity: sensor.temperatura_zewnetrzna
+                name: Temperatura zewnętrzna
+                icon: mdi:thermometer
+              - entity: binary_sensor.sezon_grzewczy
+                name: Sezon grzewczy aktywny
+                icon: mdi:radiator
+              - entity: binary_sensor.pc_co_aktywne
+                name: Pompa ciepła CO aktywna
+                icon: mdi:heat-pump
+              - entity: binary_sensor.okno_cwu
+                name: Okno CWU aktywne
+                icon: mdi:water-boiler
+
           # Ceny energii
           - type: entities
             title: Ceny energii
