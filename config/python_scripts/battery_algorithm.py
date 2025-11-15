@@ -33,14 +33,14 @@ FORECAST_POOR = 12
 FORECAST_BAD = 8
 FORECAST_VERY_BAD = 5
 
-# Progi baterii (%)
-BATTERY_CRITICAL = 10
-BATTERY_LOW = 20
-BATTERY_RESERVE_SUMMER = 30
-BATTERY_RESERVE_WINTER = 45
-BATTERY_GOOD = 70
-BATTERY_HIGH = 85
-BATTERY_MAX = 95
+# Progi baterii (%) - LIMITY HUAWEI: 20% min, 80% max
+BATTERY_CRITICAL = 25  # Blisko dolnego limitu 20%
+BATTERY_LOW = 30
+BATTERY_RESERVE_SUMMER = 35
+BATTERY_RESERVE_WINTER = 50
+BATTERY_GOOD = 65
+BATTERY_HIGH = 70
+BATTERY_MAX = 75  # Bezpiecznie poniżej 80%
 
 # Temperatura i PC
 TEMP_HEATING_THRESHOLD = 12  # °C
@@ -171,27 +171,27 @@ def decide_strategy(data, balance):
     """Główna funkcja decyzyjna"""
     soc = data['soc']
 
-    # BEZPIECZEŃSTWO
-    if soc <= 10:
+    # BEZPIECZEŃSTWO (limity Huawei: 20-80%)
+    if soc <= 25:
         return {
             'mode': 'charge_from_grid',
-            'target_soc': 20,
+            'target_soc': 35,
             'priority': 'critical',
-            'reason': 'SOC krytycznie niskie - bezpieczeństwo baterii'
+            'reason': 'SOC blisko dolnego limitu (20%) - bezpieczeństwo baterii'
         }
 
-    if soc >= 95:
+    if soc >= 75:
         if balance['surplus'] > 0:
             return {
                 'mode': 'discharge_to_grid',
                 'priority': 'high',
-                'reason': 'SOC max, nadwyżka PV - sprzedaj'
+                'reason': 'SOC blisko górnego limitu (80%), nadwyżka PV - sprzedaj'
             }
         else:
             return {
                 'mode': 'idle',
                 'priority': 'low',
-                'reason': 'SOC max - stop ładowania'
+                'reason': 'SOC blisko górnego limitu (80%) - stop ładowania'
             }
 
     # AUTOCONSUMPTION
@@ -368,12 +368,12 @@ def should_charge_from_grid(data):
     target_soc = data['target_soc']
 
     # RCE ujemne
-    if rce_now < 0 and soc < 95:
+    if rce_now < 0 and soc < 75:
         return {
             'should_charge': True,
-            'target_soc': 95,
+            'target_soc': 75,
             'priority': 'critical',
-            'reason': f'RCE ujemne ({rce_now:.3f})! Płacą Ci za pobór!'
+            'reason': f'RCE ujemne ({rce_now:.3f})! Płacą Ci za pobór! (max 75%)'
         }
 
     # RCE bardzo niskie w południe
@@ -414,12 +414,12 @@ def should_charge_from_grid(data):
 
     # Rano przed końcem L2
     if tariff == 'L2' and hour in [4, 5]:
-        if forecast_tomorrow < 12 and soc < 85:
+        if forecast_tomorrow < 12 and soc < 70:
             return {
                 'should_charge': True,
-                'target_soc': 90,
+                'target_soc': 75,
                 'priority': 'critical',
-                'reason': f'Ostatnia szansa w L2! Pochmurno jutro ({forecast_tomorrow:.1f} kWh)'
+                'reason': f'Ostatnia szansa w L2! Pochmurno jutro ({forecast_tomorrow:.1f} kWh) (max 75%)'
             }
 
     # SOC krytyczne
