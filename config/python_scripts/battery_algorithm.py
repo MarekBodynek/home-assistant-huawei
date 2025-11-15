@@ -7,7 +7,7 @@ Data: 2025-11-11
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 logger = logging.getLogger("battery_algorithm")
 
