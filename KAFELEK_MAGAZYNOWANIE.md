@@ -129,12 +129,12 @@ vertical: true
 
 ## 🚀 Jak dodać kartę?
 
-1. **Otwórz dashboard**: Settings → Dashboards → Twój dashboard
-2. **Kliknij**: Edit Dashboard (✏️ w prawym górnym rogu)
-3. **Kliknij**: + Add Card
-4. **Wybierz**: Manual (na dole)
+1. **Otwórz pulpit**: Ustawienia → Pulpity → Twój pulpit
+2. **Kliknij**: Edytuj pulpit (✏️ w prawym górnym rogu)
+3. **Kliknij**: + Dodaj kartę
+4. **Wybierz**: Ręcznie (na dole)
 5. **Wklej**: jeden z kodów YAML powyżej
-6. **Kliknij**: Save
+6. **Kliknij**: Zapisz
 
 ---
 
