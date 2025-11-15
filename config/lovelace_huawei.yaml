@@ -6,16 +6,16 @@ views:
   - title: Przegląd
     icon: mdi:solar-power
     cards:
-      # Karta: Prognoza pogody (pełna szerokość - przewijaj w prawo dla więcej godzin)
+      # KOLUMNA 1 - pozycja 1.1
       - type: weather-forecast
         entity: weather.forecast_dom
         show_forecast: true
         forecast_type: hourly
         show_current: true
         view_layout:
-          grid-column: 1 / -1
+          grid-column: 1
 
-      # Karta: Stan baterii
+      # KOLUMNA 1 - pozycja 1.2
       - type: entities
         title: Bateria Luna 2000
         icon: mdi:battery-high
@@ -28,29 +28,10 @@ views:
             icon: mdi:battery-charging
           - entity: sensor.akumulatory_status
             name: Status baterii
+        view_layout:
+          grid-column: 1
 
-      # Karta: Produkcja energii
-      - type: entities
-        title: Produkcja energii
-        icon: mdi:chart-line
-        entities:
-          - entity: sensor.inwerter_dzienna_produkcja
-            name: Dzienna produkcja
-            icon: mdi:weather-sunny
-          - entity: sensor.inwerter_godzinowy_uzysk
-            name: Uzysk w ostatniej godzinie
-            icon: mdi:clock-outline
-
-      # Karta: Sieć i moc
-      - type: entities
-        title: Wymiana z siecią
-        icon: mdi:transmission-tower
-        entities:
-          - entity: sensor.pomiar_mocy_moc_czynna
-            name: Moc w sieci
-            icon: mdi:transmission-tower
-
-      # Karta: Tryb pracy
+      # KOLUMNA 1 - pozycja 1.3
       - type: entities
         title: Tryb pracy baterii
         icon: mdi:cog
@@ -61,26 +42,30 @@ views:
             name: Ładowanie z sieci
           - entity: input_number.battery_target_soc
             name: Docelowy SOC (obliczony o 04:00)
+        view_layout:
+          grid-column: 1
 
-      # Karta: Ceny energii i RCE
+      # KOLUMNA 2 - pozycja 2.1
       - type: entities
-        title: Ceny energii
-        icon: mdi:cash-multiple
+        title: Sezon grzewczy i temperatura
+        icon: mdi:thermometer
         entities:
-          - entity: sensor.strefa_taryfowa
-            name: Strefa taryfowa G12w
-            icon: mdi:clock-time-four-outline
-          - entity: sensor.cena_zakupu_energii
-            name: Cena zakupu (z sieci)
-            icon: mdi:cash-minus
-          - entity: sensor.cena_sprzedazy_energii
-            name: Cena sprzedaży (do sieci)
-            icon: mdi:cash-plus
-          - entity: sensor.rce_srednia_wieczorna
-            name: RCE średnia wieczorna (19-22h)
-            icon: mdi:chart-timeline
+          - entity: sensor.temperatura_zewnetrzna
+            name: Temperatura zewnętrzna
+            icon: mdi:thermometer
+          - entity: binary_sensor.sezon_grzewczy
+            name: Sezon grzewczy aktywny
+            icon: mdi:radiator
+          - entity: binary_sensor.pc_co_aktywne
+            name: Pompa ciepła CO aktywna
+            icon: mdi:heat-pump
+          - entity: binary_sensor.okno_cwu
+            name: Okno CWU aktywne
+            icon: mdi:water-boiler
+        view_layout:
+          grid-column: 2
 
-      # Karta: Prognoza PV i bilans
+      # KOLUMNA 2 - pozycja 2.2
       - type: entities
         title: Prognoza PV i bilans mocy
         icon: mdi:solar-power-variant
@@ -100,26 +85,55 @@ views:
           - entity: sensor.deficyt_mocy
             name: Deficyt mocy
             icon: mdi:flash-alert
+        view_layout:
+          grid-column: 2
 
-      # Karta: Sezon grzewczy i temperatura
+      # KOLUMNA 2 - pozycja 2.3
       - type: entities
-        title: Sezon grzewczy i temperatura
-        icon: mdi:thermometer
+        title: Ceny energii
+        icon: mdi:cash-multiple
         entities:
-          - entity: sensor.temperatura_zewnetrzna
-            name: Temperatura zewnętrzna
-            icon: mdi:thermometer
-          - entity: binary_sensor.sezon_grzewczy
-            name: Sezon grzewczy aktywny
-            icon: mdi:radiator
-          - entity: binary_sensor.pc_co_aktywne
-            name: Pompa ciepła CO aktywna
-            icon: mdi:heat-pump
-          - entity: binary_sensor.okno_cwu
-            name: Okno CWU aktywne
-            icon: mdi:water-boiler
+          - entity: sensor.strefa_taryfowa
+            name: Strefa taryfowa G12w
+            icon: mdi:clock-time-four-outline
+          - entity: sensor.cena_zakupu_energii
+            name: Cena zakupu (z sieci)
+            icon: mdi:cash-minus
+          - entity: sensor.cena_sprzedazy_energii
+            name: Cena sprzedaży (do sieci)
+            icon: mdi:cash-plus
+          - entity: sensor.rce_srednia_wieczorna
+            name: RCE średnia wieczorna (19-22h)
+            icon: mdi:chart-timeline
+        view_layout:
+          grid-column: 2
 
-      # Wizualizacja mocy (wykres)
+      # KOLUMNA 3 - pozycja 3.1
+      - type: entities
+        title: Produkcja energii
+        icon: mdi:chart-line
+        entities:
+          - entity: sensor.inwerter_dzienna_produkcja
+            name: Dzienna produkcja
+            icon: mdi:weather-sunny
+          - entity: sensor.inwerter_godzinowy_uzysk
+            name: Uzysk w ostatniej godzinie
+            icon: mdi:clock-outline
+        view_layout:
+          grid-column: 3
+
+      # KOLUMNA 3 - pozycja 3.2
+      - type: entities
+        title: Wymiana z siecią
+        icon: mdi:transmission-tower
+        entities:
+          - entity: sensor.pomiar_mocy_moc_czynna
+            name: Moc w sieci
+            icon: mdi:transmission-tower
+        view_layout:
+          grid-column: 3
+
+      # KOLUMNA 3 - pozycja 3.3
       - type: history-graph
         title: Historia mocy (24h)
         hours_to_show: 24
@@ -130,6 +144,8 @@ views:
             name: Bateria
           - entity: sensor.pomiar_mocy_moc_czynna
             name: Sieć
+        view_layout:
+          grid-column: 3
 
   - title: Statystyki
     icon: mdi:chart-bar
