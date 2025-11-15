@@ -60,6 +60,9 @@ template: !include template_sensors.yaml
 # Input numbers
 input_number: !include input_numbers.yaml
 
+# Input text
+input_text: !include input_text.yaml
+
 # Python Scripts
 python_script:
 

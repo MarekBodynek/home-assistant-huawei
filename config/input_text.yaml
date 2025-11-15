@@ -1,0 +1,24 @@
+# ============================================
+# INPUT TEXT - Tekstowe dane wejściowe
+# ============================================
+
+# Status algorytmu magazynowania
+battery_storage_status:
+  name: "Status magazynowania baterii"
+  initial: "Brak analizy"
+  max: 255
+  icon: mdi:battery-charging
+
+# Szczegóły decyzji
+battery_decision_reason:
+  name: "Powód decyzji algorytmu"
+  initial: "Oczekiwanie na analizę"
+  max: 255
+  icon: mdi:information-outline
+
+# Najtańsze godziny
+battery_cheapest_hours:
+  name: "Najtańsze godziny do magazynowania"
+  initial: "Brak danych"
+  max: 100
+  icon: mdi:clock-outline

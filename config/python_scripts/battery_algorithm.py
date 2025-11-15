@@ -314,10 +314,26 @@ def calculate_cheapest_hours_to_store(data):
 
         logger.info(f"Analiza magazynowania: {hours_needed}h potrzebne, najtańsze godziny: {cheapest_hours}, teraz: {hour}h")
 
+        # Zapisz status do input_text dla wyświetlenia na dashboardzie
+        status_msg = f"Potrzeba: {hours_needed}h | Najtańsze: {cheapest_hours} | Teraz: {hour}h"
+        hass.services.call('input_text', 'set_value', {
+            'entity_id': 'input_text.battery_storage_status',
+            'value': status_msg[:255]
+        })
+
+        hass.services.call('input_text', 'set_value', {
+            'entity_id': 'input_text.battery_cheapest_hours',
+            'value': str(cheapest_hours)[:100]
+        })
+
         return is_cheap_hour, reason, cheapest_hours
 
     except Exception as e:
         logger.error(f"Błąd w calculate_cheapest_hours_to_store: {e}")
+        hass.services.call('input_text', 'set_value', {
+            'entity_id': 'input_text.battery_storage_status',
+            'value': f"Błąd: {str(e)[:200]}"
+        })
         return None, f"Błąd: {e}", []
 
 
@@ -669,8 +685,15 @@ def check_arbitrage_opportunity(data):
 def apply_battery_mode(strategy):
     """Aplikuje strategię do baterii"""
     mode = strategy['mode']
+    reason = strategy.get('reason', 'Brak powodu')
 
-    logger.info(f"Applying strategy: {mode} - {strategy['reason']}")
+    logger.info(f"Applying strategy: {mode} - {reason}")
+
+    # Zapisz powód decyzji do wyświetlenia na dashboardzie
+    hass.services.call('input_text', 'set_value', {
+        'entity_id': 'input_text.battery_decision_reason',
+        'value': reason[:255]
+    })
 
     if mode == 'charge_from_pv':
         set_huawei_mode('Maximise Self Consumption', charge_from_grid=False)
