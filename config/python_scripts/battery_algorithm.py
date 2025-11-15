@@ -208,61 +208,61 @@ def decide_strategy(data, balance):
 
 
 def handle_pv_surplus(data, balance):
-    """Nadwyżka PV - co zrobić?"""
+    """
+    NADWYŻKA PV (słońce): oblicz tak, żeby zmagazynować najtańszą energię w ciągu dnia
+
+    Priorytet decyzji:
+    1. RCE < 0.20 zł → MAGAZYNUJ
+    2. Jutro pochmurno → MAGAZYNUJ
+    3. Wieczór blisko + drogi RCE → MAGAZYNUJ
+    4. Zima → MAGAZYNUJ
+    5. Inaczej → SPRZEDAJ (RCE × 1.23)
+    """
     soc = data['soc']
     rce_now = data['rce_now']
     forecast_tomorrow = data['forecast_tomorrow']
-    forecast_6h = data['forecast_6h']
     hour = data['hour']
     month = data['month']
 
-    # RCE bardzo niskie
-    if rce_now < RCE_VERY_LOW and soc < 95:
+    # 1. RCE < 0.20 zł → MAGAZYNUJ
+    if rce_now < 0.20 and soc < BATTERY_MAX:
         return {
             'mode': 'charge_from_pv',
             'priority': 'critical',
-            'reason': f'RCE bardzo niskie ({rce_now:.3f}), nie oddawaj za bezcen!'
+            'reason': f'RCE < 0.20 zł ({rce_now:.3f}) - nie oddawaj za bezcen! MAGAZYNUJ'
         }
 
-    # Jutro pochmurno
-    if forecast_tomorrow < FORECAST_POOR and soc < 85:
+    # 2. Jutro pochmurno → MAGAZYNUJ
+    if forecast_tomorrow < FORECAST_POOR and soc < BATTERY_HIGH:
         return {
             'mode': 'charge_from_pv',
             'priority': 'very_high',
-            'reason': f'Jutro pochmurno ({forecast_tomorrow:.1f} kWh), magazynuj!'
+            'reason': f'Jutro pochmurno ({forecast_tomorrow:.1f} kWh) - MAGAZYNUJ'
         }
 
-    # Wkrótce drogi wieczór
+    # 3. Wieczór blisko + drogi RCE → MAGAZYNUJ
     if hour in [13, 14, 15, 16]:
-        rce_evening = data['rce_evening_avg']
-        if rce_evening > RCE_HIGH and soc < 70:
+        rce_evening_avg = data['rce_evening_avg']
+        if rce_evening_avg > RCE_HIGH and soc < BATTERY_GOOD:
             return {
                 'mode': 'charge_from_pv',
                 'priority': 'high',
-                'reason': f'Za chwilę drogi wieczór (RCE {rce_evening:.3f}), magazynuj!'
+                'reason': f'Wieczór blisko, drogi RCE ({rce_evening_avg:.3f}) - MAGAZYNUJ'
             }
 
-    # Zima - magazynuj każdą kWh
-    if month in [11, 12, 1, 2] and soc < 80:
+    # 4. Zima → MAGAZYNUJ
+    if month in [11, 12, 1, 2] and soc < BATTERY_HIGH:
         return {
             'mode': 'charge_from_pv',
             'priority': 'high',
-            'reason': 'Zima - każda kWh cenna!'
+            'reason': 'Zima - każda kWh cenna! MAGAZYNUJ'
         }
 
-    # Słaba prognoza 6h
-    if forecast_6h < 5 and soc < 60:
-        return {
-            'mode': 'charge_from_pv',
-            'priority': 'medium',
-            'reason': f'Słaba prognoza 6h ({forecast_6h:.1f} kWh), magazynuj'
-        }
-
-    # DEFAULT: Sprzedaj
+    # 5. DEFAULT: SPRZEDAJ (RCE × 1.23)
     return {
         'mode': 'discharge_to_grid',
         'priority': 'normal',
-        'reason': f'Warunki OK, sprzedaj po RCE {rce_now:.3f} (× 1.23 = {rce_now * 1.23:.3f})'
+        'reason': f'Warunki OK - SPRZEDAJ po RCE {rce_now:.3f} zł/kWh (× 1.23 = {rce_now * 1.23:.3f} zł/kWh)'
     }
 
 
