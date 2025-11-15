@@ -207,16 +207,136 @@ def decide_strategy(data, balance):
         }
 
 
+def calculate_cheapest_hours_to_store(data):
+    """
+    Oblicza N najtańszych godzin słonecznych do magazynowania energii.
+
+    Algorytm:
+    1. Ile kWh trzeba zmagazynować? (Target SOC - Current SOC)
+    2. Ile godzin słonecznych zostało? (do zachodu słońca)
+    3. Ile godzin potrzeba na naładowanie?
+    4. Wybierz N najtańszych godzin sprzedaży RCE (bo wtedy nie opłaca się sprzedawać)
+
+    Returns: (is_cheap_hour, reason, cheapest_hours_list)
+    """
+    try:
+        soc = data['soc']
+        target_soc = data['target_soc']
+        hour = data['hour']
+        forecast_today = data['forecast_today']
+
+        # 1. Ile kWh trzeba zmagazynować?
+        battery_capacity = 15  # kWh (Huawei Luna 15kWh)
+        energy_to_store = max(0, (target_soc - soc) / 100 * battery_capacity)
+
+        # Jeśli bateria już naładowana
+        if energy_to_store <= 0.5:  # mniej niż 0.5 kWh
+            return False, "Bateria już naładowana do Target SOC", []
+
+        # 2. Ile godzin słonecznych zostało?
+        if hour < 6:
+            sun_hours_left = 12  # 6-18h
+        elif hour >= 18:
+            sun_hours_left = 0  # już ciemno
+        else:
+            sun_hours_left = 18 - hour
+
+        if sun_hours_left == 0:
+            return False, "Już po zachodzie słońca", []
+
+        # 3. Ile godzin potrzeba na naładowanie?
+        if forecast_today <= 0:
+            hours_needed = sun_hours_left  # brak prognozy, magazynuj wszystko
+        else:
+            avg_pv_per_hour = forecast_today / 12  # średnio w ciągu 12h słonecznych
+            hours_needed = min(int(energy_to_store / avg_pv_per_hour) + 1, sun_hours_left)
+
+        hours_needed = max(1, hours_needed)  # minimum 1 godzina
+
+        # 4. Pobierz ceny godzinowe z Pstryk
+        pstryk_sensor = hass.states.get('sensor.pstryk_current_sell_price')
+        if not pstryk_sensor:
+            logger.warning("Brak sensora Pstryk - używam prostej logiki")
+            return None, "Brak danych Pstryk", []
+
+        all_prices = pstryk_sensor.attributes.get('All prices', [])
+        if not all_prices:
+            logger.warning("Brak cen godzinowych w Pstryk")
+            return None, "Brak cen godzinowych", []
+
+        # Filtruj tylko dzisiejsze godziny słoneczne (6-18h)
+        from datetime import datetime
+        today = datetime.now().date()
+        sun_prices = []
+
+        for price_entry in all_prices:
+            try:
+                start_str = price_entry.get('start', '')
+                price_val = price_entry.get('price')
+
+                if not start_str or price_val is None:
+                    continue
+
+                # Parse datetime
+                price_datetime = datetime.fromisoformat(start_str.replace('Z', '+00:00'))
+                price_hour = price_datetime.hour
+                price_date = price_datetime.date()
+
+                # Tylko dzisiaj + godziny słoneczne
+                if price_date == today and 6 <= price_hour < 18:
+                    sun_prices.append({
+                        'hour': price_hour,
+                        'price': float(price_val)
+                    })
+            except Exception as e:
+                logger.error(f"Błąd parsowania ceny: {e}")
+                continue
+
+        if not sun_prices:
+            return None, "Brak cen dla dzisiejszych godzin słonecznych", []
+
+        # 5. Sortuj godziny po cenie (rosnąco - najtańsze pierwsze)
+        sun_prices_sorted = sorted(sun_prices, key=lambda x: x['price'])
+
+        # 6. Wybierz N najtańszych godzin
+        cheapest_hours = [p['hour'] for p in sun_prices_sorted[:hours_needed]]
+
+        # 7. Czy aktualna godzina jest w najtańszych?
+        is_cheap_hour = hour in cheapest_hours
+
+        if is_cheap_hour:
+            current_price = next((p['price'] for p in sun_prices if p['hour'] == hour), None)
+            reason = f"TANIA godzina ({hour}h: {current_price:.3f} zł) - top {hours_needed} najtańszych - MAGAZYNUJ"
+        else:
+            current_price = next((p['price'] for p in sun_prices if p['hour'] == hour), None)
+            cheapest_price = sun_prices_sorted[0]['price']
+            reason = f"DROGA godzina ({hour}h: {current_price:.3f} zł vs najtańsza {cheapest_price:.3f} zł) - SPRZEDAJ"
+
+        logger.info(f"Analiza magazynowania: {hours_needed}h potrzebne, najtańsze godziny: {cheapest_hours}, teraz: {hour}h")
+
+        return is_cheap_hour, reason, cheapest_hours
+
+    except Exception as e:
+        logger.error(f"Błąd w calculate_cheapest_hours_to_store: {e}")
+        return None, f"Błąd: {e}", []
+
+
 def handle_pv_surplus(data, balance):
     """
     NADWYŻKA PV (słońce): oblicz tak, żeby zmagazynować najtańszą energię w ciągu dnia
 
+    STRATEGIA OPTYMALIZACJI:
+    - Oblicz ile godzin potrzeba na naładowanie baterii
+    - Wybierz N najtańszych godzin sprzedaży (RCE)
+    - W tych godzinach → MAGAZYNUJ (bo nie opłaca się sprzedawać tanio)
+    - W pozostałych godzinach → SPRZEDAJ (bo cena lepsza)
+
     Priorytet decyzji:
-    1. RCE < 0.20 zł → MAGAZYNUJ
-    2. Jutro pochmurno → MAGAZYNUJ
-    3. Wieczór blisko + drogi RCE → MAGAZYNUJ
-    4. Zima → MAGAZYNUJ
-    5. Inaczej → SPRZEDAJ (RCE × 1.23)
+    1. RCE ujemne lub < 0.15 zł → MAGAZYNUJ (ultra tanio)
+    2. Jutro pochmurno → MAGAZYNUJ (zabezpieczenie)
+    3. Zima → MAGAZYNUJ (każda kWh cenna)
+    4. CZY TERAZ TANIA GODZINA? → Algorytm wyboru najtańszych godzin
+    5. DEFAULT → SPRZEDAJ
     """
     soc = data['soc']
     rce_now = data['rce_now']
@@ -224,12 +344,12 @@ def handle_pv_surplus(data, balance):
     hour = data['hour']
     month = data['month']
 
-    # 1. RCE < 0.20 zł → MAGAZYNUJ
-    if rce_now < 0.20 and soc < BATTERY_MAX:
+    # 1. RCE ujemne lub ultra niskie → MAGAZYNUJ
+    if rce_now < 0.15 and soc < BATTERY_MAX:
         return {
             'mode': 'charge_from_pv',
             'priority': 'critical',
-            'reason': f'RCE < 0.20 zł ({rce_now:.3f}) - nie oddawaj za bezcen! MAGAZYNUJ'
+            'reason': f'RCE ultra niskie ({rce_now:.3f} zł) - nie oddawaj za bezcen! MAGAZYNUJ'
         }
 
     # 2. Jutro pochmurno → MAGAZYNUJ
@@ -240,17 +360,7 @@ def handle_pv_surplus(data, balance):
             'reason': f'Jutro pochmurno ({forecast_tomorrow:.1f} kWh) - MAGAZYNUJ'
         }
 
-    # 3. Wieczór blisko + drogi RCE → MAGAZYNUJ
-    if hour in [13, 14, 15, 16]:
-        rce_evening_avg = data['rce_evening_avg']
-        if rce_evening_avg > RCE_HIGH and soc < BATTERY_GOOD:
-            return {
-                'mode': 'charge_from_pv',
-                'priority': 'high',
-                'reason': f'Wieczór blisko, drogi RCE ({rce_evening_avg:.3f}) - MAGAZYNUJ'
-            }
-
-    # 4. Zima → MAGAZYNUJ
+    # 3. Zima → MAGAZYNUJ
     if month in [11, 12, 1, 2] and soc < BATTERY_HIGH:
         return {
             'mode': 'charge_from_pv',
@@ -258,11 +368,32 @@ def handle_pv_surplus(data, balance):
             'reason': 'Zima - każda kWh cenna! MAGAZYNUJ'
         }
 
-    # 5. DEFAULT: SPRZEDAJ (RCE × 1.23)
+    # 4. ALGORYTM WYBORU NAJTAŃSZYCH GODZIN
+    is_cheap_hour, reason, cheapest_hours = calculate_cheapest_hours_to_store(data)
+
+    if is_cheap_hour is None:
+        # Błąd w algorytmie - fallback do prostej logiki
+        logger.warning(f"Algorytm magazynowania niedostępny: {reason}")
+        # Fallback: porównaj z średnią
+        if rce_now < 0.35 and soc < BATTERY_GOOD:
+            return {
+                'mode': 'charge_from_pv',
+                'priority': 'medium',
+                'reason': f'RCE poniżej średniej ({rce_now:.3f} zł) - MAGAZYNUJ'
+            }
+    elif is_cheap_hour:
+        # TANIA godzina → MAGAZYNUJ
+        return {
+            'mode': 'charge_from_pv',
+            'priority': 'high',
+            'reason': reason
+        }
+
+    # 5. DEFAULT: SPRZEDAJ (droga godzina lub bateria pełna)
     return {
         'mode': 'discharge_to_grid',
         'priority': 'normal',
-        'reason': f'Warunki OK - SPRZEDAJ po RCE {rce_now:.3f} zł/kWh (× 1.23 = {rce_now * 1.23:.3f} zł/kWh)'
+        'reason': reason if reason else f'Warunki OK - SPRZEDAJ po RCE {rce_now:.3f} zł/kWh (× 1.23 = {rce_now * 1.23:.3f} zł/kWh)'
     }
 
 
