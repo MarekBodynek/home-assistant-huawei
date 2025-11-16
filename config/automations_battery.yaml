@@ -184,6 +184,72 @@
   mode: single
 
 # ============================================
+# WATCHDOG - MONITOROWANIE PRACY ALGORYTMU
+# ============================================
+
+- id: battery_watchdog_algorithm_health
+  alias: "[Bateria] Watchdog - sprawdzenie zdrowia algorytmu"
+  description: "Monitoruje czy algorytm baterii działa prawidłowo (sprawdza aktualizację decision_reason)"
+  trigger:
+    - platform: time_pattern
+      hours: "*"
+      minutes: "30"
+  condition:
+    # Sprawdź czy decision_reason nie został zaktualizowany przez 2h
+    - condition: template
+      value_template: >
+        {% set last_changed = states.input_text.battery_decision_reason.last_changed %}
+        {% set now = now() %}
+        {{ (now - last_changed).total_seconds() > 7200 }}
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "🚨 WATCHDOG: Algorytm baterii nie działa!"
+        message: |
+          ⚠️ Algorytm baterii nie aktualizował decyzji przez >2h!
+
+          Ostatnia aktualizacja: {{ states.input_text.battery_decision_reason.last_changed }}
+          Obecny SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%
+          Strefa: {{ states('sensor.strefa_taryfowa') }}
+
+          🔧 Sprawdź logi Home Assistant i poprawność konfiguracji!
+        notification_id: battery_watchdog_alert
+    # Ustaw tryb awaryjny - Maximise Self Consumption (bezpieczny fallback)
+    - service: select.select_option
+      target:
+        entity_id: select.akumulatory_tryb_pracy
+      data:
+        option: "maximise_self_consumption"
+    - service: switch.turn_off
+      target:
+        entity_id: switch.akumulatory_ladowanie_z_sieci
+  mode: single
+
+- id: battery_watchdog_soc_stuck
+  alias: "[Bateria] Watchdog - SOC nie zmienia się"
+  description: "Ostrzeżenie gdy SOC nie zmienia się przez 6h (możliwa awaria baterii/inwertera)"
+  trigger:
+    - platform: state
+      entity_id: sensor.akumulatory_stan_pojemnosci
+      for:
+        hours: 6
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "⚠️ WATCHDOG: SOC baterii nie zmienia się!"
+        message: |
+          Bateria utrzymuje stały SOC {{ states('sensor.akumulatory_stan_pojemnosci') }}% przez >6h
+
+          Możliwe przyczyny:
+          - Awaria komunikacji z baterią
+          - Zablokowany tryb pracy
+          - Problem z inwerterem
+
+          Sprawdź fizyczne połączenie i stan urządzeń!
+        notification_id: battery_soc_stuck_alert
+  mode: single
+
+# ============================================
 # POWIADOMIENIA DZIENNE
 # ============================================
 

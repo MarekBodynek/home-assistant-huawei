@@ -575,7 +575,7 @@ def should_charge_from_grid(data):
             }
 
     # WIOSNA/JESIEŃ - doładowanie w oknie L2 13-15h (miesiące: III, IV, V, IX, X, XI)
-    if month in [3, 4, 5, 9, 10, 11]:
+    if data['month'] in [3, 4, 5, 9, 10, 11]:
         if hour in [13, 14, 15] and tariff == 'L2' and soc < 80:
             # Oszacowanie dziennego zużycia energii
             daily_consumption = 35 if heating_mode == 'heating_season' else 20
@@ -656,15 +656,18 @@ def check_arbitrage_opportunity(data):
     if hour not in [19, 20, 21]:
         return {'should_sell': False, 'min_soc': None, 'reason': 'Nie wieczór'}
 
-    # PRÓG ARBITRAŻU: RCE > 0.86 zł (analiza faktury październik 2025)
+    # PRÓG ARBITRAŻU: Dynamiczny w zależności od sezonu
     # Koszt: L2 (0.72 zł) + cykl (0.33 zł) = 1.054 zł
     # Przychód: RCE × 1.23 > 1.054 → RCE > 0.86 zł
-    # Bezpieczny próg: 0.90 zł (z marginesem)
-    if rce_now < 0.90:
+    # Sezon grzewczy: 0.90 zł (potrzebujesz baterii, wyższy próg)
+    # Poza sezonem: 0.88 zł (niższy próg = więcej okazji do zarobku)
+    arbitrage_threshold = 0.90 if heating_mode == 'heating_season' else 0.88
+
+    if rce_now < arbitrage_threshold:
         return {
             'should_sell': False,
             'min_soc': None,
-            'reason': f'RCE za niskie ({rce_now:.3f}) do arbitrażu (min 0.90 zł)'
+            'reason': f'RCE za niskie ({rce_now:.3f}) do arbitrażu (min {arbitrage_threshold:.2f} zł)'
         }
 
     # Sezon grzewczy
@@ -786,6 +789,16 @@ def apply_battery_mode(strategy):
 def set_huawei_mode(working_mode, **kwargs):
     """Ustawia tryb pracy baterii Huawei"""
     try:
+        # Pobierz device_id dynamicznie z encji Huawei
+        battery_entity = hass.states.get('select.akumulatory_tryb_pracy')
+        device_id = None
+        if battery_entity and hasattr(battery_entity, 'attributes'):
+            device_id = battery_entity.attributes.get('device_id')
+
+        # Fallback do hardcoded jeśli nie znaleziono (backward compatibility)
+        if not device_id:
+            device_id = '450d2d6fd853d7876315d70559e1dd83'
+
         # Ustaw tryb pracy
         hass.services.call('select', 'select_option', {
             'entity_id': 'select.akumulatory_tryb_pracy',
@@ -849,7 +862,7 @@ def set_huawei_mode(working_mode, **kwargs):
                     tou_periods = "00:00-23:59/67/+"
 
             hass.services.call('huawei_solar', 'set_tou_periods', {
-                'device_id': '450d2d6fd853d7876315d70559e1dd83',
+                'device_id': device_id,
                 'periods': tou_periods
             })
 

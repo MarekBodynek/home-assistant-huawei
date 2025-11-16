@@ -81,9 +81,10 @@ shell_command:
   git_pull: 'cd /config && git pull'
 
 # Forecast Solar - REST API dla 3 płaszczyzn
+# scan_interval: 7200s (2h) = optymalizacja zapytań (-50% vs 1h)
 rest:
   - resource: https://api.forecast.solar/estimate/watts/52.2297/21.0122/30/90/8.1
-    scan_interval: 3600
+    scan_interval: 7200
     sensor:
       - name: "PV Wschód - Prognoza dziś"
         unique_id: forecast_solar_wschod_today
@@ -105,7 +106,7 @@ rest:
         unit_of_measurement: "kWh"
 
   - resource: https://api.forecast.solar/estimate/watts/52.2297/21.0122/30/180/4.05
-    scan_interval: 3600
+    scan_interval: 7200
     sensor:
       - name: "PV Południe - Prognoza dziś"
         unique_id: forecast_solar_poludnie_today
@@ -127,7 +128,7 @@ rest:
         unit_of_measurement: "kWh"
 
   - resource: https://api.forecast.solar/estimate/watts/52.2297/21.0122/30/270/4.05
-    scan_interval: 3600
+    scan_interval: 7200
     sensor:
       - name: "PV Zachód - Prognoza dziś"
         unique_id: forecast_solar_zachod_today
