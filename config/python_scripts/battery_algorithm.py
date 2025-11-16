@@ -536,12 +536,12 @@ def should_charge_from_grid(data):
     target_soc = data['target_soc']
 
     # RCE ujemne
-    if rce_now < 0 and soc < 75:
+    if rce_now < 0 and soc < 80:
         return {
             'should_charge': True,
-            'target_soc': 75,
+            'target_soc': 80,
             'priority': 'critical',
-            'reason': f'RCE ujemne ({rce_now:.3f})! Płacą Ci za pobór! (max 75%)'
+            'reason': f'RCE ujemne ({rce_now:.3f})! Płacą Ci za pobór! (max 80%)'
         }
 
     # RCE bardzo niskie w południe
@@ -549,14 +549,14 @@ def should_charge_from_grid(data):
         if forecast_tomorrow < 10 and soc < 70:
             return {
                 'should_charge': True,
-                'target_soc': 75,
+                'target_soc': 80,
                 'priority': 'high',
                 'reason': f'RCE bardzo niskie ({rce_now:.3f}) + pochmurno jutro'
             }
 
     # WIOSNA/JESIEŃ - doładowanie w oknie L2 13-15h (miesiące: III, IV, V, IX, X, XI)
     if month in [3, 4, 5, 9, 10, 11]:
-        if hour in [13, 14, 15] and tariff == 'L2' and soc < 75:
+        if hour in [13, 14, 15] and tariff == 'L2' and soc < 80:
             # Oszacowanie dziennego zużycia energii
             daily_consumption = 35 if heating_mode == 'heating_season' else 20
             forecast_today = data['forecast_today']
@@ -565,7 +565,7 @@ def should_charge_from_grid(data):
             if forecast_today < daily_consumption:
                 return {
                     'should_charge': True,
-                    'target_soc': 75,
+                    'target_soc': 80,
                     'priority': 'high',
                     'reason': f'Wiosna/jesień: PV {forecast_today:.1f} < potrzeby {daily_consumption} kWh - doładowanie w L2 13-15h'
                 }
@@ -601,9 +601,9 @@ def should_charge_from_grid(data):
         if forecast_tomorrow < 12 and soc < 70:
             return {
                 'should_charge': True,
-                'target_soc': 75,
+                'target_soc': 80,
                 'priority': 'critical',
-                'reason': f'Ostatnia szansa w L2! Pochmurno jutro ({forecast_tomorrow:.1f} kWh) (max 75%)'
+                'reason': f'Ostatnia szansa w L2! Pochmurno jutro ({forecast_tomorrow:.1f} kWh) (max 80%)'
             }
 
     # SOC krytyczne
