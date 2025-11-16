@@ -704,24 +704,24 @@ def apply_battery_mode(strategy):
     })
 
     if mode == 'charge_from_pv':
-        set_huawei_mode('Maximise Self Consumption', charge_from_grid=False)
+        set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
 
     elif mode == 'charge_from_grid':
         target_soc = strategy.get('target_soc', 80)
-        set_huawei_mode('Time Of Use', charge_from_grid=True, charge_soc_limit=target_soc)
+        set_huawei_mode('time_of_use_luna2000', charge_from_grid=True, charge_soc_limit=target_soc)
 
     elif mode == 'discharge_to_home':
-        set_huawei_mode('Maximise Self Consumption', charge_from_grid=False)
+        set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
 
     elif mode == 'discharge_to_grid':
         min_soc = strategy.get('target_soc', 30)
-        set_huawei_mode('Fully Fed To Grid', discharge_soc_limit=min_soc)
+        set_huawei_mode('fully_fed_to_grid', discharge_soc_limit=min_soc)
 
     elif mode == 'grid_to_home':
-        set_huawei_mode('Maximise Self Consumption', charge_from_grid=False)
+        set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
 
     elif mode == 'idle':
-        set_huawei_mode('Maximise Self Consumption', charge_from_grid=False)
+        set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
 
     return True
 
@@ -745,14 +745,14 @@ def set_huawei_mode(working_mode, **kwargs):
         # Ustaw limit SOC ładowania
         if 'charge_soc_limit' in kwargs:
             hass.services.call('number', 'set_value', {
-                'entity_id': 'number.akumulatory_limit_ladowania_soc',
+                'entity_id': 'number.akumulatory_lmit_ladowania_z_sieci_soc',
                 'value': kwargs['charge_soc_limit']
             })
 
         # Ustaw limit SOC rozładowania
         if 'discharge_soc_limit' in kwargs:
             hass.services.call('number', 'set_value', {
-                'entity_id': 'number.akumulatory_limit_rozladowania_soc',
+                'entity_id': 'number.akumulatory_koniec_rozladowania_soc',
                 'value': kwargs['discharge_soc_limit']
             })
 
