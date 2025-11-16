@@ -178,13 +178,13 @@ def decide_strategy(data, balance):
     soc = data['soc']
 
     # BEZPIECZEŃSTWO (limity Huawei: 20-80%)
-    # SUPER PILNY: SOC < 15% - ładuj NATYCHMIAST 24/7!
-    if soc < 15:
+    # SUPER PILNY: SOC < 5% - ładuj NATYCHMIAST 24/7!
+    if soc < 5:
         return {
             'mode': 'charge_from_grid',
             'target_soc': 35,
             'priority': 'critical',
-            'reason': 'SOC < 15% - SUPER PILNE! Ładowanie NATYCHMIAST 24/7!',
+            'reason': 'SOC < 5% - SUPER PILNE! Ładowanie NATYCHMIAST 24/7!',
             'urgent_charge': True  # Ładuj przez całą dobę bez czekania na L2
         }
 
@@ -771,7 +771,7 @@ def set_huawei_mode(working_mode, **kwargs):
 
         # Ustaw harmonogram TOU dla ładowania z sieci
         if 'charge_from_grid' in kwargs and kwargs['charge_from_grid']:
-            # SUPER PILNY (SOC < 15%): Ładuj NATYCHMIAST przez całą dobę!
+            # SUPER PILNY (SOC < 5%): Ładuj NATYCHMIAST przez całą dobę!
             if kwargs.get('urgent_charge', False):
                 tou_periods = "00:00-23:59/1234567/+"
             # NORMALNY/PILNY: Ładuj tylko w godzinach L2
