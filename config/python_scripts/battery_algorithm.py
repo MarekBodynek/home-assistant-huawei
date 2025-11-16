@@ -554,6 +554,25 @@ def should_charge_from_grid(data):
     forecast_tomorrow = data['forecast_tomorrow']
     heating_mode = data['heating_mode']
     target_soc = data['target_soc']
+    battery_temp = data['battery_temp']
+
+    # BEZPIECZEŃSTWO TERMICZNE
+    # Nie ładuj jeśli temperatura baterii jest poza bezpiecznym zakresem
+    if battery_temp > 40:
+        return {
+            'should_charge': False,
+            'target_soc': None,
+            'priority': 'critical',
+            'reason': f'🔥 BLOKADA: Temp baterii {battery_temp:.1f}°C > 40°C! Ryzyko przegrzania!'
+        }
+
+    if battery_temp < 5:
+        return {
+            'should_charge': False,
+            'target_soc': None,
+            'priority': 'high',
+            'reason': f'❄️ BLOKADA: Temp baterii {battery_temp:.1f}°C < 5°C! Ryzyko uszkodzenia ogniw!'
+        }
 
     # RCE ujemne
     if rce_now < 0 and soc < 80:
