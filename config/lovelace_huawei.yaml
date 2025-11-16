@@ -93,7 +93,7 @@ views:
                 name: RCE średnia wieczorna (19-22h)
                 icon: mdi:chart-timeline
               - entity: input_text.battery_cheapest_hours
-                name: 💵 Najtańsze godziny
+                name: RCE najtańsze godziny
                 icon: mdi:currency-usd
 
           # Prognoza PV i bilans mocy
