@@ -66,24 +66,6 @@ views:
       - type: grid
         column_span: 1
         cards:
-          # Sezon grzewczy i temperatura
-          - type: entities
-            title: Sezon grzewczy i temperatura
-            icon: mdi:thermometer
-            entities:
-              - entity: sensor.temperatura_zewnetrzna
-                name: Temperatura zewnętrzna
-                icon: mdi:thermometer
-              - entity: binary_sensor.sezon_grzewczy
-                name: Sezon grzewczy aktywny
-                icon: mdi:radiator
-              - entity: binary_sensor.pc_co_aktywne
-                name: Pompa ciepła CO aktywna
-                icon: mdi:heat-pump
-              - entity: binary_sensor.okno_cwu
-                name: Okno CWU aktywne
-                icon: mdi:water-boiler
-
           # Ceny energii
           - type: entities
             title: Ceny energii
@@ -156,6 +138,24 @@ views:
               - entity: sensor.inwerter_godzinowy_uzysk
                 name: Uzysk w ostatniej godzinie
                 icon: mdi:clock-outline
+
+          # Sezon grzewczy i temperatura
+          - type: entities
+            title: Sezon grzewczy i temperatura
+            icon: mdi:thermometer
+            entities:
+              - entity: sensor.temperatura_zewnetrzna
+                name: Temperatura zewnętrzna
+                icon: mdi:thermometer
+              - entity: binary_sensor.sezon_grzewczy
+                name: Sezon grzewczy aktywny
+                icon: mdi:radiator
+              - entity: binary_sensor.pc_co_aktywne
+                name: Pompa ciepła CO aktywna
+                icon: mdi:heat-pump
+              - entity: binary_sensor.okno_cwu
+                name: Okno CWU aktywne
+                icon: mdi:water-boiler
 
   - title: Statystyki
     icon: mdi:chart-bar
