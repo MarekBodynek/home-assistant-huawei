@@ -53,6 +53,15 @@ views:
                 name: ⚙️ Tryb pracy
             state_color: true
 
+          # Wymiana z siecią
+          - type: entities
+            title: Wymiana z siecią
+            icon: mdi:transmission-tower
+            entities:
+              - entity: sensor.pomiar_mocy_moc_czynna
+                name: Moc w sieci
+                icon: mdi:transmission-tower
+
       # SEKCJA 2 (środkowa kolumna)
       - type: grid
         column_span: 1
@@ -147,15 +156,6 @@ views:
               - entity: sensor.inwerter_godzinowy_uzysk
                 name: Uzysk w ostatniej godzinie
                 icon: mdi:clock-outline
-
-          # Wymiana z siecią
-          - type: entities
-            title: Wymiana z siecią
-            icon: mdi:transmission-tower
-            entities:
-              - entity: sensor.pomiar_mocy_moc_czynna
-                name: Moc w sieci
-                icon: mdi:transmission-tower
 
   - title: Statystyki
     icon: mdi:chart-bar
