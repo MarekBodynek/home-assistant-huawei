@@ -1,9 +1,9 @@
 # Dashboard Huawei Solar - 3 kolumny PEŁNA SZEROKOŚĆ
 # Sections view - nowy layout HA który używa 100% szerokości ekranu
 
-title: 🔥 TEST - HUAWEI SOLAR - TEST 🔥
+title: Huawei Solar PV
 views:
-  - title: 🔥 TEST Przegląd TEST 🔥
+  - title: Przegląd
     icon: mdi:solar-power
     type: sections
     max_columns: 3

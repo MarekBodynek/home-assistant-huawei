@@ -10,7 +10,10 @@
       unique_id: tariff_zone_g12w
       state: >
         {% set h = now().hour %}
-        {% if (h >= 22) or (h < 6) %}
+        {% set is_weekend = now().weekday() in [5, 6] %}
+        {% if is_weekend %}
+          L2
+        {% elif (h >= 22) or (h < 6) %}
           L2
         {% elif (h >= 13) and (h < 15) %}
           L2
@@ -20,7 +23,7 @@
       icon: mdi:clock-time-four-outline
       attributes:
         friendly_name: "Strefa taryfowa G12w"
-        description: "L1 (droga) lub L2 (tania)"
+        description: "L1 (droga) lub L2 (tania) - weekend CAŁY DZIEŃ L2!"
 
 # ============================================
 # SEZON GRZEWCZY I TEMPERATURA
