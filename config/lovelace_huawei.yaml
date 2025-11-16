@@ -43,6 +43,13 @@ views:
                 icon: mdi:battery-charging
               - entity: sensor.akumulatory_status
                 name: Status baterii
+              # Temperatura baterii
+              - entity: sensor.bateria_temperatura_maksymalna
+                name: 🌡️ Temperatura baterii (max)
+                icon: mdi:thermometer-high
+              - entity: binary_sensor.bateria_bezpieczna_temperatura
+                name: ✅ Bezpieczna temperatura
+                icon: mdi:thermometer-check
               # Sterowanie
               - entity: select.akumulatory_tryb_pracy
                 name: ⚙️ Tryb pracy
