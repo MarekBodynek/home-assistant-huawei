@@ -9,12 +9,17 @@
 
 - id: battery_calculate_daily_strategy
   alias: "[Bateria] Oblicz strategię dzienną 00:00"
-  description: "Oblicza cel ładowania (Target SOC) na podstawie prognozy PV i temperatury"
+  description: "Oblicza cel ładowania (Target SOC) + analizuje najtańsze godziny RCE"
   trigger:
     - platform: time
       at: "00:00:00"
   action:
+    # 1. Oblicz strategię dzienną (Target SOC)
     - service: python_script.calculate_daily_strategy
+    # 2. Uruchom algorytm (wypełni analizę najtańszych godzin)
+    - delay:
+        seconds: 5
+    - service: python_script.battery_algorithm
   mode: single
 
 # ============================================
@@ -428,6 +433,20 @@
 
           Sprawdź fizyczne połączenie i stan urządzeń!
         notification_id: battery_soc_stuck_alert
+  mode: single
+
+# ============================================
+# ANALIZA NAJTAŃSZYCH GODZIN - PRZY STARCIE HA
+# ============================================
+
+- id: battery_analyze_cheapest_hours_on_startup
+  alias: "[Bateria] Analiza najtańszych godzin przy starcie"
+  description: "Uruchamia analizę RCE przy restarcie Home Assistant - wypełnia input_text"
+  trigger:
+    - platform: homeassistant
+      event: start
+  action:
+    - service: python_script.battery_algorithm
   mode: single
 
 # ============================================

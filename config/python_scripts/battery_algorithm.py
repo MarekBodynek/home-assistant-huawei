@@ -61,6 +61,18 @@ def execute_strategy():
         return
 
     balance = calculate_power_balance(data)
+
+    # ZAWSZE obliczaj najtańsze godziny - niezależnie od nadwyżki PV
+    # To wypełnia input_text.battery_storage_status i input_text.battery_cheapest_hours
+    try:
+        calculate_cheapest_hours_to_store(data)
+    except Exception as e:
+        # Jeśli błąd - zapisz info
+        hass.services.call('input_text', 'set_value', {
+            'entity_id': 'input_text.battery_storage_status',
+            'value': f"Błąd analizy: {str(e)[:200]}"
+        })
+
     strategy = decide_strategy(data, balance)
     result = apply_battery_mode(strategy)
 
