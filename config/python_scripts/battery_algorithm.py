@@ -222,6 +222,15 @@ def decide_strategy(data, balance):
                 'reason': 'SOC 80% w L1 - rozładowuj do domu (oszczędzaj drogi L1)'
             }
 
+    # W L2 (tania taryfa weekend/święta) - oszczędzaj baterię na L1!
+    tariff = data['tariff_zone']
+    if tariff == 'L2' and soc >= 40:
+        return {
+            'mode': 'grid_to_home',
+            'priority': 'normal',
+            'reason': f'L2 niedziela/święto (tania 0.72 zł) - pobieraj z sieci, oszczędzaj baterię na poniedziałek (droga 1.11 zł)'
+        }
+
     # AUTOCONSUMPTION
     if balance['surplus'] > 0:
         return handle_pv_surplus(data, balance)
