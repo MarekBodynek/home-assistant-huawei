@@ -243,8 +243,9 @@ def calculate_cheapest_hours_to_store(data):
         forecast_today = data['forecast_today']
 
         # 1. Ile kWh trzeba zmagazynować?
-        battery_capacity = 15  # kWh (Huawei Luna 15kWh)
-        energy_to_store = max(0, (target_soc - soc) / 100 * battery_capacity)
+        battery_capacity_nominal = 15  # kWh nominalna
+        # Rzeczywista pojemność użytkowa: 60% (9 kWh) w zakresie SOC 20-80%
+        energy_to_store = max(0, (target_soc - soc) / 100 * battery_capacity_nominal)
 
         # Jeśli bateria już naładowana
         if energy_to_store <= 0.5:  # mniej niż 0.5 kWh
