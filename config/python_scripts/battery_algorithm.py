@@ -556,7 +556,7 @@ def should_charge_from_grid(data):
 
     # WIOSNA/JESIEŃ - doładowanie w oknie L2 13-15h (miesiące: III, IV, V, IX, X, XI)
     if month in [3, 4, 5, 9, 10, 11]:
-        if hour in [13, 14] and tariff == 'L2' and soc < 75:
+        if hour in [13, 14, 15] and tariff == 'L2' and soc < 75:
             # Oszacowanie dziennego zużycia energii
             daily_consumption = 35 if heating_mode == 'heating_season' else 20
             forecast_today = data['forecast_today']
