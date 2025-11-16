@@ -178,12 +178,12 @@ def decide_strategy(data, balance):
     soc = data['soc']
 
     # BEZPIECZEŃSTWO (limity Huawei: 20-80%)
-    if soc <= 25:
+    if soc < 20:
         return {
             'mode': 'charge_from_grid',
             'target_soc': 35,
             'priority': 'critical',
-            'reason': 'SOC blisko dolnego limitu (20%) - bezpieczeństwo baterii',
+            'reason': 'SOC poniżej dolnego limitu (20%) - PILNE ładowanie!',
             'urgent_charge': True  # Ładuj NATYCHMIAST przez całą dobę!
         }
 
