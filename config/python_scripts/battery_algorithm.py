@@ -647,11 +647,15 @@ def check_arbitrage_opportunity(data):
     if hour not in [19, 20, 21]:
         return {'should_sell': False, 'min_soc': None, 'reason': 'Nie wieczór'}
 
-    if rce_now < 0.50:
+    # PRÓG ARBITRAŻU: RCE > 0.86 zł (analiza faktury październik 2025)
+    # Koszt: L2 (0.72 zł) + cykl (0.33 zł) = 1.054 zł
+    # Przychód: RCE × 1.23 > 1.054 → RCE > 0.86 zł
+    # Bezpieczny próg: 0.90 zł (z marginesem)
+    if rce_now < 0.90:
         return {
             'should_sell': False,
             'min_soc': None,
-            'reason': f'RCE za niskie ({rce_now:.3f}) do arbitrażu'
+            'reason': f'RCE za niskie ({rce_now:.3f}) do arbitrażu (min 0.90 zł)'
         }
 
     # Sezon grzewczy
@@ -677,11 +681,12 @@ def check_arbitrage_opportunity(data):
                 'reason': f'Jutro pochmurno ({forecast_tomorrow:.1f} kWh) + PC - nie sprzedawaj!'
             }
 
-        if rce_now < 0.65:
+        # W sezonie grzewczym z PC próg jeszcze wyższy (potrzebujemy baterii!)
+        if rce_now < 1.00:
             return {
                 'should_sell': False,
                 'min_soc': None,
-                'reason': f'RCE {rce_now:.3f} za niskie przy PC (min 0.65)'
+                'reason': f'RCE {rce_now:.3f} za niskie przy PC (min 1.00 zł)'
             }
 
         min_soc = min_soc_required
