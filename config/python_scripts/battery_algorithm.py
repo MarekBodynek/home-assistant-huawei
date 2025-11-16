@@ -330,13 +330,29 @@ def calculate_cheapest_hours_to_store(data):
 
         # 4. Pobierz ceny godzinowe z Pstryk
         pstryk_sensor = hass.states.get('sensor.pstryk_current_sell_price')
-        if not pstryk_sensor:
-            # Brak sensora Pstryk
+        if not pstryk_sensor or pstryk_sensor.state in ['unavailable', 'unknown', None]:
+            # Brak sensora Pstryk - zapisz status i zakończ
+            hass.services.call('input_text', 'set_value', {
+                'entity_id': 'input_text.battery_storage_status',
+                'value': f"Brak danych Pstryk | Teraz: {hour}h"[:255]
+            })
+            hass.services.call('input_text', 'set_value', {
+                'entity_id': 'input_text.battery_cheapest_hours',
+                'value': "Brak danych"[:100]
+            })
             return None, "Brak danych Pstryk", []
 
         all_prices = pstryk_sensor.attributes.get('All prices', [])
         if not all_prices:
-            # Brak cen godzinowych
+            # Brak cen godzinowych - zapisz status i zakończ
+            hass.services.call('input_text', 'set_value', {
+                'entity_id': 'input_text.battery_storage_status',
+                'value': f"Brak cen RCE | Teraz: {hour}h"[:255]
+            })
+            hass.services.call('input_text', 'set_value', {
+                'entity_id': 'input_text.battery_cheapest_hours',
+                'value': "Brak danych"[:100]
+            })
             return None, "Brak cen godzinowych", []
 
         # Filtruj tylko dzisiejsze godziny słoneczne (sunrise - sunset)
