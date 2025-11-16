@@ -802,12 +802,8 @@ def get_fallback_strategy(data):
 
 def log_decision(data, balance, strategy, result):
     """Loguje decyzję"""
-    # logger.info(
-        f"DECISION: {data['hour']}:00 | SOC={data['soc']}% | "
-        f"Tariff={data['tariff_zone']} | RCE={data['rce_now']:.3f} | "
-        f"PV={balance['pv']:.1f}kW | Load={balance['load']:.1f}kW | "
-        f"Mode={strategy['mode']} | {strategy['reason']}"
-    )
+    # Logging disabled in python_script
+    pass
 
 
 # ============================================
