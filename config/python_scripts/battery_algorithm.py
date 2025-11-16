@@ -6,11 +6,6 @@ Autor: Claude Code
 Data: 2025-11-11
 """
 
-import logging
-from datetime import datetime
-
-logger = logging.getLogger("battery_algorithm")
-
 # ============================================
 # KONFIGURACJA - PROGI
 # ============================================
@@ -60,7 +55,7 @@ def execute_strategy():
     data = collect_input_data()
 
     if not validate_data(data):
-        logger.error("Dane niekompletne - fallback mode")
+        # logger.error("Dane niekompletne - fallback mode")
         strategy = get_fallback_strategy(data)
         apply_battery_mode(strategy)
         return
@@ -80,13 +75,24 @@ def execute_strategy():
 def collect_input_data():
     """Zbiera wszystkie dane z sensorów"""
     try:
-        now = datetime.now()
+        # Pobierz czas z Home Assistant
+        now_state = hass.states.get('sensor.time')
+        time_str = now_state.state if now_state else "12:00"
+        hour = int(time_str.split(':')[0])
+
+        # Pobierz datę z Home Assistant
+        date_state = hass.states.get('sensor.date')
+        if date_state:
+            date_parts = date_state.state.split('-')
+            month = int(date_parts[1]) if len(date_parts) >= 2 else 1
+        else:
+            month = 1
 
         return {
-            'timestamp': now,
-            'hour': now.hour,
-            'weekday': now.weekday(),
-            'month': now.month,
+            'timestamp': time_str,
+            'hour': hour,
+            'weekday': 0,  # uproszczenie - nie używane w logice
+            'month': month,
 
             # Taryfa
             'tariff_zone': get_state('sensor.strefa_taryfowa'),
@@ -120,7 +126,7 @@ def collect_input_data():
             'target_soc': int(float(get_state('input_number.battery_target_soc') or 70)),
         }
     except Exception as e:
-        logger.error(f"Błąd zbierania danych: {e}")
+        # Błąd zbierania danych
         return {}
 
 
@@ -133,11 +139,11 @@ def validate_data(data):
 
     for field in critical:
         if field not in data or data[field] is None:
-            logger.warning(f"Brak danych: {field}")
+            # Brak danych
             return False
 
     if not (0 <= data['soc'] <= 100):
-        logger.warning(f"SOC poza zakresem: {data['soc']}")
+        # SOC poza zakresem
         return False
 
     return True
@@ -256,17 +262,18 @@ def calculate_cheapest_hours_to_store(data):
         # 4. Pobierz ceny godzinowe z Pstryk
         pstryk_sensor = hass.states.get('sensor.pstryk_current_sell_price')
         if not pstryk_sensor:
-            logger.warning("Brak sensora Pstryk - używam prostej logiki")
+            # Brak sensora Pstryk
             return None, "Brak danych Pstryk", []
 
         all_prices = pstryk_sensor.attributes.get('All prices', [])
         if not all_prices:
-            logger.warning("Brak cen godzinowych w Pstryk")
+            # Brak cen godzinowych
             return None, "Brak cen godzinowych", []
 
         # Filtruj tylko dzisiejsze godziny słoneczne (6-18h)
-        from datetime import datetime
-        today = datetime.now().date()
+        # Pobierz dzisiejszą datę z sensora
+        date_state = hass.states.get('sensor.date')
+        today_str = date_state.state if date_state else "2025-11-16"
         sun_prices = []
 
         for price_entry in all_prices:
@@ -277,19 +284,22 @@ def calculate_cheapest_hours_to_store(data):
                 if not start_str or price_val is None:
                     continue
 
-                # Parse datetime
-                price_datetime = datetime.fromisoformat(start_str.replace('Z', '+00:00'))
-                price_hour = price_datetime.hour
-                price_date = price_datetime.date()
+                # Parse datetime ręcznie: "2025-11-16T14:00:00" -> date="2025-11-16", hour=14
+                if 'T' in start_str:
+                    date_part = start_str.split('T')[0]
+                    time_part = start_str.split('T')[1].split(':')[0]
+                    price_hour = int(time_part)
+                else:
+                    continue
 
                 # Tylko dzisiaj + godziny słoneczne
-                if price_date == today and 6 <= price_hour < 18:
+                if date_part == today_str and 6 <= price_hour < 18:
                     sun_prices.append({
                         'hour': price_hour,
                         'price': float(price_val)
                     })
             except Exception as e:
-                logger.error(f"Błąd parsowania ceny: {e}")
+                # Błąd parsowania ceny
                 continue
 
         if not sun_prices:
@@ -312,8 +322,6 @@ def calculate_cheapest_hours_to_store(data):
             cheapest_price = sun_prices_sorted[0]['price']
             reason = f"DROGA godzina ({hour}h: {current_price:.3f} zł vs najtańsza {cheapest_price:.3f} zł) - SPRZEDAJ"
 
-        logger.info(f"Analiza magazynowania: {hours_needed}h potrzebne, najtańsze godziny: {cheapest_hours}, teraz: {hour}h")
-
         # Zapisz status do input_text dla wyświetlenia na dashboardzie
         status_msg = f"Potrzeba: {hours_needed}h | Najtańsze: {cheapest_hours} | Teraz: {hour}h"
         hass.services.call('input_text', 'set_value', {
@@ -329,7 +337,7 @@ def calculate_cheapest_hours_to_store(data):
         return is_cheap_hour, reason, cheapest_hours
 
     except Exception as e:
-        logger.error(f"Błąd w calculate_cheapest_hours_to_store: {e}")
+        # Błąd w calculate_cheapest_hours_to_store
         hass.services.call('input_text', 'set_value', {
             'entity_id': 'input_text.battery_storage_status',
             'value': f"Błąd: {str(e)[:200]}"
@@ -389,7 +397,7 @@ def handle_pv_surplus(data, balance):
 
     if is_cheap_hour is None:
         # Błąd w algorytmie - fallback do prostej logiki
-        logger.warning(f"Algorytm magazynowania niedostępny: {reason}")
+        # logger.warning(f"Algorytm magazynowania niedostępny: {reason}")
         # Fallback: porównaj z średnią
         if rce_now < 0.35 and soc < BATTERY_GOOD:
             return {
@@ -687,7 +695,7 @@ def apply_battery_mode(strategy):
     mode = strategy['mode']
     reason = strategy.get('reason', 'Brak powodu')
 
-    logger.info(f"Applying strategy: {mode} - {reason}")
+    # logger.info(f"Applying strategy: {mode} - {reason}")
 
     # Zapisz powód decyzji do wyświetlenia na dashboardzie
     hass.services.call('input_text', 'set_value', {
@@ -748,11 +756,11 @@ def set_huawei_mode(working_mode, **kwargs):
                 'value': kwargs['discharge_soc_limit']
             })
 
-        logger.info(f"Huawei mode set: {working_mode}")
+        # logger.info(f"Huawei mode set: {working_mode}")
         return True
 
     except Exception as e:
-        logger.error(f"Błąd ustawiania trybu Huawei: {e}")
+        # logger.error(f"Błąd ustawiania trybu Huawei: {e}")
         return False
 
 
@@ -765,11 +773,11 @@ def get_state(entity_id):
     try:
         state = hass.states.get(entity_id)
         if state is None:
-            logger.warning(f"Encja nie znaleziona: {entity_id}")
+            # logger.warning(f"Encja nie znaleziona: {entity_id}")
             return None
         return state.state
     except Exception as e:
-        logger.error(f"Błąd pobierania stanu {entity_id}: {e}")
+        # logger.error(f"Błąd pobierania stanu {entity_id}: {e}")
         return None
 
 
@@ -794,7 +802,7 @@ def get_fallback_strategy(data):
 
 def log_decision(data, balance, strategy, result):
     """Loguje decyzję"""
-    logger.info(
+    # logger.info(
         f"DECISION: {data['hour']}:00 | SOC={data['soc']}% | "
         f"Tariff={data['tariff_zone']} | RCE={data['rce_now']:.3f} | "
         f"PV={balance['pv']:.1f}kW | Load={balance['load']:.1f}kW | "
