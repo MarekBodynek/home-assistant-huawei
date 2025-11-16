@@ -197,18 +197,29 @@ def decide_strategy(data, balance):
             'reason': 'SOC < 20% - PILNE ładowanie w najbliższym oknie L2!'
         }
 
-    if soc >= 75:
+    if soc >= 80:
+        tariff = data['tariff_zone']
+
+        # W L2 (tania taryfa) - nie rozładowuj baterii, pobieraj z sieci!
+        if tariff == 'L2':
+            return {
+                'mode': 'grid_to_home',
+                'priority': 'low',
+                'reason': 'SOC 80% w L2 - zachowaj baterię na L1, pobieraj z sieci (tanie 0.41 zł/kWh)'
+            }
+
+        # W L1 (droga taryfa) - używaj baterii
         if balance['surplus'] > 0:
             return {
                 'mode': 'discharge_to_grid',
                 'priority': 'high',
-                'reason': 'SOC blisko górnego limitu (80%), nadwyżka PV - sprzedaj'
+                'reason': 'SOC 80%, nadwyżka PV - sprzedaj'
             }
         else:
             return {
-                'mode': 'idle',
-                'priority': 'low',
-                'reason': 'SOC blisko górnego limitu (80%) - stop ładowania'
+                'mode': 'discharge_to_home',
+                'priority': 'normal',
+                'reason': 'SOC 80% w L1 - rozładowuj do domu (oszczędzaj drogi L1)'
             }
 
     # AUTOCONSUMPTION
