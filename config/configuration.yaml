@@ -80,6 +80,14 @@ scene: !include scenes.yaml
 shell_command:
   git_pull: 'cd /config && git pull'
 
+# Time & Date sensors
+sensor:
+  - platform: time_date
+    display_options:
+      - 'time'
+      - 'date'
+      - 'date_time'
+
 # Forecast Solar - REST API dla 3 płaszczyzn
 # scan_interval: 7200s (2h) = optymalizacja zapytań (-50% vs 1h)
 rest:
