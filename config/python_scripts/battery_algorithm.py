@@ -279,17 +279,8 @@ def calculate_cheapest_hours_to_store(data):
         # Rzeczywista pojemność użytkowa: 60% (9 kWh) w zakresie SOC 20-80%
         energy_to_store = max(0, (target_soc - soc) / 100 * battery_capacity_nominal)
 
-        # Jeśli bateria już naładowana - WYPEŁNIJ POLA PRZED RETURNEM
-        if energy_to_store <= 0.5:  # mniej niż 0.5 kWh
-            hass.services.call('input_text', 'set_value', {
-                'entity_id': 'input_text.battery_storage_status',
-                'value': f"Bateria naładowana | Teraz: {hour}h"[:255]
-            })
-            hass.services.call('input_text', 'set_value', {
-                'entity_id': 'input_text.battery_cheapest_hours',
-                'value': "-"[:100]
-            })
-            return False, "Bateria już naładowana do Target SOC", []
+        # Zapamiętaj czy bateria naładowana (użyjemy później)
+        battery_already_charged = energy_to_store <= 0.5
 
         # 2. Ile godzin słonecznych zostało?
         if hour < 6:
@@ -389,7 +380,13 @@ def calculate_cheapest_hours_to_store(data):
                 reason = f"DROGA godzina ({hour}h vs najtańsza {cheapest_price:.3f} zł) - SPRZEDAJ"
 
         # Zapisz status do input_text dla wyświetlenia na dashboardzie
-        status_msg = f"Potrzeba: {hours_needed}h | Najtańsze: {cheapest_hours} | Teraz: {hour}h"
+        if battery_already_charged:
+            # Bateria naładowana - pokaż informację + najtańsze godziny
+            status_msg = f"Bateria OK ({int(soc)}%) | Najtańsze: {cheapest_hours} | Teraz: {hour}h"
+        else:
+            # Normalny tryb - pokazuj potrzebę magazynowania
+            status_msg = f"Potrzeba: {hours_needed}h | Najtańsze: {cheapest_hours} | Teraz: {hour}h"
+
         hass.services.call('input_text', 'set_value', {
             'entity_id': 'input_text.battery_storage_status',
             'value': status_msg[:255]
@@ -399,6 +396,10 @@ def calculate_cheapest_hours_to_store(data):
             'entity_id': 'input_text.battery_cheapest_hours',
             'value': str(cheapest_hours)[:100]
         })
+
+        # Jeśli bateria naładowana, nie wykonuj strategii magazynowania
+        if battery_already_charged:
+            return False, f"Bateria naładowana ({int(soc)}%) - nie trzeba magazynować", cheapest_hours
 
         return is_cheap_hour, reason, cheapest_hours
 
