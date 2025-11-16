@@ -218,6 +218,52 @@
         friendly_name: "Temperatura na zewnątrz"
 
 # ============================================
+# BEZPIECZEŃSTWO TERMICZNE BATERII
+# ============================================
+
+- binary_sensor:
+    - name: "Bateria - bezpieczna temperatura"
+      unique_id: battery_temperature_safe
+      state: >
+        {% set temp = states('sensor.akumulator_1_temperatura') | float(25) %}
+        {{ temp >= 5 and temp <= 40 }}
+      icon: >
+        {% set temp = states('sensor.akumulator_1_temperatura') | float(25) %}
+        {% if temp > 43 %}
+          mdi:fire-alert
+        {% elif temp > 40 %}
+          mdi:thermometer-alert
+        {% elif temp < 0 %}
+          mdi:snowflake-alert
+        {% elif temp < 5 %}
+          mdi:thermometer-low
+        {% else %}
+          mdi:thermometer-check
+        {% endif %}
+      attributes:
+        friendly_name: "Bateria - bezpieczna temperatura"
+        temperature: "{{ states('sensor.akumulator_1_temperatura') }}°C"
+        safe_range: "5-40°C"
+        optimal_range: "15-25°C"
+        status: >
+          {% set temp = states('sensor.akumulator_1_temperatura') | float(25) %}
+          {% if temp > 45 %}
+            EKSTREMALNIE NIEBEZPIECZNE (>45°C)
+          {% elif temp > 43 %}
+            KRYTYCZNE (>43°C)
+          {% elif temp > 40 %}
+            OSTRZEŻENIE (>40°C)
+          {% elif temp < 0 %}
+            ZAMARZANIE (<0°C)
+          {% elif temp < 5 %}
+            ZA ZIMNO (<5°C)
+          {% elif temp >= 15 and temp <= 25 %}
+            OPTYMALNA (15-25°C)
+          {% else %}
+            BEZPIECZNA (5-40°C)
+          {% endif %}
+
+# ============================================
 # BILANS MOCY
 # ============================================
 

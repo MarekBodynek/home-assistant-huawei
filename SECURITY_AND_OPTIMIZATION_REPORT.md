@@ -74,13 +74,60 @@ if not device_id:
 - Wykrywa gdy SOC nie zmienia się przez 6h
 - Akcja: Notyfikacja o możliwej awarii komunikacji/baterii
 
-**Plik:** `config/automations_battery.yaml:190-250`
+**Plik:** `config/automations_battery.yaml:367-431`
+
+---
+
+### ✅ 5. **KRYTYCZNE: Dodano monitoring temperatury baterii** 🔥
+**Problem:** BRAK jakichkolwiek zabezpieczeń termicznych!
+**Ryzyko:**
+- **Przegrzanie >45°C:** Ryzyko POŻARU/WYBUCHU baterii litowo-jonowej
+- **Wysoka temp >40°C:** Przyspieszona degradacja, utrata pojemności
+- **Mróz <0°C:** Uszkodzenie ogniw, trwała utrata pojemności
+
+**Rozwiązanie:** Kompleksowy system zabezpieczeń termicznych (5 automatyzacji):
+
+#### 5a. 🟠 Ostrzeżenie (>40°C)
+- Alert o podwyższonej temperaturze
+- Monitoring przez 30 min
+
+#### 5b. 🔴 KRYTYCZNE (>43°C) - STOP ŁADOWANIA
+- **Natychmiastowe wyłączenie ładowania z sieci**
+- Tryb bezpieczny (Maximise Self Consumption)
+- Instrukcje postępowania
+
+#### 5c. ⚫ EKSTREMALNIE NIEBEZPIECZNE (>45°C)
+- **ALARM POŻAROWY**
+- Instrukcje ewakuacji
+- Wezwanie serwisu
+- Informacja o gaśnicy (NIE WODNA!)
+
+#### 5d. ❄️ Zamarzanie (<0°C)
+- Blokada ładowania przy mrozie
+- Instrukcje ogrzania pomieszczenia
+
+#### 5e. ✅ Powrót do normy (<38°C przez 15 min)
+- Potwierdzenie bezpieczeństwa
+- Usunięcie alertów
+
+**Pliki:**
+- `config/automations_battery.yaml:186-365`
+- `config/python_scripts/battery_algorithm.py:559-575` (blokada ładowania)
+- `config/template_sensors.yaml:220-264` (sensor statusu)
+
+**Bezpieczne zakresy temperatury baterii Huawei Luna:**
+- 🟢 **Optymalna:** 15-25°C
+- 🟡 **Dopuszczalna:** 5-40°C
+- 🟠 **Ostrzeżenie:** >40°C (degradacja)
+- 🔴 **STOP ładowania:** >43°C
+- ⚫ **ALARM POŻAROWY:** >45°C
+- ❄️ **Mróz:** <0°C (uszkodzenie)
 
 ---
 
 ## 💰 OPTYMALIZACJE KOSZTOWE (Priorytet 2)
 
-### ✅ 5. Dynamiczny próg arbitrażu (zależny od sezonu)
+### ✅ 6. Dynamiczny próg arbitrażu (zależny od sezonu)
 **Przed:** Stały próg 0.90 zł/kWh
 **Po:** Dynamiczny próg:
 - **Sezon grzewczy:** 0.90 zł/kWh (potrzebujesz baterii)
@@ -99,7 +146,7 @@ arbitrage_threshold = 0.90 if heating_mode == 'heating_season' else 0.88
 
 ---
 
-### ✅ 6. Optymalizacja zapytań Forecast Solar API
+### ✅ 7. Optymalizacja zapytań Forecast Solar API
 **Przed:** `scan_interval: 3600s` (1h) = 72 zapytania/dobę
 **Po:** `scan_interval: 7200s` (2h) = 36 zapytań/dobę
 
@@ -121,12 +168,13 @@ arbitrage_threshold = 0.90 if heating_mode == 'heating_season' else 0.88
 | 2 | Błąd zmiennej `month` | KRYTYCZNE | ✅ Naprawione |
 | 3 | Hardcoded device_id | WYSOKIE | ✅ Naprawione |
 | 4 | Brak watchdog | ŚREDNIE | ✅ Dodane |
+| 5 | **BRAK zabezpieczeń termicznych** | **KRYTYCZNE** 🔥 | ✅ **Dodane (5 automatyzacji)** |
 
 ### Optymalizacje kosztowe
 | # | Optymalizacja | Szacunkowy zysk | Status |
 |---|---------------|-----------------|--------|
-| 5 | Dynamiczny próg arbitrażu | +15-30 zł/mc (IV-X) | ✅ Zaimplementowane |
-| 6 | Optymalizacja API (-50% zapytań) | Stabilność systemu | ✅ Zaimplementowane |
+| 6 | Dynamiczny próg arbitrażu | +15-30 zł/mc (IV-X) | ✅ Zaimplementowane |
+| 7 | Optymalizacja API (-50% zapytań) | Stabilność systemu | ✅ Zaimplementowane |
 
 ---
 

@@ -184,6 +184,187 @@
   mode: single
 
 # ============================================
+# BEZPIECZEŃSTWO TERMICZNE BATERII
+# ============================================
+
+- id: battery_temperature_warning
+  alias: "[Bateria] 🟠 Temperatura wysoka (>40°C)"
+  description: "Ostrzeżenie o podwyższonej temperaturze baterii (przyspieszona degradacja)"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.akumulator_1_temperatura
+      above: 40
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "🟠 OSTRZEŻENIE: Temperatura baterii wysoka!"
+        message: |
+          ⚠️ Temperatura baterii: {{ states('sensor.akumulator_1_temperatura') }}°C
+
+          **Działania:**
+          - Zredukowano intensywność ładowania
+          - Monitoruj temperaturę przez kolejne 30 min
+
+          **Przyczyny:**
+          - Intensywne ładowanie/rozładowanie
+          - Wysoka temperatura otoczenia
+          - Słaba wentylacja pomieszczenia
+
+          **Bezpieczny zakres:** 15-40°C
+        notification_id: battery_temp_warning
+  mode: single
+
+- id: battery_temperature_critical_stop_charging
+  alias: "[Bateria] 🔴 KRYTYCZNE: Temperatura >43°C - STOP ładowania!"
+  description: "Zatrzymuje ładowanie baterii przy temperaturze >43°C (ochrona przed uszkodzeniem)"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.akumulator_1_temperatura
+      above: 43
+  action:
+    # NATYCHMIAST wyłącz ładowanie z sieci
+    - service: switch.turn_off
+      target:
+        entity_id: switch.akumulatory_ladowanie_z_sieci
+    # Ustaw tryb bezpieczny (tylko autoconsumption, bez intensywnego ładowania)
+    - service: select.select_option
+      target:
+        entity_id: select.akumulatory_tryb_pracy
+      data:
+        option: "maximise_self_consumption"
+    # ALARM!
+    - service: persistent_notification.create
+      data:
+        title: "🔴🚨 ALARM: Temperatura baterii KRYTYCZNA!"
+        message: |
+          🔥 TEMPERATURA BATERII: {{ states('sensor.akumulator_1_temperatura') }}°C
+
+          ⚠️ PRZEKROCZONO BEZPIECZNY PRÓG (43°C)!
+
+          **WYKONANO AUTOMATYCZNIE:**
+          ✅ Zatrzymano ładowanie z sieci
+          ✅ Ustawiono tryb bezpieczny (Maximise Self Consumption)
+
+          **CO ZROBIĆ:**
+          1. Sprawdź temperaturę pomieszczenia z baterią
+          2. Zapewnij lepszą wentylację
+          3. NIE WZNAWIAJ ładowania dopóki temp < 35°C
+          4. Rozważ kontakt z serwisem Huawei
+
+          **LIMIT BEZPIECZEŃSTWA:** >45°C = ryzyko pożaru!
+        notification_id: battery_temp_critical
+  mode: single
+
+- id: battery_temperature_extreme_alarm
+  alias: "[Bateria] ⚫ EKSTREMALNIE NIEBEZPIECZNE: Temperatura >45°C!"
+  description: "Alarm ekstremalny - potencjalne zagrożenie pożarem"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.akumulator_1_temperatura
+      above: 45
+  action:
+    # Wszystkie możliwe wyłączenia
+    - service: switch.turn_off
+      target:
+        entity_id: switch.akumulatory_ladowanie_z_sieci
+    - service: select.select_option
+      target:
+        entity_id: select.akumulatory_tryb_pracy
+      data:
+        option: "maximise_self_consumption"
+    # EKSTREMALNY ALARM
+    - service: persistent_notification.create
+      data:
+        title: "⚫🚨🔥 EKSTREMALNIE NIEBEZPIECZNE: BATERIA PRZEGRZANA!"
+        message: |
+          🔥🔥🔥 TEMPERATURA: {{ states('sensor.akumulator_1_temperatura') }}°C 🔥🔥🔥
+
+          ⚫ PRZEKROCZONO EKSTREMALNY PRÓG (45°C)!
+          ⚠️ RYZYKO POŻARU/USZKODZENIA BATERII!
+
+          **NATYCHMIASTOWE DZIAŁANIA:**
+          1. ❌ ODŁĄCZ baterię od systemu (wyłącznik awaryjny)
+          2. 🚒 Przygotuj gaśnicę (NIE WODNĄ - tylko CO2/proszek ABC)
+          3. 🏃 Ewakuuj pomieszczenie
+          4. 📞 Zadzwoń do serwisu Huawei NATYCHMIAST
+          5. 📞 W razie oznak dymu/ognia: 998 (straż pożarna)
+
+          **NIE IGNORUJ TEGO ALARMU!**
+        notification_id: battery_temp_extreme
+
+- id: battery_temperature_freezing
+  alias: "[Bateria] ❄️ Temperatura poniżej 0°C - mróz!"
+  description: "Ostrzeżenie o niskiej temperaturze (możliwe uszkodzenie ogniw)"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.akumulator_1_temperatura
+      below: 0
+  action:
+    # Wyłącz ładowanie przy mrozie
+    - service: switch.turn_off
+      target:
+        entity_id: switch.akumulatory_ladowanie_z_sieci
+    - service: persistent_notification.create
+      data:
+        title: "❄️ OSTRZEŻENIE: Bateria zamarza!"
+        message: |
+          🥶 Temperatura baterii: {{ states('sensor.akumulator_1_temperatura') }}°C
+
+          ⚠️ TEMPERATURA PONIŻEJ 0°C!
+
+          **Ryzyko:**
+          - Uszkodzenie ogniw litowych
+          - Trwała utrata pojemności
+          - Skrócenie żywotności baterii
+
+          **Działania:**
+          ✅ Zatrzymano ładowanie z sieci
+
+          **Co zrobić:**
+          1. Ogrzej pomieszczenie z baterią do min. 10°C
+          2. Poczekaj aż bateria się ogrzeje
+          3. NIE ładuj przy temp < 5°C
+
+          **Bezpieczny zakres:** 0-40°C (optymalnie 15-25°C)
+        notification_id: battery_temp_freezing
+  mode: single
+
+- id: battery_temperature_normal_resumed
+  alias: "[Bateria] ✅ Temperatura baterii wróciła do normy"
+  description: "Informacja o powrocie do bezpiecznej temperatury"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.akumulator_1_temperatura
+      below: 38
+      for:
+        minutes: 15
+  condition:
+    # Tylko jeśli wcześniej była wysoka
+    - condition: numeric_state
+      entity_id: sensor.akumulator_1_temperatura
+      below: 38
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "✅ Temperatura baterii bezpieczna"
+        message: |
+          🟢 Temperatura baterii: {{ states('sensor.akumulator_1_temperatura') }}°C
+
+          Temperatura wróciła do bezpiecznego zakresu.
+          Algorytm zarządzania baterią może działać normalnie.
+
+          **Bezpieczny zakres:** 15-40°C
+        notification_id: battery_temp_normal
+    # Usuń stare alerty
+    - service: persistent_notification.dismiss
+      data:
+        notification_id: battery_temp_warning
+    - service: persistent_notification.dismiss
+      data:
+        notification_id: battery_temp_critical
+  mode: single
+
+# ============================================
 # WATCHDOG - MONITOROWANIE PRACY ALGORYTMU
 # ============================================
 
