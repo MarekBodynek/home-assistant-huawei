@@ -279,8 +279,16 @@ def calculate_cheapest_hours_to_store(data):
         # Rzeczywista pojemność użytkowa: 60% (9 kWh) w zakresie SOC 20-80%
         energy_to_store = max(0, (target_soc - soc) / 100 * battery_capacity_nominal)
 
-        # Jeśli bateria już naładowana
+        # Jeśli bateria już naładowana - WYPEŁNIJ POLA PRZED RETURNEM
         if energy_to_store <= 0.5:  # mniej niż 0.5 kWh
+            hass.services.call('input_text', 'set_value', {
+                'entity_id': 'input_text.battery_storage_status',
+                'value': f"Bateria naładowana | Teraz: {hour}h"[:255]
+            })
+            hass.services.call('input_text', 'set_value', {
+                'entity_id': 'input_text.battery_cheapest_hours',
+                'value': "-"[:100]
+            })
             return False, "Bateria już naładowana do Target SOC", []
 
         # 2. Ile godzin słonecznych zostało?
@@ -291,15 +299,18 @@ def calculate_cheapest_hours_to_store(data):
         else:
             sun_hours_left = 18 - hour
 
-        if sun_hours_left == 0:
-            return False, "Już po zachodzie słońca", []
+        # ZAWSZE OBLICZ I WYPEŁNIJ POLA - nawet po zachodzie słońca!
+        # Po zachodzie: pokaż dzisiejsze godziny słoneczne (analiza historyczna)
 
         # 3. Ile godzin potrzeba na naładowanie?
+        # Po zachodzie (sun_hours_left == 0) użyj wszystkich godzin słonecznych dnia (12h)
+        hours_for_calculation = sun_hours_left if sun_hours_left > 0 else 12
+
         if forecast_today <= 0:
-            hours_needed = sun_hours_left  # brak prognozy, magazynuj wszystko
+            hours_needed = hours_for_calculation  # brak prognozy
         else:
             avg_pv_per_hour = forecast_today / 12  # średnio w ciągu 12h słonecznych
-            hours_needed = min(int(energy_to_store / avg_pv_per_hour) + 1, sun_hours_left)
+            hours_needed = min(int(energy_to_store / avg_pv_per_hour) + 1, hours_for_calculation)
 
         hours_needed = max(1, hours_needed)  # minimum 1 godzina
 
