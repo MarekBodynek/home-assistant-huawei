@@ -1,13 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(do if curl -s -X GET -H 'Authorization: Bearer $TOKEN' http://192.168.0.106:8123/api/)",
-      "Bash(then echo '✅ HA is UP!' break else echo '⏳ Try $i/15...' sleep 4 fi done)",
-      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJiYTM0ODE1MzhiM2I0ZWU0YmYxZjFjNDIyNTM2NDg1NSIsImlhdCI6MTc2MzE5NzAyMywiZXhwIjoyMDc4NTU3MDIzfQ.WVC2ls8vti2c6Xa8sxjPzr6W9gQkJHVijfkAwoNkYac\" echo \"=== URUCHAMIAM BATTERY ALGORITHM ===\" curl -s -X POST -H \"Authorization: Bearer $TOKEN\" -H \"Content-Type: application/json\" -d '{}' http://192.168.0.106:8123/api/services/python_script/battery_algorithm echo \"\" echo \"\" echo \"⏳ Czekam 10s...\" sleep 10 echo \"\" echo \"=== SPRAWDZAM WYNIKI ===\" echo \"📊 Analiza:\" curl -s -X GET -H \"Authorization: Bearer $TOKEN\" \"http://192.168.0.106:8123/api/states/input_text.battery_storage_status\")",
-      "Bash(do sleep 4 if curl -s -X GET -H 'Authorization: Bearer $TOKEN' http://192.168.0.106:8123/api/)",
-      "Bash(then echo '✅ HA is UP! (po $ix4s)' break else echo '⏳ Próba $i/15...' fi done)",
-      "Bash(if sshpass -p 'Keram1qazXSW@' ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no $user@192.168.0.106 \"echo ''Połączono jako:'' && whoami && cd /config && git pull origin main\")",
-      "Bash(Teraz: XXh\" zamiast pustego \"Brak analizy\".\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(sshpass -p 'Keram1qazXSW@' ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no marekbodynek@192.168.0.106 \"curl -s -H ''Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDkyNTJiNmE1OGU0MmEzYTZiNjBjNWZjMWQ4MTcyZCIsImlhdCI6MTczMDkyNTA1MCwiZXhwIjoyMDQ2Mjg1MDUwfQ.Z4rvslE8wBN3rWLqnedKtZzwA_tuJCqaTD8HQE7MRlk'' http://localhost:8123/api/states/sensor.pstryk_current_sell_price | python3 -m json.tool\")",
+      "Bash(sshpass:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\n📚 Skonsolidowano dokumentację w jeden plik\n\n- Utworzono DOKUMENTACJA_KOMPLETNA.md (kompilacja 14 plików MD)\n- Usunięto pojedyncze pliki dokumentacji\n- Zachowano tylko pliki third-party (HACS, Huawei Solar)\n- Pełny spis treści z 10 sekcjami\n- Łącznie ~2000 linii kompleksowej dokumentacji\n\nSekcje:\n1. Instalacja i konfiguracja\n2. Algorytm zarządzania baterią\n3. Integracje (Pstryk, Forecast.Solar, Panasonic)\n4. Automatyzacje\n5. Dashboard\n6. Dostęp zewnętrzny (Cloudflare Tunnel)\n7. Bezpieczeństwo i optymalizacja\n8. Rozwiązywanie problemów\n9. Zarządzanie systemem\n10. Checklisty\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []
