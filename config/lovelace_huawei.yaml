@@ -19,11 +19,12 @@ views:
             forecast_type: hourly
             show_current: true
 
-          # Magazynowanie baterii
+          # Bateria - wszystko w jednej karcie
           - type: entities
-            title: 💰 Magazynowanie Baterii
+            title: 🔋 Bateria i Zarządzanie
             icon: mdi:battery-charging
             entities:
+              # Decyzje algorytmu
               - entity: input_text.battery_decision_reason
                 name: 🎯 Decyzja
                 icon: mdi:chart-line
@@ -33,38 +34,23 @@ views:
               - entity: input_text.battery_cheapest_hours
                 name: 💵 Najtańsze godziny
                 icon: mdi:currency-usd
-              - type: divider
+              # Status baterii
               - entity: sensor.akumulatory_stan_pojemnosci
-                name: 🔋 SOC
-              - entity: input_number.battery_target_soc
-                name: 🎯 Target SOC
-            state_color: true
-
-          # Tryb pracy baterii
-          - type: entities
-            title: Tryb pracy baterii
-            icon: mdi:cog
-            entities:
-              - entity: select.akumulatory_tryb_pracy
-                name: Tryb pracy
-              - entity: switch.akumulatory_ladowanie_z_sieci
-                name: Ładowanie z sieci
-              - entity: input_number.battery_target_soc
-                name: Docelowy SOC (obliczony o 04:00)
-
-          # Bateria Luna 2000
-          - type: entities
-            title: Bateria Luna 2000
-            icon: mdi:battery-high
-            entities:
-              - entity: sensor.akumulatory_stan_pojemnosci
-                name: Stan naładowania (SOC)
+                name: 🔋 Stan naładowania (SOC)
                 icon: mdi:battery-80
               - entity: sensor.akumulatory_moc_ladowania_rozladowania
                 name: Moc ładowania/rozładowania
                 icon: mdi:battery-charging
               - entity: sensor.akumulatory_status
                 name: Status baterii
+              # Sterowanie
+              - entity: select.akumulatory_tryb_pracy
+                name: ⚙️ Tryb pracy
+              - entity: switch.akumulatory_ladowanie_z_sieci
+                name: Ładowanie z sieci
+              - entity: input_number.battery_target_soc
+                name: 🎯 Target SOC (obliczony o 04:00)
+            state_color: true
 
       # SEKCJA 2 (środkowa kolumna)
       - type: grid
