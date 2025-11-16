@@ -773,9 +773,9 @@ def apply_battery_mode(strategy):
         set_huawei_mode('fully_fed_to_grid', discharge_soc_limit=min_soc)
 
     elif mode == 'grid_to_home':
-        # W L2 - BLOKUJ rozładowywanie baterii! Ustaw discharge limit na 100%
-        # To uniemożliwi rozładowanie (SOC nigdy nie osiągnie 100%)
-        set_huawei_mode('maximise_self_consumption', charge_from_grid=False, discharge_soc_limit=100)
+        # W L2 - BLOKUJ rozładowywanie baterii! Ustaw max moc rozładowania na 0W
+        # Tryb TOU + moc 0W = bateria nie rozładowuje się
+        set_huawei_mode('time_of_use_luna2000', charge_from_grid=False, max_discharge_power=0)
 
     elif mode == 'idle':
         set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
@@ -811,6 +811,19 @@ def set_huawei_mode(working_mode, **kwargs):
             hass.services.call('number', 'set_value', {
                 'entity_id': 'number.akumulatory_koniec_rozladowania_soc',
                 'value': kwargs['discharge_soc_limit']
+            })
+
+        # Ustaw maksymalną moc rozładowania (0W = blokada rozładowania)
+        if 'max_discharge_power' in kwargs:
+            hass.services.call('number', 'set_value', {
+                'entity_id': 'number.akumulatory_maksymalna_moc_rozladowania',
+                'value': kwargs['max_discharge_power']
+            })
+        # Przywróć normalną moc rozładowania (5000W) jeśli nie ustawiono max_discharge_power
+        elif working_mode != 'time_of_use_luna2000' or kwargs.get('charge_from_grid', False):
+            hass.services.call('number', 'set_value', {
+                'entity_id': 'number.akumulatory_maksymalna_moc_rozladowania',
+                'value': 5000
             })
 
         # Ustaw harmonogram TOU dla ładowania z sieci
