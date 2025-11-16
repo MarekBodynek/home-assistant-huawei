@@ -765,13 +765,15 @@ def set_huawei_mode(working_mode, **kwargs):
             # Tryb pilny (SOC < 25%) - ładuj NATYCHMIAST przez całą dobę
             if kwargs.get('urgent_charge', False):
                 tou_periods = "00:00-23:59/1234567/+"
-            # Normalny tryb - ładuj w godzinach L2 (tania taryfa):
-            # - Pn-Pt noc: 22:00-05:59
+            # Normalny tryb - ładuj w godzinach L2 (tania taryfa G12w):
+            # - Pn-Pt noc: 22:00-06:00
+            # - Pn-Pt dzień: 13:00-15:00
             # - Weekend (Sob+Niedz): cała doba
             else:
                 tou_periods = (
                     "22:00-23:59/12345/+\n"  # Pn-Pt wieczór (22-24h)
                     "00:00-05:59/12345/+\n"  # Pn-Pt noc (0-6h)
+                    "13:00-14:59/12345/+\n"  # Pn-Pt południe (13-15h)
                     "00:00-23:59/67/+"       # Sob+Niedz cała doba
                 )
 
