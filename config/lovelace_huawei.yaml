@@ -28,15 +28,19 @@ views:
               - entity: input_text.battery_decision_reason
                 name: 🎯 Decyzja
                 icon: mdi:chart-line
+              - entity: input_number.battery_target_soc
+                name: 🎯 Target SOC (obliczony o 04:00)
               # Status baterii
               - entity: sensor.akumulatory_stan_pojemnosci
                 name: 🔋 Stan naładowania (SOC)
                 icon: mdi:battery-80
+              - entity: switch.akumulatory_ladowanie_z_sieci
+                name: Ładowanie z sieci
+              - entity: sensor.akumulatory_status
+                name: Status baterii
               - entity: sensor.akumulatory_moc_ladowania_rozladowania
                 name: Moc ładowania/rozładowania
                 icon: mdi:battery-charging
-              - entity: sensor.akumulatory_status
-                name: Status baterii
               # Temperatura baterii
               - entity: sensor.bateria_temperatura_maksymalna
                 name: 🌡️ Temperatura baterii (max)
@@ -47,10 +51,6 @@ views:
               # Sterowanie
               - entity: select.akumulatory_tryb_pracy
                 name: ⚙️ Tryb pracy
-              - entity: switch.akumulatory_ladowanie_z_sieci
-                name: Ładowanie z sieci
-              - entity: input_number.battery_target_soc
-                name: 🎯 Target SOC (obliczony o 04:00)
             state_color: true
 
       # SEKCJA 2 (środkowa kolumna)
