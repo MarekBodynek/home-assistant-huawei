@@ -93,15 +93,15 @@ def calculate_daily_strategy():
             z_baterii = min(dom_l1 - pokrycie_pv, 15)
 
             target_soc = int((z_baterii / 15) * 100)
-            target_soc = max(30, min(70, target_soc))
+            target_soc = max(20, min(80, target_soc))  # ✅ ZAWSZE 20-80% (bezpieczeństwo Huawei)
 
-            # Latem mniej
+            # Latem mniej (ale minimum 20%)
             if forecast_tomorrow > 30:
-                target_soc = 30
+                target_soc = max(20, 30)
             elif forecast_tomorrow > 20:
-                target_soc = 40
+                target_soc = max(20, 40)
             else:
-                target_soc = 50
+                target_soc = max(20, 50)
 
             reason = f'Bez CO: dom={dom_l1:.0f}kWh, PV={pokrycie_pv:.0f}kWh, bateria={z_baterii:.0f}kWh'
 

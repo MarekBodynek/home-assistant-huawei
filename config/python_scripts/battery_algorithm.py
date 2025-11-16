@@ -282,13 +282,36 @@ def calculate_cheapest_hours_to_store(data):
         # Zapamiętaj czy bateria naładowana (użyjemy później)
         battery_already_charged = energy_to_store <= 0.5
 
-        # 2. Ile godzin słonecznych zostało?
-        if hour < 6:
-            sun_hours_left = 12  # 6-18h
-        elif hour >= 18:
-            sun_hours_left = 0  # już ciemno
+        # 2. Ile godzin słonecznych zostało? (użyj rzeczywistych czasów wschodu/zachodu)
+        # Pobierz wschód i zachód słońca z sun.sun
+        sun_state = hass.states.get('sun.sun')
+        if sun_state:
+            # next_rising i next_setting są w formacie ISO: "2025-11-16T07:30:00+01:00"
+            next_rising_str = sun_state.attributes.get('next_rising', '')
+            next_setting_str = sun_state.attributes.get('next_setting', '')
+
+            # Parse godziny (ekstrahuj "HH" z "YYYY-MM-DDTHH:MM:SS")
+            if 'T' in next_rising_str:
+                sunrise_hour = int(next_rising_str.split('T')[1].split(':')[0])
+            else:
+                sunrise_hour = 6  # fallback
+
+            if 'T' in next_setting_str:
+                sunset_hour = int(next_setting_str.split('T')[1].split(':')[0])
+            else:
+                sunset_hour = 18  # fallback
         else:
-            sun_hours_left = 18 - hour
+            # Fallback jeśli sun.sun nie istnieje
+            sunrise_hour = 6
+            sunset_hour = 18
+
+        # Oblicz ile godzin słonecznych zostało
+        if hour < sunrise_hour:
+            sun_hours_left = sunset_hour - sunrise_hour  # pełny dzień słoneczny
+        elif hour >= sunset_hour:
+            sun_hours_left = 0  # już po zachodzie
+        else:
+            sun_hours_left = sunset_hour - hour
 
         # ZAWSZE OBLICZ I WYPEŁNIJ POLA - nawet po zachodzie słońca!
         # Po zachodzie: pokaż dzisiejsze godziny słoneczne (analiza historyczna)
@@ -316,7 +339,7 @@ def calculate_cheapest_hours_to_store(data):
             # Brak cen godzinowych
             return None, "Brak cen godzinowych", []
 
-        # Filtruj tylko dzisiejsze godziny słoneczne (6-18h)
+        # Filtruj tylko dzisiejsze godziny słoneczne (sunrise - sunset)
         # Pobierz dzisiejszą datę z sensora
         date_state = hass.states.get('sensor.date')
         today_str = date_state.state if date_state else "2025-11-16"
@@ -338,8 +361,8 @@ def calculate_cheapest_hours_to_store(data):
                 else:
                     continue
 
-                # Tylko dzisiaj + godziny słoneczne
-                if date_part == today_str and 6 <= price_hour < 18:
+                # Tylko dzisiaj + godziny słoneczne (sunrise <= hour < sunset)
+                if date_part == today_str and sunrise_hour <= price_hour < sunset_hour:
                     sun_prices.append({
                         'hour': price_hour,
                         'price': float(price_val)
