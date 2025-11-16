@@ -183,8 +183,7 @@ def decide_strategy(data, balance):
             'mode': 'charge_from_grid',
             'target_soc': 35,
             'priority': 'critical',
-            'reason': 'SOC poniżej dolnego limitu (20%) - PILNE ładowanie!',
-            'urgent_charge': True  # Ładuj NATYCHMIAST przez całą dobę!
+            'reason': 'SOC poniżej 20% - PILNE ładowanie w najbliższym oknie L2!'
         }
 
     if soc >= 75:
@@ -710,9 +709,7 @@ def apply_battery_mode(strategy):
 
     elif mode == 'charge_from_grid':
         target_soc = strategy.get('target_soc', 80)
-        cheapest_hours = strategy.get('cheapest_hours', [])
-        urgent_charge = strategy.get('urgent_charge', False)
-        set_huawei_mode('time_of_use_luna2000', charge_from_grid=True, charge_soc_limit=target_soc, cheapest_hours=cheapest_hours, urgent_charge=urgent_charge)
+        set_huawei_mode('time_of_use_luna2000', charge_from_grid=True, charge_soc_limit=target_soc)
 
     elif mode == 'discharge_to_home':
         set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
@@ -760,27 +757,22 @@ def set_huawei_mode(working_mode, **kwargs):
                 'value': kwargs['discharge_soc_limit']
             })
 
-        # Ustaw harmonogram TOU dla ładowania z sieci
+        # Ustaw harmonogram TOU dla ładowania z sieci (tylko w godzinach L2)
         if 'charge_from_grid' in kwargs and kwargs['charge_from_grid']:
-            # Tryb pilny (SOC < 25%) - ładuj NATYCHMIAST przez całą dobę
-            if kwargs.get('urgent_charge', False):
-                tou_periods = "00:00-23:59/1234567/+"
-            # Normalny tryb - ładuj w godzinach L2 (tania taryfa G12w)
-            else:
-                # Sprawdź czy dzisiaj jest dzień roboczy (wykrywa święta + weekendy)
-                workday_state = hass.states.get('binary_sensor.dzien_roboczy')
-                is_workday = workday_state and workday_state.state == 'on'
+            # Sprawdź czy dzisiaj jest dzień roboczy (wykrywa święta + weekendy)
+            workday_state = hass.states.get('binary_sensor.dzien_roboczy')
+            is_workday = workday_state and workday_state.state == 'on'
 
-                if is_workday:
-                    # Dzień powszedni: ładuj w godzinach L2 (22:00-06:00 + 13:00-15:00)
-                    tou_periods = (
-                        "22:00-23:59/12345/+\n"  # Pn-Pt wieczór (22-24h)
-                        "00:00-05:59/12345/+\n"  # Pn-Pt noc (0-6h)
-                        "13:00-14:59/12345/+"    # Pn-Pt południe (13-15h)
-                    )
-                else:
-                    # Weekend lub ŚWIĘTO: ładuj całą dobę (L2 przez 24h)
-                    tou_periods = "00:00-23:59/67/+"
+            if is_workday:
+                # Dzień powszedni: ładuj w godzinach L2 (22:00-06:00 + 13:00-15:00)
+                tou_periods = (
+                    "22:00-23:59/12345/+\n"  # Pn-Pt wieczór (22-24h)
+                    "00:00-05:59/12345/+\n"  # Pn-Pt noc (0-6h)
+                    "13:00-14:59/12345/+"    # Pn-Pt południe (13-15h)
+                )
+            else:
+                # Weekend lub ŚWIĘTO: ładuj całą dobę (L2 przez 24h)
+                tou_periods = "00:00-23:59/67/+"
 
             hass.services.call('huawei_solar', 'set_tou_periods', {
                 'device_id': '450d2d6fd853d7876315d70559e1dd83',
