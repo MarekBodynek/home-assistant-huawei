@@ -64,7 +64,12 @@
         {% set h = now().hour %}
         {% set m = now().minute %}
         {% set time_decimal = h + (m / 60.0) %}
-        {{ (time_decimal >= 4.5 and time_decimal < 6) or (time_decimal >= 13 and time_decimal < 15) }}
+        {% set is_workday = is_state('binary_sensor.dzien_roboczy', 'on') %}
+        {% if is_workday %}
+          {{ (time_decimal >= 4.5 and time_decimal < 6) or (time_decimal >= 13 and time_decimal < 15) or (time_decimal >= 20 and time_decimal < 24) }}
+        {% else %}
+          {{ time_decimal >= 7 and time_decimal < 24 }}
+        {% endif %}
       icon: >
         {% if is_state('binary_sensor.okno_cwu', 'on') %}
           mdi:water-boiler
@@ -73,8 +78,8 @@
         {% endif %}
       attributes:
         friendly_name: "Okno CWU aktywne"
-        morning_window: "04:30-06:00"
-        afternoon_window: "13:00-15:00"
+        workday_windows: "04:30-06:00, 13:00-15:00, 20:00-23:59"
+        weekend_window: "07:00-23:59"
 
 # ============================================
 # CENY ENERGII - ZAKUP (z sieci)
