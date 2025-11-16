@@ -17,10 +17,37 @@ def calculate_daily_strategy():
     Oblicza cel ładowania na noc
     """
     try:
-        # Pobierz dane
-        forecast_tomorrow = float(hass.states.get('sensor.prognoza_pv_jutro').state or 0)
-        temp = float(hass.states.get('sensor.temperatura_zewnetrzna').state or 10)
-        heating_mode = 'heating_season' if hass.states.get('binary_sensor.sezon_grzewczy').state == 'on' else 'no_heating'
+        # Pobierz dane z bezpieczną obsługą błędów
+        forecast_state = hass.states.get('sensor.prognoza_pv_jutro')
+        temp_state = hass.states.get('sensor.temperatura_zewnetrzna')
+        heating_state = hass.states.get('binary_sensor.sezon_grzewczy')
+
+        if forecast_state is None or forecast_state.state in ['unknown', 'unavailable', None]:
+            logger.warning("Sensor prognoza_pv_jutro not available, using 0")
+            forecast_tomorrow = 0.0
+        else:
+            try:
+                forecast_tomorrow = float(forecast_state.state)
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid forecast value: {forecast_state.state}, using 0")
+                forecast_tomorrow = 0.0
+
+        if temp_state is None or temp_state.state in ['unknown', 'unavailable', None]:
+            logger.warning("Sensor temperatura_zewnetrzna not available, using 10")
+            temp = 10.0
+        else:
+            try:
+                temp = float(temp_state.state)
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid temp value: {temp_state.state}, using 10")
+                temp = 10.0
+
+        if heating_state is None or heating_state.state in ['unknown', 'unavailable', None]:
+            logger.warning("Sensor sezon_grzewczy not available, using no_heating")
+            heating_mode = 'no_heating'
+        else:
+            heating_mode = 'heating_season' if heating_state.state == 'on' else 'no_heating'
+
         month = datetime.now().month
 
         logger.info(f"Calculating daily strategy: forecast={forecast_tomorrow}kWh, temp={temp}°C, mode={heating_mode}")
