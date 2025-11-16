@@ -554,6 +554,22 @@ def should_charge_from_grid(data):
                 'reason': f'RCE bardzo niskie ({rce_now:.3f}) + pochmurno jutro'
             }
 
+    # WIOSNA/JESIEŃ - doładowanie w oknie L2 13-15h (miesiące: III, IV, V, IX, X, XI)
+    if month in [3, 4, 5, 9, 10, 11]:
+        if hour in [13, 14] and tariff == 'L2' and soc < 75:
+            # Oszacowanie dziennego zużycia energii
+            daily_consumption = 35 if heating_mode == 'heating_season' else 20
+            forecast_today = data['forecast_today']
+
+            # Jeśli produkcja PV nie wystarczy na dzienne potrzeby
+            if forecast_today < daily_consumption:
+                return {
+                    'should_charge': True,
+                    'target_soc': 75,
+                    'priority': 'high',
+                    'reason': f'Wiosna/jesień: PV {forecast_today:.1f} < potrzeby {daily_consumption} kWh - doładowanie w L2 13-15h'
+                }
+
     # NOC L2 - główne ładowanie
     if tariff == 'L2' and hour in [22, 23, 0, 1, 2, 3, 4, 5]:
         if soc < target_soc:
