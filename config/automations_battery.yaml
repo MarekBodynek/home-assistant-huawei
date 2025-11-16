@@ -4,15 +4,15 @@
 # ============================================
 
 # ============================================
-# 04:00 - Oblicz strategię dzienną
+# 00:00 - Oblicz strategię dzienną
 # ============================================
 
 - id: battery_calculate_daily_strategy
-  alias: "[Bateria] Oblicz strategię dzienną 04:00"
+  alias: "[Bateria] Oblicz strategię dzienną 00:00"
   description: "Oblicza cel ładowania (Target SOC) na podstawie prognozy PV i temperatury"
   trigger:
     - platform: time
-      at: "04:00:00"
+      at: "00:00:00"
   action:
     - service: python_script.calculate_daily_strategy
   mode: single

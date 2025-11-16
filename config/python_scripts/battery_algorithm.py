@@ -773,7 +773,9 @@ def apply_battery_mode(strategy):
         set_huawei_mode('fully_fed_to_grid', discharge_soc_limit=min_soc)
 
     elif mode == 'grid_to_home':
-        set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
+        # W L2 - BLOKUJ rozładowywanie baterii! Ustaw discharge limit na 100%
+        # To uniemożliwi rozładowanie (SOC nigdy nie osiągnie 100%)
+        set_huawei_mode('maximise_self_consumption', charge_from_grid=False, discharge_soc_limit=100)
 
     elif mode == 'idle':
         set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
