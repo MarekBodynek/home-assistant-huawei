@@ -192,14 +192,14 @@
   description: "Ostrzeżenie o podwyższonej temperaturze baterii (przyspieszona degradacja)"
   trigger:
     - platform: numeric_state
-      entity_id: sensor.akumulator_1_temperatura
+      entity_id: sensor.bateria_temperatura_maksymalna
       above: 40
   action:
     - service: persistent_notification.create
       data:
         title: "🟠 OSTRZEŻENIE: Temperatura baterii wysoka!"
         message: |
-          ⚠️ Temperatura baterii: {{ states('sensor.akumulator_1_temperatura') }}°C
+          ⚠️ Temperatura baterii: {{ states('sensor.bateria_temperatura_maksymalna') }}°C
 
           **Działania:**
           - Zredukowano intensywność ładowania
@@ -219,7 +219,7 @@
   description: "Zatrzymuje ładowanie baterii przy temperaturze >43°C (ochrona przed uszkodzeniem)"
   trigger:
     - platform: numeric_state
-      entity_id: sensor.akumulator_1_temperatura
+      entity_id: sensor.bateria_temperatura_maksymalna
       above: 43
   action:
     # NATYCHMIAST wyłącz ładowanie z sieci
@@ -260,7 +260,7 @@
   description: "Alarm ekstremalny - potencjalne zagrożenie pożarem"
   trigger:
     - platform: numeric_state
-      entity_id: sensor.akumulator_1_temperatura
+      entity_id: sensor.bateria_temperatura_maksymalna
       above: 45
   action:
     # Wszystkie możliwe wyłączenia
@@ -297,7 +297,7 @@
   description: "Ostrzeżenie o niskiej temperaturze (możliwe uszkodzenie ogniw)"
   trigger:
     - platform: numeric_state
-      entity_id: sensor.akumulator_1_temperatura
+      entity_id: sensor.bateria_temperatura_maksymalna
       below: 0
   action:
     # Wyłącz ładowanie przy mrozie
@@ -334,14 +334,14 @@
   description: "Informacja o powrocie do bezpiecznej temperatury"
   trigger:
     - platform: numeric_state
-      entity_id: sensor.akumulator_1_temperatura
+      entity_id: sensor.bateria_temperatura_maksymalna
       below: 38
       for:
         minutes: 15
   condition:
     # Tylko jeśli wcześniej była wysoka
     - condition: numeric_state
-      entity_id: sensor.akumulator_1_temperatura
+      entity_id: sensor.bateria_temperatura_maksymalna
       below: 38
   action:
     - service: persistent_notification.create

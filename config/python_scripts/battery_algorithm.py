@@ -104,7 +104,7 @@ def collect_input_data():
             # Bateria
             'soc': float(get_state('sensor.akumulatory_stan_pojemnosci') or 50),
             'battery_power': float(get_state('sensor.akumulatory_moc_ladowania_rozladowania') or 0) / 1000,
-            'battery_temp': float(get_state('sensor.akumulator_1_temperatura') or 25),
+            'battery_temp': float(get_state('sensor.bateria_temperatura_maksymalna') or 25),
 
             # PV i zużycie
             'pv_power': float(get_state('sensor.inwerter_moc_wejsciowa') or 0) / 1000,

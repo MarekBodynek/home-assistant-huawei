@@ -226,14 +226,54 @@
 # BEZPIECZEŃSTWO TERMICZNE BATERII
 # ============================================
 
+- sensor:
+    - name: "Bateria - temperatura maksymalna"
+      unique_id: battery_temperature_max
+      unit_of_measurement: "°C"
+      device_class: temperature
+      state: >
+        {% set temps = [
+          states('sensor.jv2279a93038_temperatura') | float(0),
+          states('sensor.jv2279a93040_temperatura') | float(0),
+          states('sensor.jv2279a93041_temperatura') | float(0),
+          states('sensor.jv2279a93043_temperatura') | float(0),
+          states('sensor.jv2279a93045_temperatura') | float(0),
+          states('sensor.jv2279a93046_temperatura') | float(0),
+          states('sensor.jv2279a93047_temperatura') | float(0),
+          states('sensor.jv2279a93048_temperatura') | float(0),
+          states('sensor.jv2279a93049_temperatura') | float(0),
+          states('sensor.jv2279a93050_temperatura') | float(0),
+          states('sensor.jv2279a93051_temperatura') | float(0),
+          states('sensor.jv2279a93053_temperatura') | float(0),
+          states('sensor.jv2279a93055_temperatura') | float(0),
+          states('sensor.jv2279a93068_temperatura') | float(0),
+          states('sensor.jv2279a93073_temperatura') | float(0),
+          states('sensor.jv2279a93074_temperatura') | float(0),
+          states('sensor.jv2279a93075_temperatura') | float(0)
+        ] %}
+        {% set valid_temps = temps | reject('eq', 0) | list %}
+        {{ valid_temps | max if valid_temps | length > 0 else 25 }}
+      icon: mdi:thermometer-high
+      attributes:
+        friendly_name: "Bateria - najwyższa temperatura modułu"
+        valid_sensors: >
+          {% set temps = [
+            'JV...38: ' + states('sensor.jv2279a93038_temperatura'),
+            'JV...40: ' + states('sensor.jv2279a93040_temperatura'),
+            'JV...41: ' + states('sensor.jv2279a93041_temperatura'),
+            'JV...43: ' + states('sensor.jv2279a93043_temperatura'),
+            'JV...45: ' + states('sensor.jv2279a93045_temperatura')
+          ] %}
+          {{ temps | select('search', '[0-9]') | list | join(', ') if temps | select('search', '[0-9]') | list | length > 0 else 'Brak aktywnych sensorów' }}
+
 - binary_sensor:
     - name: "Bateria - bezpieczna temperatura"
       unique_id: battery_temperature_safe
       state: >
-        {% set temp = states('sensor.akumulator_1_temperatura') | float(25) %}
+        {% set temp = states('sensor.bateria_temperatura_maksymalna') | float(25) %}
         {{ temp >= 5 and temp <= 40 }}
       icon: >
-        {% set temp = states('sensor.akumulator_1_temperatura') | float(25) %}
+        {% set temp = states('sensor.bateria_temperatura_maksymalna') | float(25) %}
         {% if temp > 43 %}
           mdi:fire-alert
         {% elif temp > 40 %}
@@ -247,11 +287,11 @@
         {% endif %}
       attributes:
         friendly_name: "Bateria - bezpieczna temperatura"
-        temperature: "{{ states('sensor.akumulator_1_temperatura') }}°C"
+        temperature: "{{ states('sensor.bateria_temperatura_maksymalna') }}°C"
         safe_range: "5-40°C"
         optimal_range: "15-25°C"
         status: >
-          {% set temp = states('sensor.akumulator_1_temperatura') | float(25) %}
+          {% set temp = states('sensor.bateria_temperatura_maksymalna') | float(25) %}
           {% if temp > 45 %}
             EKSTREMALNIE NIEBEZPIECZNE (>45°C)
           {% elif temp > 43 %}
