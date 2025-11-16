@@ -369,13 +369,24 @@ def calculate_cheapest_hours_to_store(data):
         # 7. Czy aktualna godzina jest w najtańszych?
         is_cheap_hour = hour in cheapest_hours
 
+        # Znajdź cenę dla aktualnej godziny (bez użycia next())
+        current_price = None
+        for p in sun_prices:
+            if p['hour'] == hour:
+                current_price = p['price']
+                break
+
         if is_cheap_hour:
-            current_price = next((p['price'] for p in sun_prices if p['hour'] == hour), None)
-            reason = f"TANIA godzina ({hour}h: {current_price:.3f} zł) - top {hours_needed} najtańszych - MAGAZYNUJ"
+            if current_price is not None:
+                reason = f"TANIA godzina ({hour}h: {current_price:.3f} zł) - top {hours_needed} najtańszych - MAGAZYNUJ"
+            else:
+                reason = f"TANIA godzina ({hour}h) - top {hours_needed} najtańszych - MAGAZYNUJ"
         else:
-            current_price = next((p['price'] for p in sun_prices if p['hour'] == hour), None)
             cheapest_price = sun_prices_sorted[0]['price']
-            reason = f"DROGA godzina ({hour}h: {current_price:.3f} zł vs najtańsza {cheapest_price:.3f} zł) - SPRZEDAJ"
+            if current_price is not None:
+                reason = f"DROGA godzina ({hour}h: {current_price:.3f} zł vs najtańsza {cheapest_price:.3f} zł) - SPRZEDAJ"
+            else:
+                reason = f"DROGA godzina ({hour}h vs najtańsza {cheapest_price:.3f} zł) - SPRZEDAJ"
 
         # Zapisz status do input_text dla wyświetlenia na dashboardzie
         status_msg = f"Potrzeba: {hours_needed}h | Najtańsze: {cheapest_hours} | Teraz: {hour}h"
