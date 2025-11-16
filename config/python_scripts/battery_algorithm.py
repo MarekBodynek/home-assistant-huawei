@@ -765,17 +765,22 @@ def set_huawei_mode(working_mode, **kwargs):
             # Tryb pilny (SOC < 25%) - ładuj NATYCHMIAST przez całą dobę
             if kwargs.get('urgent_charge', False):
                 tou_periods = "00:00-23:59/1234567/+"
-            # Normalny tryb - ładuj w godzinach L2 (tania taryfa G12w):
-            # - Pn-Pt noc: 22:00-06:00
-            # - Pn-Pt dzień: 13:00-15:00
-            # - Weekend (Sob+Niedz): cała doba
+            # Normalny tryb - ładuj w godzinach L2 (tania taryfa G12w)
             else:
-                tou_periods = (
-                    "22:00-23:59/12345/+\n"  # Pn-Pt wieczór (22-24h)
-                    "00:00-05:59/12345/+\n"  # Pn-Pt noc (0-6h)
-                    "13:00-14:59/12345/+\n"  # Pn-Pt południe (13-15h)
-                    "00:00-23:59/67/+"       # Sob+Niedz cała doba
-                )
+                # Sprawdź czy dzisiaj jest dzień roboczy (wykrywa święta + weekendy)
+                workday_state = hass.states.get('binary_sensor.dzien_roboczy')
+                is_workday = workday_state and workday_state.state == 'on'
+
+                if is_workday:
+                    # Dzień powszedni: ładuj w godzinach L2 (22:00-06:00 + 13:00-15:00)
+                    tou_periods = (
+                        "22:00-23:59/12345/+\n"  # Pn-Pt wieczór (22-24h)
+                        "00:00-05:59/12345/+\n"  # Pn-Pt noc (0-6h)
+                        "13:00-14:59/12345/+"    # Pn-Pt południe (13-15h)
+                    )
+                else:
+                    # Weekend lub ŚWIĘTO: ładuj całą dobę (L2 przez 24h)
+                    tou_periods = "00:00-23:59/67/+"
 
             hass.services.call('huawei_solar', 'set_tou_periods', {
                 'device_id': '450d2d6fd853d7876315d70559e1dd83',

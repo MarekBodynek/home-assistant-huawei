@@ -148,6 +148,27 @@ rest:
           {{ data[tomorrow] | float(0) / 1000 | round(1) }}
         unit_of_measurement: "kWh"
 
+# Binary sensor - Dzień roboczy (wykrywa święta i weekendy)
+binary_sensor:
+  - platform: workday
+    name: Dzień roboczy
+    country: PL
+    workdays: [mon, tue, wed, thu, fri]
+    excludes: [sat, sun, holiday]
+    add_holidays:
+      - '2025-01-01'  # Nowy Rok
+      - '2025-01-06'  # Trzech Króli
+      - '2025-04-20'  # Wielkanoc
+      - '2025-04-21'  # Poniedziałek Wielkanocny
+      - '2025-05-01'  # Święto Pracy
+      - '2025-05-03'  # Święto Konstytucji 3 Maja
+      - '2025-06-08'  # Boże Ciało
+      - '2025-08-15'  # Wniebowzięcie NMP
+      - '2025-11-01'  # Wszystkich Świętych
+      - '2025-11-11'  # Święto Niepodległości
+      - '2025-12-25'  # Boże Narodzenie
+      - '2025-12-26'  # Drugi dzień Bożego Narodzenia
+
 # HTTP
 http:
   use_x_forwarded_for: true
