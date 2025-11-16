@@ -68,11 +68,11 @@
 
 - id: battery_monitor_critical_soc
   alias: "[Bateria] Monitor SOC krytyczne"
-  description: "Monitoruje SOC i reaguje na krytyczne wartości (blisko limitu 20%)"
+  description: "Monitoruje SOC i reaguje na krytyczne wartości (limit Huawei 20%)"
   trigger:
     - platform: numeric_state
       entity_id: sensor.akumulatory_stan_pojemnosci
-      below: 25
+      below: 22
   action:
     - service: persistent_notification.create
       data:
@@ -101,11 +101,11 @@
 
 - id: battery_monitor_soc_max
   alias: "[Bateria] Monitor SOC maksymalne"
-  description: "Zatrzymuje ładowanie gdy SOC osiągnie 75% (blisko limitu 80%)"
+  description: "Zatrzymuje ładowanie gdy SOC osiągnie 78% (blisko limitu Huawei 80%)"
   trigger:
     - platform: numeric_state
       entity_id: sensor.akumulatory_stan_pojemnosci
-      above: 75
+      above: 78
   action:
     - service: switch.turn_off
       target:

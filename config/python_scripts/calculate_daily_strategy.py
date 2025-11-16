@@ -47,11 +47,11 @@ def calculate_daily_strategy():
             z_baterii = min(suma_l1 - pokrycie_pv, 15)
 
             target_soc = int((z_baterii / 15) * 100)
-            target_soc = max(45, min(75, target_soc))  # Limity Huawei: 20-80%
+            target_soc = max(20, min(80, target_soc))  # Limity Huawei: 20-80% (bezpieczne)
 
             # W mrozy więcej
             if temp < -5:
-                target_soc = max(target_soc, 70)  # Max 75% (limit Huawei 80%)
+                target_soc = max(target_soc, 75)  # Max 80% (limit Huawei)
 
             reason = f'Sezon grzewczy: temp {temp:.1f}°C, CO+dom={suma_l1:.0f}kWh, PV={pokrycie_pv:.0f}kWh, bateria={z_baterii:.0f}kWh'
 
