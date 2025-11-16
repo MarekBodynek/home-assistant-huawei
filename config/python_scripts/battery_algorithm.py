@@ -183,7 +183,8 @@ def decide_strategy(data, balance):
             'mode': 'charge_from_grid',
             'target_soc': 35,
             'priority': 'critical',
-            'reason': 'SOC blisko dolnego limitu (20%) - bezpieczeństwo baterii'
+            'reason': 'SOC blisko dolnego limitu (20%) - bezpieczeństwo baterii',
+            'urgent_charge': True  # Ładuj NATYCHMIAST przez całą dobę!
         }
 
     if soc >= 75:
@@ -410,7 +411,8 @@ def handle_pv_surplus(data, balance):
         return {
             'mode': 'charge_from_pv',
             'priority': 'high',
-            'reason': reason
+            'reason': reason,
+            'cheapest_hours': cheapest_hours
         }
 
     # 5. DEFAULT: SPRZEDAJ (droga godzina lub bateria pełna)
@@ -708,7 +710,9 @@ def apply_battery_mode(strategy):
 
     elif mode == 'charge_from_grid':
         target_soc = strategy.get('target_soc', 80)
-        set_huawei_mode('time_of_use_luna2000', charge_from_grid=True, charge_soc_limit=target_soc)
+        cheapest_hours = strategy.get('cheapest_hours', [])
+        urgent_charge = strategy.get('urgent_charge', False)
+        set_huawei_mode('time_of_use_luna2000', charge_from_grid=True, charge_soc_limit=target_soc, cheapest_hours=cheapest_hours, urgent_charge=urgent_charge)
 
     elif mode == 'discharge_to_home':
         set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
@@ -754,6 +758,20 @@ def set_huawei_mode(working_mode, **kwargs):
             hass.services.call('number', 'set_value', {
                 'entity_id': 'number.akumulatory_koniec_rozladowania_soc',
                 'value': kwargs['discharge_soc_limit']
+            })
+
+        # Ustaw harmonogram TOU dla ładowania z sieci
+        if 'charge_from_grid' in kwargs and kwargs['charge_from_grid']:
+            # Tryb pilny (SOC < 25%) - ładuj NATYCHMIAST przez całą dobę
+            if kwargs.get('urgent_charge', False):
+                tou_periods = "00:00-23:59/1234567/+"
+            # Normalny tryb - ładuj tylko w nocy (taryfa L2: 22:00-05:59)
+            else:
+                tou_periods = "22:00-23:59/1234567/+\n00:00-05:59/1234567/+"
+
+            hass.services.call('huawei_solar', 'set_tou_periods', {
+                'device_id': '450d2d6fd853d7876315d70559e1dd83',
+                'periods': tou_periods
             })
 
         # logger.info(f"Huawei mode set: {working_mode}")
