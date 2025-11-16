@@ -28,12 +28,6 @@ views:
               - entity: input_text.battery_decision_reason
                 name: 🎯 Decyzja
                 icon: mdi:chart-line
-              - entity: input_text.battery_storage_status
-                name: 📊 Analiza
-                icon: mdi:clock-outline
-              - entity: input_text.battery_cheapest_hours
-                name: 💵 Najtańsze godziny
-                icon: mdi:currency-usd
               # Status baterii
               - entity: sensor.akumulatory_stan_pojemnosci
                 name: 🔋 Stan naładowania (SOC)
@@ -98,6 +92,9 @@ views:
               - entity: sensor.rce_srednia_wieczorna
                 name: RCE średnia wieczorna (19-22h)
                 icon: mdi:chart-timeline
+              - entity: input_text.battery_cheapest_hours
+                name: 💵 Najtańsze godziny
+                icon: mdi:currency-usd
 
           # Prognoza PV i bilans mocy
           - type: entities
@@ -119,6 +116,9 @@ views:
               - entity: sensor.deficyt_mocy
                 name: Deficyt mocy
                 icon: mdi:flash-alert
+              - entity: input_text.battery_storage_status
+                name: 📊 Analiza
+                icon: mdi:clock-outline
 
       # SEKCJA 3 (prawa kolumna)
       - type: grid
