@@ -60,6 +60,29 @@ def execute_strategy():
         apply_battery_mode(strategy)
         return
 
+    # PRIORYTET 0: Sprawdź temperaturę baterii - jeśli niebezpieczna, ZATRZYMAJ ładowanie NATYCHMIAST!
+    temp_safe_state = hass.states.get('binary_sensor.bateria_bezpieczna_temperatura')
+    if temp_safe_state and temp_safe_state.state == 'off':
+        # Temperatura niebezpieczna - zatrzymaj natychmiast!
+        charging_active = hass.states.get('switch.akumulatory_ladowanie_z_sieci')
+        if charging_active and charging_active.state == 'on':
+            # Zatrzymaj ładowanie
+            hass.services.call('switch', 'turn_off', {
+                'entity_id': 'switch.akumulatory_ladowanie_z_sieci'
+            })
+            # Ustaw max moc ładowania na 0W (dodatkowe zabezpieczenie)
+            hass.services.call('number', 'set_value', {
+                'entity_id': 'number.akumulatory_maksymalna_moc_ladowania',
+                'value': 0
+            })
+            # Zapisz powód decyzji
+            battery_temp = data.get('battery_temp', 'N/A')
+            hass.services.call('input_text', 'set_value', {
+                'entity_id': 'input_text.battery_decision_reason',
+                'value': f'🚨 ZATRZYMANO - temperatura baterii ({battery_temp}°C) poza bezpiecznym zakresem!'
+            })
+            return
+
     # PRIORYTET 1: Sprawdź czy osiągnięto Target SOC - jeśli tak, ZATRZYMAJ ładowanie
     soc = data['soc']
     target_soc = data['target_soc']
@@ -893,6 +916,7 @@ def apply_battery_mode(strategy):
         target_soc = strategy.get('target_soc', 80)
         urgent_charge = strategy.get('urgent_charge', False)
         # WAŻNE: W L2 podczas ładowania BLOKUJ rozładowanie (oszczędzaj baterię na L1!)
+        # Tryb time_of_use_luna2000 + harmonogram TOU + grid charging
         set_huawei_mode('time_of_use_luna2000', charge_from_grid=True, charge_soc_limit=target_soc,
                        urgent_charge=urgent_charge, max_discharge_power=0)
 
@@ -909,7 +933,7 @@ def apply_battery_mode(strategy):
 
     elif mode == 'grid_to_home':
         # W L2 - BLOKUJ rozładowywanie baterii! Ustaw max moc rozładowania na 0W
-        # Tryb TOU + moc 0W = bateria nie rozładowuje się
+        # Tryb time_of_use_luna2000 + moc 0W = bateria nie rozładowuje się
         set_huawei_mode('time_of_use_luna2000', charge_from_grid=False, max_discharge_power=0)
 
     elif mode == 'idle':
@@ -921,18 +945,9 @@ def apply_battery_mode(strategy):
 def set_huawei_mode(working_mode, **kwargs):
     """Ustawia tryb pracy baterii Huawei"""
     try:
-        # Pobierz device_id dynamicznie z encji Huawei
-        battery_entity = hass.states.get('select.akumulatory_tryb_pracy')
-        device_id = None
-        if battery_entity:
-            try:
-                device_id = battery_entity.attributes.get('device_id')
-            except:
-                pass
-
-        # Fallback do hardcoded jeśli nie znaleziono (backward compatibility)
-        if not device_id:
-            device_id = '450d2d6fd853d7876315d70559e1dd83'
+        # Poprawny device_id dla Huawei Luna 2000 (Connected Energy Storage)
+        # Znaleziony w .storage/core.entity_registry dla sensor.akumulatory_tou_charging_and_discharging_periods
+        device_id = '7aa193fa5ec07dc7da9f5034f97e6987'
 
         # Ustaw tryb pracy
         hass.services.call('select', 'select_option', {
@@ -978,7 +993,7 @@ def set_huawei_mode(working_mode, **kwargs):
         })
 
         # Ustaw harmonogram TOU dla ładowania z sieci
-        # UWAGA: Wymaga poprawnego device_id - jeśli nie działa, harmonogram może być ustawiony ręcznie
+        # Wymagane dla trybu time_of_use_luna2000
         if 'charge_from_grid' in kwargs and kwargs['charge_from_grid']:
             try:
                 # SUPER PILNY (SOC < 5%): Ładuj NATYCHMIAST przez całą dobę!
@@ -1001,14 +1016,21 @@ def set_huawei_mode(working_mode, **kwargs):
                         # Weekend lub ŚWIĘTO: ładuj całą dobę (L2 przez 24h)
                         tou_periods = "00:00-23:59/67/+"
 
+                # Wywołaj serwis z poprawnym device_id
                 hass.services.call('huawei_solar', 'set_tou_periods', {
                     'device_id': device_id,
                     'periods': tou_periods
                 })
-            except:
-                # Jeśli nie udało się ustawić TOU periods (np. błędny device_id),
-                # kontynuuj - harmonogram może być już ustawiony ręcznie na urządzeniu
-                pass
+            except Exception as tou_err:
+                # Loguj błąd jeśli TOU periods się nie ustawiły
+                try:
+                    error_msg = f"TOU setup błąd: {str(tou_err)[:150]}"
+                    hass.services.call('input_text', 'set_value', {
+                        'entity_id': 'input_text.battery_decision_reason',
+                        'value': error_msg
+                    })
+                except:
+                    pass
 
         # logger.info(f"Huawei mode set: {working_mode}")
         return True
