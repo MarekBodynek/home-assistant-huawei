@@ -892,9 +892,10 @@ def apply_battery_mode(strategy):
     elif mode == 'charge_from_grid':
         target_soc = strategy.get('target_soc', 80)
         urgent_charge = strategy.get('urgent_charge', False)
-        # WAŻNE: Przy ładowaniu ustaw max moc rozładowania na 0W (blokuj rozładowanie)
+        # Tryb TOU + ładowanie z sieci (zawsze w L2, albo urgent 24/7)
+        # Max_discharge automatycznie 5000W (domyślnie), ale TOU periods ograniczą ładowanie do L2
         set_huawei_mode('time_of_use_luna2000', charge_from_grid=True, charge_soc_limit=target_soc,
-                       urgent_charge=urgent_charge, max_discharge_power=0)
+                       urgent_charge=urgent_charge)
 
     elif mode == 'discharge_to_home':
         set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
@@ -924,8 +925,11 @@ def set_huawei_mode(working_mode, **kwargs):
         # Pobierz device_id dynamicznie z encji Huawei
         battery_entity = hass.states.get('select.akumulatory_tryb_pracy')
         device_id = None
-        if battery_entity and hasattr(battery_entity, 'attributes'):
-            device_id = battery_entity.attributes.get('device_id')
+        if battery_entity:
+            try:
+                device_id = battery_entity.attributes.get('device_id')
+            except:
+                pass
 
         # Fallback do hardcoded jeśli nie znaleziono (backward compatibility)
         if not device_id:
