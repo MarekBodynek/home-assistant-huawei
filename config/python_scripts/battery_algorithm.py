@@ -243,25 +243,12 @@ def decide_strategy(data, balance):
     if soc >= 80:
         tariff = data['tariff_zone']
 
-        # Sprawdź czy weekend/święto (L2 całodobowy)
-        workday_state = hass.states.get('binary_sensor.dzien_roboczy')
-        is_workday = workday_state and workday_state.state == 'on'
-
-        # Weekend/święto L2 (24h po 0.41 zł) - oszczędzaj baterię na poniedziałek L1 (1.11 zł)!
-        if tariff == 'L2' and not is_workday:
+        # W L2 (tania taryfa) - nie rozładowuj baterii, pobieraj z sieci!
+        if tariff == 'L2':
             return {
                 'mode': 'grid_to_home',
                 'priority': 'low',
-                'reason': 'SOC 80% w L2 weekend/święto - zachowaj baterię na L1, pobieraj z sieci (tanie 0.41 zł/kWh)'
-            }
-
-        # Dzień powszedni L2 (0.72 zł) - UŻYWAJ własnej energii (PV + bateria) dla domu!
-        if tariff == 'L2' and is_workday:
-            # W L2 zawsze priorytet: samowystarczalność (PV + bateria dla domu)
-            return {
-                'mode': 'discharge_to_home',
-                'priority': 'normal',
-                'reason': 'SOC 80%, L2 powszedni - używaj PV + bateria dla domu (self-consumption)'
+                'reason': 'SOC 80% w L2 - zachowaj baterię na L1, pobieraj z sieci (tanie 0.41 zł/kWh)'
             }
 
         # W L1 (droga taryfa) - używaj baterii
