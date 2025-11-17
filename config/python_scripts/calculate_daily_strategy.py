@@ -14,7 +14,11 @@ logger = logging.getLogger("calculate_daily_strategy")
 
 def calculate_daily_strategy():
     """
-    Oblicza cel ładowania na noc
+    Oblicza cel ładowania - NOWA STRATEGIA z 3 oknami L2 (22-06h + 13-15h)
+
+    Strategia:
+    - NOC (22:00-06:00): Ładuj ZAWSZE do 80% (max wykorzystanie taniego L2)
+    - DZIEŃ (13:00-15:00): Doładuj tyle, żeby wystarczyło do 22:00
     """
     try:
         # Pobierz dane z bezpieczną obsługą błędów
@@ -52,77 +56,86 @@ def calculate_daily_strategy():
 
         logger.info(f"Calculating daily strategy: forecast={forecast_tomorrow}kWh, temp={temp}°C, mode={heating_mode}")
 
+        # ============================================
+        # NOWA STRATEGIA: Agresywne wykorzystanie 3 okien L2
+        # ============================================
+
+        # NOC (22:00-06:00): ZAWSZE ładuj do MAX (80%)
+        target_soc_night = 80
+
+        # DZIEŃ (13:00-15:00): Oblicz ile potrzeba do wieczora (15:00-22:00 = 7h)
+
         # SEZON GRZEWCZY
         if heating_mode == 'heating_season':
-            # Zużycie CO w L1
+            # Zużycie wieczorne 15:00-22:00 (7h L1)
             if temp < -10:
-                co_l1_base = 60  # kWh
+                evening_consumption = 25  # kWh (intensywne CO)
             elif temp < 0:
-                co_l1_base = 50
+                evening_consumption = 20
             elif temp < 5:
-                co_l1_base = 40
+                evening_consumption = 18
             else:
-                co_l1_base = 30
+                evening_consumption = 15
 
-            dom_l1 = 26  # kWh
-            suma_l1 = co_l1_base + dom_l1
-
-            # Ile PV pokryje?
-            pokrycie_pv = min(forecast_tomorrow * 0.7, suma_l1 * 0.3)
+            # Ile PV pokryje wieczorem? (słońce zachodzi ~16-17h)
+            evening_pv = min(forecast_tomorrow * 0.15, evening_consumption * 0.2)
 
             # Ile z baterii?
-            z_baterii = min(suma_l1 - pokrycie_pv, 15)
+            evening_battery_need = evening_consumption - evening_pv
 
-            target_soc = int((z_baterii / 15) * 100)
-            target_soc = max(20, min(80, target_soc))  # Limity Huawei: 20-80% (bezpieczne)
+            # Target dla okienka dziennego = ile potrzeba do wieczora
+            target_soc_day = int((evening_battery_need / 15) * 100)
+            target_soc_day = max(40, min(70, target_soc_day))  # Cap 40-70%
 
-            # W mrozy więcej
-            if temp < -5:
-                target_soc = max(target_soc, 75)  # Max 80% (limit Huawei)
-
-            reason = f'Sezon grzewczy: temp {temp:.1f}°C, CO+dom={suma_l1:.0f}kWh, PV={pokrycie_pv:.0f}kWh, bateria={z_baterii:.0f}kWh'
+            reason = f'Sezon grzewczy: temp {temp:.1f}°C | NOC→80% | DZIEŃ→{target_soc_day}% (wieczór: {evening_consumption}kWh - {evening_pv:.1f}kWh PV)'
 
         # POZA SEZONEM
         else:
-            dom_l1 = 28  # kWh
+            # Zużycie wieczorne 15:00-22:00 (7h L1, tylko dom)
+            evening_consumption = 12  # kWh (bez CO)
 
-            # Ile PV pokryje?
-            pokrycie_pv = min(forecast_tomorrow * 0.8, dom_l1 * 0.6)
+            # Ile PV pokryje wieczorem?
+            evening_pv = min(forecast_tomorrow * 0.2, evening_consumption * 0.3)
 
             # Ile z baterii?
-            z_baterii = min(dom_l1 - pokrycie_pv, 15)
+            evening_battery_need = evening_consumption - evening_pv
 
-            target_soc = int((z_baterii / 15) * 100)
-            target_soc = max(20, min(80, target_soc))  # ✅ ZAWSZE 20-80% (bezpieczeństwo Huawei)
+            # Target dla okienka dziennego
+            target_soc_day = int((evening_battery_need / 15) * 100)
+            target_soc_day = max(30, min(60, target_soc_day))  # Cap 30-60%
 
-            # Latem mniej (ale minimum 20%)
-            if forecast_tomorrow > 30:
-                target_soc = max(20, 30)
-            elif forecast_tomorrow > 20:
-                target_soc = max(20, 40)
-            else:
-                target_soc = max(20, 50)
+            # Latem jeszcze mniej (dużo PV)
+            if forecast_tomorrow > 25:
+                target_soc_day = max(30, target_soc_day - 10)
 
-            reason = f'Bez CO: dom={dom_l1:.0f}kWh, PV={pokrycie_pv:.0f}kWh, bateria={z_baterii:.0f}kWh'
+            reason = f'Bez CO | NOC→80% | DZIEŃ→{target_soc_day}% (wieczór: {evening_consumption}kWh - {evening_pv:.1f}kWh PV)'
 
-        # Zapisz target_soc
+        # ============================================
+        # ZAPISZ TARGET SOC
+        # ============================================
+        # Dla NOC: ZAWSZE 80% (maksymalne wykorzystanie taniego L2)
+        # Dla DZIEŃ: dynamiczny target (obliczany w battery_algorithm.py)
+
         hass.services.call('input_number', 'set_value', {
             'entity_id': 'input_number.battery_target_soc',
-            'value': target_soc
+            'value': target_soc_night  # Nocny target = 80%
         })
 
-        logger.info(f"Daily strategy calculated: Target SOC = {target_soc}% | {reason}")
+        logger.info(f"Daily strategy calculated: NOC→{target_soc_night}% | DZIEŃ→{target_soc_day}% | {reason}")
 
         # Wyślij notyfikację
         hass.services.call('persistent_notification', 'create', {
             'title': '📊 Strategia dzienna obliczona',
-            'message': f'**Target SOC:** {target_soc}%\n\n{reason}\n\n'
+            'message': f'**Target NOC:** {target_soc_night}%\n'
+                       f'**Target DZIEŃ:** {target_soc_day}%\n\n'
+                       f'{reason}\n\n'
                        f'Prognoza jutro: {forecast_tomorrow:.1f} kWh\n'
                        f'Temperatura: {temp:.1f}°C'
         })
 
         return {
-            'target_soc': target_soc,
+            'target_soc_night': target_soc_night,
+            'target_soc_day': target_soc_day,
             'reason': reason,
             'forecast': forecast_tomorrow,
             'temp': temp,

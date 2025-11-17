@@ -703,34 +703,61 @@ def should_charge_from_grid(data):
                 'reason': f'RCE bardzo niskie ({rce_now:.3f}) + pochmurno jutro'
             }
 
-    # WIOSNA/JESIEŃ - doładowanie w oknie L2 13-15h (miesiące: III, IV, V, IX, X, XI)
-    if data['month'] in [3, 4, 5, 9, 10, 11]:
-        if hour in [13, 14, 15] and tariff == 'L2' and soc < 80:
-            # Oszacowanie dziennego zużycia energii
-            daily_consumption = 35 if heating_mode == 'heating_season' else 20
-            forecast_today = data['forecast_today']
+    # ============================================
+    # NOWA STRATEGIA: 3 okna L2 - agresywne wykorzystanie
+    # ============================================
 
-            # Jeśli produkcja PV nie wystarczy na dzienne potrzeby
-            if forecast_today < daily_consumption:
-                return {
-                    'should_charge': True,
-                    'target_soc': 80,
-                    'priority': 'high',
-                    'reason': f'Wiosna/jesień: PV {forecast_today:.1f} < potrzeby {daily_consumption} kWh - doładowanie w L2 13-15h'
-                }
+    # OKIENKO DZIENNE L2 (13:00-15:00): Doładuj tyle, żeby wystarczyło do 22:00
+    if tariff == 'L2' and hour in [13, 14]:
+        # Oblicz ile potrzeba energii na wieczór (15:00-22:00 = 7h)
+        if heating_mode == 'heating_season':
+            temp = data['temp_outdoor']
+            if temp < -10:
+                evening_consumption = 25  # kWh
+            elif temp < 0:
+                evening_consumption = 20
+            elif temp < 5:
+                evening_consumption = 18
+            else:
+                evening_consumption = 15
+        else:
+            evening_consumption = 12  # kWh (bez CO)
 
-    # NOC L2 - główne ładowanie
+        # Ile PV pokryje wieczorem? (słońce zachodzi ~16-17h)
+        forecast_today = data['forecast_today']
+        evening_pv = min(forecast_today * 0.15, evening_consumption * 0.2)
+
+        # Ile z baterii?
+        evening_battery_need = evening_consumption - evening_pv
+
+        # Target SOC dla wieczora
+        target_soc_evening = int((evening_battery_need / 15) * 100)
+        target_soc_evening = max(40, min(70, target_soc_evening))
+
+        # Ładuj tylko jeśli aktualny SOC < target wieczorny
+        if soc < target_soc_evening:
+            return {
+                'should_charge': True,
+                'target_soc': target_soc_evening,
+                'priority': 'high',
+                'reason': f'L2 13-15h: doładuj do {target_soc_evening}% (wieczór: {evening_consumption}kWh - {evening_pv:.1f}kWh PV = {evening_battery_need:.1f}kWh z baterii)'
+            }
+
+    # NOC L2 (22:00-06:00): ZAWSZE ładuj do MAX (80%)
     if tariff == 'L2' and hour in [22, 23, 0, 1, 2, 3, 4, 5]:
-        if soc < target_soc:
+        # ZAWSZE ładuj do 80% (maksymalne wykorzystanie taniego L2)
+        target_soc_night = 80
+
+        if soc < target_soc_night:
             if forecast_tomorrow < 15:
                 priority = 'critical'
-                reason = f'Noc L2 + pochmurno jutro ({forecast_tomorrow:.1f} kWh) - ładuj do {target_soc}%!'
+                reason = f'NOC L2: ładuj do 80% (pochmurno jutro {forecast_tomorrow:.1f} kWh)'
             elif forecast_tomorrow < 25:
                 priority = 'high'
-                reason = f'Noc L2 + średnio jutro - ładuj do {target_soc}%'
+                reason = f'NOC L2: ładuj do 80% (średnio jutro)'
             else:
                 priority = 'medium'
-                reason = f'Noc L2 + słonecznie jutro - ładuj do {target_soc}%'
+                reason = f'NOC L2: ładuj do 80% (słonecznie jutro)'
 
             if heating_mode == 'heating_season':
                 if priority == 'medium':
@@ -740,19 +767,9 @@ def should_charge_from_grid(data):
 
             return {
                 'should_charge': True,
-                'target_soc': target_soc,
+                'target_soc': target_soc_night,
                 'priority': priority,
                 'reason': reason
-            }
-
-    # Rano przed końcem L2
-    if tariff == 'L2' and hour in [4, 5]:
-        if forecast_tomorrow < 12 and soc < 70:
-            return {
-                'should_charge': True,
-                'target_soc': 80,
-                'priority': 'critical',
-                'reason': f'Ostatnia szansa w L2! Pochmurno jutro ({forecast_tomorrow:.1f} kWh) (max 80%)'
             }
 
     # SOC krytyczne
