@@ -60,6 +60,37 @@ def execute_strategy():
         apply_battery_mode(strategy)
         return
 
+    # PRIORYTET 1: Sprawdź czy osiągnięto Target SOC - jeśli tak, ZATRZYMAJ ładowanie
+    soc = data['soc']
+    target_soc = data['target_soc']
+
+    if soc >= target_soc:
+        # Bateria naładowana do Target SOC - zatrzymaj ładowanie
+        charging_active = hass.states.get('switch.akumulatory_ladowanie_z_sieci')
+        if charging_active and charging_active.state == 'on':
+            # Explicite zatrzymaj ładowanie
+            hass.services.call('switch', 'turn_off', {
+                'entity_id': 'switch.akumulatory_ladowanie_z_sieci'
+            })
+            # Ustaw max moc ładowania na 0W (dodatkowe zabezpieczenie)
+            hass.services.call('number', 'set_value', {
+                'entity_id': 'number.akumulatory_maksymalna_moc_ladowania',
+                'value': 0
+            })
+            # Zapisz powód decyzji
+            hass.services.call('input_text', 'set_value', {
+                'entity_id': 'input_text.battery_decision_reason',
+                'value': f'✅ Target SOC osiągnięty ({soc:.0f}% >= {target_soc}%) - ZATRZYMANO ładowanie'
+            })
+            return
+        # Jeśli ładowanie już wyłączone, ale przywróć moc ładowania na normalną (5000W)
+        # Bo mogła być ustawiona na 0W w poprzednim cyklu
+        else:
+            hass.services.call('number', 'set_value', {
+                'entity_id': 'number.akumulatory_maksymalna_moc_ladowania',
+                'value': 5000
+            })
+
     balance = calculate_power_balance(data)
 
     # ZAWSZE obliczaj najtańsze godziny - niezależnie od nadwyżki PV
@@ -236,7 +267,12 @@ def decide_strategy(data, balance):
 
     # W L2 (tania taryfa weekend/święta) - oszczędzaj baterię na L1!
     tariff = data['tariff_zone']
-    if tariff == 'L2' and soc >= 40:
+    # WAŻNE: Ten warunek dotyczy TYLKO weekendów/świąt (L2 przez całą dobę 24h)
+    # NIE dni powszednich 22-06h (tam ładujemy do Target SOC!)
+    workday_state = hass.states.get('binary_sensor.dzien_roboczy')
+    is_workday = workday_state and workday_state.state == 'on'
+
+    if tariff == 'L2' and soc >= 40 and not is_workday:
         return {
             'mode': 'grid_to_home',
             'priority': 'normal',
