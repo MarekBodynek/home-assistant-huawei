@@ -21,7 +21,7 @@ views:
 
           # Bateria - wszystko w jednej karcie
           - type: entities
-            title: 🔋 Bateria i Zarządzanie
+            title: Zarządzanie Baterią
             icon: mdi:battery-charging
             entities:
               # Decyzje algorytmu
@@ -41,9 +41,6 @@ views:
               - entity: sensor.akumulatory_moc_ladowania_rozladowania
                 name: Moc ładowania/rozładowania
                 icon: mdi:battery-charging
-              - entity: sensor.bateria_max_moc_ladowania
-                name: ⚡ Max moc ładowania
-                icon: mdi:battery-charging-high
               - entity: sensor.bateria_max_moc_rozladowania
                 name: ⚡ Max moc rozładowania
                 icon: mdi:battery-minus
