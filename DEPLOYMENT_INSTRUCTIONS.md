@@ -5,6 +5,8 @@
 **Commity:**
 - `156af63` - 🐛 Napraw wybór najtańszych godzin słonecznych (pierwsza próba)
 - `710626a` - 🐛 Napraw wybór najtańszych godzin słonecznych (v2 - **POPRAWKA**)
+- `384caa6` - 📚 Zaktualizuj instrukcję wdrożenia (v2)
+- `d9602a3` - ⚡ **OPTYMALIZACJA:** Obliczaj najtańsze godziny 1x dziennie (zamiast 24x)
 
 **Problem:**
 - Dashboard pokazywał nieprawidłowe godziny w kafelkach "Ceny Energii" i "Prognoza PV"
@@ -16,6 +18,13 @@
 - Poprzedni kod próbował użyć nieistniejących atrybutów
 - Fallback (6:00) powodował błędne filtrowanie godzin
 - Godziny przed wschodem słońca przechodziły przez filtr
+
+**Optymalizacja (commit `d9602a3`):**
+- Algorytm wykonywał się CO GODZINĘ (24x dziennie) i za każdym razem przeliczał najtańsze godziny
+- Ceny RCE publikowane są o **17:00 na następny dzień** i się **nie zmieniają** do kolejnego dnia
+- Nie ma sensu przeliczać 24 razy - wynik jest zawsze **TAKI SAM**!
+- **NOWE:** Obliczaj najtańsze godziny **RAZ DZIENNIE (o 23:00)**
+- Pozostałe 23 godziny - wczytuj zapisaną wartość z `input_text.battery_cheapest_hours`
 
 ## 🔧 Co zostało zmienione
 
@@ -105,6 +114,53 @@ status_msg = f"Potrzeba: {hours_needed}h | Najtańsze: {cheapest_hours} | Teraz:
 day_label = "jutro" if analyze_tomorrow else "dziś"
 status_msg = f"Potrzeba: {hours_needed}h | {day_label}: {cheapest_hours} | Teraz: {hour}h"
 ```
+
+#### 4. OPTYMALIZACJA: Obliczanie 1x dziennie zamiast 24x (linie 96-109, 607-630)
+
+**Przed:**
+```python
+# W execute_strategy() - wykonywane CO GODZINĘ
+balance = calculate_power_balance(data)
+
+# ZAWSZE obliczaj najtańsze godziny - 24x DZIENNIE!
+try:
+    calculate_cheapest_hours_to_store(data)  # Ciężkie obliczenia
+except Exception as e:
+    ...
+
+# W handle_pv_surplus() - wykonywane przy nadwyżce PV
+is_cheap_hour, reason, cheapest_hours = calculate_cheapest_hours_to_store(data)  # Ponowne obliczenia!
+```
+
+**Po (OPTYMALIZACJA):**
+```python
+# W execute_strategy() - wykonywane CO GODZINĘ
+balance = calculate_power_balance(data)
+
+# OPTYMALIZACJA: Obliczaj TYLKO o 23:00!
+hour = data['hour']
+if hour == 23:
+    try:
+        calculate_cheapest_hours_to_store(data)  # Zapisz do input_text.battery_cheapest_hours
+    except Exception as e:
+        ...
+
+# W handle_pv_surplus() - wczytaj zapisaną wartość zamiast przeliczać
+cheapest_hours_str = get_state('input_text.battery_cheapest_hours')
+if not cheapest_hours_str or cheapest_hours_str == 'Brak danych':
+    # Brak zapisanych godzin - fallback
+    is_cheap_hour = None
+else:
+    # Parse "[10, 11, 12, 13]" → [10, 11, 12, 13]
+    cheapest_hours = eval(cheapest_hours_str)
+    is_cheap_hour = hour in cheapest_hours
+```
+
+**Korzyści:**
+- ✅ **23x mniej obliczeń** dziennie (1x zamiast 24x)
+- ✅ **Mniejsze obciążenie** systemu
+- ✅ **Szybsze wykonanie** algorytmu co godzinę
+- ✅ **Bardziej przewidywalne** zachowanie (wynik stały przez cały dzień)
 
 ## 📥 Wdrożenie na Home Assistant
 
