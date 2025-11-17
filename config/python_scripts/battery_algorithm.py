@@ -267,6 +267,7 @@ def decide_strategy(data, balance):
 
     # W L2 (tania taryfa weekend/święta) - oszczędzaj baterię na L1!
     tariff = data['tariff_zone']
+    hour = data['hour']
     # WAŻNE: Ten warunek dotyczy TYLKO weekendów/świąt (L2 przez całą dobę 24h)
     # NIE dni powszednich 22-06h (tam ładujemy do Target SOC!)
     workday_state = hass.states.get('binary_sensor.dzien_roboczy')
@@ -277,6 +278,15 @@ def decide_strategy(data, balance):
             'mode': 'grid_to_home',
             'priority': 'normal',
             'reason': f'L2 niedziela/święto (tania 0.72 zł) - pobieraj z sieci, oszczędzaj baterię na poniedziałek (droga 1.11 zł)'
+        }
+
+    # NOC L2 - specjalna obsługa gdy bateria już naładowana
+    # Jeśli jesteśmy w nocy L2 i bateria >= Target SOC, to BLOKUJ rozładowanie
+    if tariff == 'L2' and hour in [22, 23, 0, 1, 2, 3, 4, 5] and soc >= target_soc:
+        return {
+            'mode': 'grid_to_home',
+            'priority': 'normal',
+            'reason': f'Noc L2, bateria naładowana ({soc:.0f}% >= {target_soc}%) - zachowaj na L1, blokuj rozładowanie (moc 0W)'
         }
 
     # AUTOCONSUMPTION
