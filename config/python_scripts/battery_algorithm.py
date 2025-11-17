@@ -892,10 +892,9 @@ def apply_battery_mode(strategy):
     elif mode == 'charge_from_grid':
         target_soc = strategy.get('target_soc', 80)
         urgent_charge = strategy.get('urgent_charge', False)
-        # Tryb TOU + ładowanie z sieci (zawsze w L2, albo urgent 24/7)
-        # Max_discharge automatycznie 5000W (domyślnie), ale TOU periods ograniczą ładowanie do L2
+        # WAŻNE: W L2 podczas ładowania BLOKUJ rozładowanie (oszczędzaj baterię na L1!)
         set_huawei_mode('time_of_use_luna2000', charge_from_grid=True, charge_soc_limit=target_soc,
-                       urgent_charge=urgent_charge)
+                       urgent_charge=urgent_charge, max_discharge_power=0)
 
     elif mode == 'discharge_to_home':
         set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
