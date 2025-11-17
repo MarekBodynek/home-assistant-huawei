@@ -919,18 +919,13 @@ def set_huawei_mode(working_mode, **kwargs):
                 'value': kwargs['discharge_soc_limit']
             })
 
-        # Ustaw maksymalną moc rozładowania (0W = blokada rozładowania)
-        if 'max_discharge_power' in kwargs:
-            hass.services.call('number', 'set_value', {
-                'entity_id': 'number.akumulatory_maksymalna_moc_rozladowania',
-                'value': kwargs['max_discharge_power']
-            })
-        # Przywróć normalną moc rozładowania (5000W) jeśli nie ustawiono max_discharge_power
-        elif working_mode != 'time_of_use_luna2000' or kwargs.get('charge_from_grid', False):
-            hass.services.call('number', 'set_value', {
-                'entity_id': 'number.akumulatory_maksymalna_moc_rozladowania',
-                'value': 5000
-            })
+        # Ustaw maksymalną moc rozładowania
+        # Domyślnie 5000W (normalne rozładowanie), chyba że explicite ustawiono inaczej
+        max_discharge = kwargs.get('max_discharge_power', 5000)
+        hass.services.call('number', 'set_value', {
+            'entity_id': 'number.akumulatory_maksymalna_moc_rozladowania',
+            'value': max_discharge
+        })
 
         # Ustaw harmonogram TOU dla ładowania z sieci
         if 'charge_from_grid' in kwargs and kwargs['charge_from_grid']:
