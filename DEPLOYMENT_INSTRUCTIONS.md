@@ -1,355 +1,243 @@
-# 🚀 INSTRUKCJE WDROŻENIA - Fix: Target SOC Charging
+# 🚀 Instrukcja wdrożenia - Poprawka wyboru najtańszych godzin
 
-**Branch:** `claude/fix-target-soc-charging-012QQLrBxYShrL6sUbZQpgw6`
-**Commit:** `e04df42`
-**Data:** 2025-11-17
-**Autor:** Claude Code
+## 📋 Podsumowanie zmian
 
----
+**Commit:** `156af63` - 🐛 Napraw wybór najtańszych godzin słonecznych
 
-## 📋 PODSUMOWANIE ZMIAN
+**Problem:**
+- Dashboard pokazywał nieprawidłowe godziny w kafelkach "Ceny Energii" i "Prognoza PV"
+- Po 18:00 wyświetlał godziny 5, 6, 7, 10 (dzisiejsze, już minione)
+- Zamiast 10, 11, 12, 13 (jutrzejsze, faktycznie najtańsze według Pstryka)
 
-### Problem 1: System nie zatrzymywał ładowania przy Target SOC
-- **Przyczyna:** Algorytm ustawiał `charge_soc_limit`, ale polegał na inwenterze Huawei, który mógł przekraczać Target SOC
-- **Rozwiązanie:** Dodano explicite zatrzymanie ładowania w `execute_strategy()` gdy SOC >= Target SOC
+**Przyczyna:**
+- Algorytm używał `next_rising/next_setting` (jutrzejsze czasy słońca) do filtrowania dzisiejszych cen
+- Po zachodzie słońca nadal analizował dzisiejsze godziny zamiast jutrzejszych
+- Brak logiki wyboru "dziś vs jutro"
 
-### Problem 2: Bug warunku L2 + SOC >= 40 blokował ładowanie w dni powszednie
-- **Przyczyna:** Warunek `tariff == 'L2' and soc >= 40` działał też w dni powszednie (22:00-05:59), blokując ładowanie
-- **Rozwiązanie:** Dodano sprawdzenie `binary_sensor.dzien_roboczy` - warunek działa TYLKO w weekendy/święta
+## 🔧 Co zostało zmienione
 
-### Zmienione pliki:
-- `config/python_scripts/battery_algorithm.py` (37 linii dodanych, 1 usunięta)
+### Plik: `config/python_scripts/battery_algorithm.py`
 
----
+#### 1. Pobieranie czasów wschodu/zachodu słońca (linie 321-377)
 
-## 🔧 INSTRUKCJE WDROŻENIA NA PRODUKCJĘ
-
-### Krok 1: Backup obecnej konfiguracji
-
-```bash
-# SSH do Home Assistant
-sshpass -p 'Keram1qazXSW@' ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no marekbodynek@192.168.0.106
-
-# Backup obecnego pliku
-cd /config/python_scripts/
-cp battery_algorithm.py battery_algorithm.py.backup_$(date +%Y%m%d_%H%M%S)
-ls -lh battery_algorithm.py*
+**Przed:**
+```python
+# Używał TYLKO next_rising/next_setting (jutrzejsze czasy)
+next_rising_str = sun_state.attributes.get('next_rising', '')
+next_setting_str = sun_state.attributes.get('next_setting', '')
+sunrise_hour = int(next_rising_str.split('T')[1].split(':')[0])
+sunset_hour = int(next_setting_str.split('T')[1].split(':')[0])
 ```
 
-### Krok 2: Pull zmian z GitHub
+**Po:**
+```python
+# Pobiera DZISIEJSZE i JUTRZEJSZE czasy
+today_rising_str = sun_state.attributes.get('last_rising', '')
+today_setting_str = sun_state.attributes.get('last_setting', '')
+tomorrow_rising_str = sun_state.attributes.get('next_rising', '')
+tomorrow_setting_str = sun_state.attributes.get('next_setting', '')
+
+# Inteligentny wybór: dziś lub jutro?
+if hour >= today_sunset_hour or hour < today_sunrise_hour:
+    analyze_tomorrow = True  # Po zachodzie lub w nocy
+    sunrise_hour = tomorrow_sunrise_hour
+    sunset_hour = tomorrow_sunset_hour
+else:
+    analyze_tomorrow = False  # W ciągu dnia
+    sunrise_hour = today_sunrise_hour
+    sunset_hour = today_sunset_hour
+```
+
+#### 2. Filtrowanie cen dla odpowiedniej daty (linie 421-474)
+
+**Przed:**
+```python
+# Filtrował TYLKO dzisiejsze godziny
+if date_part == today_str and sunrise_hour <= price_hour < sunset_hour:
+    sun_prices.append(...)
+```
+
+**Po:**
+```python
+# Oblicza jutrzejszą datę
+tomorrow_str = (datetime.strptime(today_str, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+
+# Wybiera odpowiednią datę
+target_date_str = tomorrow_str if analyze_tomorrow else today_str
+
+# Filtruje dla odpowiedniej daty
+if date_part == target_date_str and sunrise_hour <= price_hour < sunset_hour:
+    # Pomija przeszłe godziny przy analizie dzisiejszej
+    if not analyze_tomorrow and price_hour < hour:
+        continue
+    sun_prices.append(...)
+```
+
+#### 3. Komunikaty na dashboardzie (linie 504-511)
+
+**Przed:**
+```python
+status_msg = f"Potrzeba: {hours_needed}h | Najtańsze: {cheapest_hours} | Teraz: {hour}h"
+```
+
+**Po:**
+```python
+day_label = "jutro" if analyze_tomorrow else "dziś"
+status_msg = f"Potrzeba: {hours_needed}h | {day_label}: {cheapest_hours} | Teraz: {hour}h"
+```
+
+## 📥 Wdrożenie na Home Assistant
+
+### Metoda 1: Przez SSH (zalecana)
 
 ```bash
-# Przejdź do katalogu config
+# 1. Połącz się z Home Assistant
+ssh user@192.168.0.106
+
+# 2. Przejdź do katalogu config
 cd /config
 
-# Sprawdź obecny branch i status
-git status
-git branch
+# 3. Pobierz najnowsze zmiany
+git fetch origin
+git checkout claude/fix-energy-price-tiles-01J1tRyS4VB8xJUMyTgbcoAV
+git pull origin claude/fix-energy-price-tiles-01J1tRyS4VB8xJUMyTgbcoAV
 
-# Fetch zmian z GitHub
-git fetch origin claude/fix-target-soc-charging-012QQLrBxYShrL6sUbZQpgw6
+# 4. Sprawdź czy plik został zaktualizowany
+ls -la python_scripts/battery_algorithm.py
+head -50 python_scripts/battery_algorithm.py
 
-# Checkout do brancha z fixem
-git checkout claude/fix-target-soc-charging-012QQLrBxYShrL6sUbZQpgw6
-
-# Pull najnowszych zmian
-git pull origin claude/fix-target-soc-charging-012QQLrBxYShrL6sUbZQpgw6
-
-# Sprawdź czy plik się zmienił
-git log -1 --stat
+# 5. Przeładuj skrypty Python w Home Assistant
+# Opcja A: Developer Tools > YAML > Python Scripts Reload
+# Opcja B: Restart Home Assistant
 ```
 
-### Krok 3: Weryfikacja zmian
+### Metoda 2: Przez Cloudflare Tunnel (jeśli SSH niedostępny)
 
 ```bash
-# Sprawdź składnię Python
-python3 -m py_compile /config/python_scripts/battery_algorithm.py
-echo "✅ Składnia OK" || echo "❌ Błąd składni!"
+# 1. Połącz się przez tunnel
+ssh -o ProxyCommand='cloudflared access ssh --hostname ssh.bodynek.pl' marekbodynek@ssh.bodynek.pl
 
-# Sprawdź różnice względem backupu
-diff battery_algorithm.py.backup_* battery_algorithm.py | head -50
+# 2. Dalsze kroki jak w Metodzie 1
 ```
 
-### Krok 4: Restart Python Scripts
+### Metoda 3: Ręczne kopiowanie pliku
 
-```bash
-# Wywołaj restart Home Assistant przez API (lub restart core z UI)
-# Opcja 1: Restart całego Home Assistant (bezpieczniejsze)
-curl -X POST -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDkyNTJiNmE1OGU0MmEzYTZiNjBjNWZjMWQ4MTcyZCIsImlhdCI6MTczMDkyNTA1MCwiZXhwIjoyMDQ2Mjg1MDUwfQ.Z4rvslE8wBN3rWLqnedKtZzwA_tuJCqaTD8HQE7MRlk" \
-     -H "Content-Type: application/json" \
-     http://localhost:8123/api/services/homeassistant/restart
-
-# Opcja 2: Reload tylko Python Scripts (szybsze, ale może nie załadować zmian)
-# W Home Assistant UI: Ustawienia → Serwer → YAML → ZAŁADUJ PONOWNIE: Python Scripts
-```
-
-### Krok 5: Manualne uruchomienie algorytmu
-
-Po restarcie (po ~2 minutach):
-
-```bash
-# Wywołaj algorytm ręcznie przez API
-curl -X POST -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDkyNTJiNmE1OGU0MmEzYTZiNjBjNWZjMWQ4MTcyZCIsImlhdCI6MTczMDkyNTA1MCwiZXhwIjoyMDQ2Mjg1MDUwfQ.Z4rvslE8wBN3rWLqnedKtZzwA_tuJCqaTD8HQE7MRlk" \
-     -H "Content-Type: application/json" \
-     http://localhost:8123/api/services/python_script/battery_algorithm
-```
-
----
-
-## 🧪 TESTY DO WYKONANIA
-
-### Test 1: Zatrzymanie ładowania przy Target SOC
-
-**Scenariusz:**
-1. Ustaw Target SOC na 70% (`input_number.battery_target_soc`)
-2. Uruchom ładowanie (nocą L2 lub ręcznie)
-3. Monitoruj SOC - czy zatrzymuje się przy 70%?
-
-**Oczekiwany rezultat:**
-- ✅ Ładowanie zatrzymuje się przy SOC >= 70%
-- ✅ `switch.akumulatory_ladowanie_z_sieci` przełącza się na OFF
-- ✅ `number.akumulatory_maksymalna_moc_ladowania` ustawia się na 0W
-- ✅ `input_text.battery_decision_reason` pokazuje: "✅ Target SOC osiągnięty (70% >= 70%) - ZATRZYMANO ładowanie"
-
-**Weryfikacja:**
-```bash
-# Sprawdź stan sensora decision_reason
-curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDkyNTJiNmE1OGU0MmEzYTZiNjBjNWZjMWQ4MTcyZCIsImlhdCI6MTczMDkyNTA1MCwiZXhwIjoyMDQ2Mjg1MDUwfQ.Z4rvslE8wBN3rWLqnedKtZzwA_tuJCqaTD8HQE7MRlk" \
-     http://localhost:8123/api/states/input_text.battery_decision_reason | python3 -m json.tool
-```
-
-### Test 2: Ładowanie w dni powszednie (fix buga L2 + SOC >= 40)
-
-**Scenariusz:**
-1. Dzień roboczy (poniedziałek-piątek)
-2. Godzina 22:00-05:59 (noc L2)
-3. SOC = 45% (czyli >= 40)
-4. Target SOC = 70%
-
-**Przed fixem:**
-- ❌ Warunek `tariff == 'L2' and soc >= 40` zwracał `mode='grid_to_home'`
-- ❌ Bateria NIE ładowała się (blokada!)
-- ❌ SOC pozostawał na 45%, nigdy nie osiągał 70%
-
-**Po fixie:**
-- ✅ Warunek sprawdza `not is_workday` → FALSE (dzień roboczy)
-- ✅ Przechodzi do `should_charge_from_grid()`
-- ✅ Bateria ładuje się do Target SOC (70%)
-
-**Weryfikacja:**
-```bash
-# Sprawdź sensor dzień roboczy
-curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDkyNTJiNmE1OGU0MmEzYTZiNjBjNWZjMWQ4MTcyZCIsImlhdCI6MTczMDkyNTA1MCwiZXhwIjoyMDQ2Mjg1MDUwfQ.Z4rvslE8wBN3rWLqnedKtZzwA_tuJCqaTD8HQE7MRlk" \
-     http://localhost:8123/api/states/binary_sensor.dzien_roboczy | python3 -m json.tool
-
-# Sprawdź czy ładowanie aktywne
-curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDkyNTJiNmE1OGU0MmEzYTZiNjBjNWZjMWQ4MTcyZCIsImlhdCI6MTczMDkyNTA1MCwiZXhwIjoyMDQ2Mjg1MDUwfQ.Z4rvslE8wBN3rWLqnedKtZzwA_tuJCqaTD8HQE7MRlk" \
-     http://localhost:8123/api/states/switch.akumulatory_ladowanie_z_sieci | python3 -m json.tool
-```
-
-### Test 3: Weekend/święto - oszczędzanie baterii (bug NIE powinien wpływać)
-
-**Scenariusz:**
-1. Weekend (sobota/niedziela) lub święto
-2. SOC = 50% (czyli >= 40)
-3. Tariff = L2 (całą dobę 24h)
-
-**Oczekiwany rezultat:**
-- ✅ Warunek `tariff == 'L2' and soc >= 40 and not is_workday` → TRUE
-- ✅ Zwraca `mode='grid_to_home'`
-- ✅ Reason: "L2 niedziela/święto (tania 0.72 zł) - pobieraj z sieci, oszczędzaj baterię na poniedziałek"
-
----
-
-## 📊 MONITORING PO WDROŻENIU
-
-### Kluczowe sensory do obserwacji:
-
-1. **`input_text.battery_decision_reason`**
-   - Czy pojawia się komunikat "✅ Target SOC osiągnięty"?
-
-2. **`sensor.akumulatory_stan_pojemnosci`**
-   - Czy zatrzymuje się przy Target SOC (nie przekracza o więcej niż 2-3%)?
-
-3. **`switch.akumulatory_ladowanie_z_sieci`**
-   - Czy wyłącza się przy osiągnięciu Target SOC?
-
-4. **`number.akumulatory_maksymalna_moc_ladowania`**
-   - Czy ustawia się na 0W przy Target SOC?
-   - Czy wraca na 5000W w kolejnym cyklu?
-
-5. **Logi Home Assistant:**
-   ```bash
-   # Sprawdź logi algorytmu
-   tail -f /config/home-assistant.log | grep -i "battery\|algorytm\|target"
+1. Pobierz plik z GitHub:
+   ```
+   https://github.com/MarekBodynek/home-assistant-huawei/blob/claude/fix-energy-price-tiles-01J1tRyS4VB8xJUMyTgbcoAV/config/python_scripts/battery_algorithm.py
    ```
 
-### Dashboard do monitorowania:
+2. W Home Assistant przejdź do:
+   - File Editor
+   - `config/python_scripts/battery_algorithm.py`
 
-W Lovelace dodaj kartę (opcjonalnie):
+3. Zamień całą zawartość pliku na nową wersję
 
-```yaml
-type: entities
-title: 🔍 Monitoring Target SOC Fix
-entities:
-  - entity: sensor.akumulatory_stan_pojemnosci
-  - entity: input_number.battery_target_soc
-  - entity: switch.akumulatory_ladowanie_z_sieci
-  - entity: number.akumulatory_maksymalna_moc_ladowania
-  - entity: input_text.battery_decision_reason
-  - entity: binary_sensor.dzien_roboczy
-  - entity: sensor.strefa_taryfowa
-```
+4. Zapisz (Ctrl+S)
 
----
+5. Przeładuj Python Scripts:
+   - Developer Tools > YAML > Python Scripts Reload
 
-## 🔄 ROLLBACK PLAN (gdyby coś poszło nie tak)
+## ✅ Weryfikacja wdrożenia
 
-### Opcja 1: Przywrócenie backupu
+### 1. Sprawdź logi Home Assistant
 
 ```bash
-# SSH do Home Assistant
-sshpass -p 'Keram1qazXSW@' ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no marekbodynek@192.168.0.106
-
-cd /config/python_scripts/
-
-# Znajdź backup
-ls -lh battery_algorithm.py.backup_*
-
-# Przywróć backup (zastąp YYYYMMDD_HHMMSS datą backupu)
-cp battery_algorithm.py.backup_YYYYMMDD_HHMMSS battery_algorithm.py
-
-# Restart Home Assistant
-curl -X POST -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDkyNTJiNmE1OGU0MmEzYTZiNjBjNWZjMWQ4MTcyZCIsImlhdCI6MTczMDkyNTA1MCwiZXhwIjoyMDQ2Mjg1MDUwfQ.Z4rvslE8wBN3rWLqnedKtZzwA_tuJCqaTD8HQE7MRlk" \
-     -H "Content-Type: application/json" \
-     http://localhost:8123/api/services/homeassistant/restart
+# Sprawdź logi pod kątem błędów
+tail -f /config/home-assistant.log | grep battery_algorithm
 ```
 
-### Opcja 2: Git revert
+Jeśli brak błędów = sukces ✅
 
-```bash
-cd /config
+### 2. Sprawdź dashboard
 
-# Checkout do poprzedniego commita
-git checkout HEAD~1 -- python_scripts/battery_algorithm.py
+Przejdź do **Huawei Solar PV > Przegląd** i sprawdź kafelki:
 
-# Lub checkout do głównego brancha (jeśli istnieje)
-git checkout main python_scripts/battery_algorithm.py
+**Kafelek "Ceny energii":**
+- RCE najtańsze godziny: powinny pokazywać listę godzin
 
-# Restart Home Assistant
-```
+**Kafelek "Prognoza PV i bilans mocy":**
+- 📊 Analiza: powinno pokazywać np. `Potrzeba: 4h | jutro: [10, 11, 12, 13] | Teraz: 18h`
 
-### Opcja 3: Manualne wyłączenie algorytmu (awaryjne)
+### 3. Testy scenariuszowe
 
-```bash
-# Wyłącz automatyzację wykonywania algorytmu
-curl -X POST -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDkyNTJiNmE1OGU0MmEzYTZiNjBjNWZjMWQ4MTcyZCIsImlhdCI6MTczMDkyNTA1MCwiZXhwIjoyMDQ2Mjg1MDUwfQ.Z4rvslE8wBN3rWLqnedKtZzwA_tuJCqaTD8HQE7MRlk" \
-     -H "Content-Type: application/json" \
-     -d '{"entity_id": "automation.bateria_wykonaj_strategie_co_1h"}' \
-     http://localhost:8123/api/services/automation/turn_off
+| Czas | Oczekiwane zachowanie |
+|------|----------------------|
+| **8:00** (w ciągu dnia) | Dashboard: `dziś: [12, 13, 14, 15]` - pozostałe godziny słoneczne |
+| **18:00** (po zachodzie) | Dashboard: `jutro: [10, 11, 12, 13]` - jutrzejsze godziny słoneczne |
+| **2:00** (noc) | Dashboard: `jutro: [10, 11, 12, 13]` - jutrzejsze godziny słoneczne |
 
-# Ustaw tryb awaryjny - Maximise Self Consumption
-curl -X POST -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDkyNTJiNmE1OGU0MmEzYTZiNjBjNWZjMWQ4MTcyZCIsImlhdCI6MTczMDkyNTA1MCwiZXhwIjoyMDQ2Mjg1MDUwfQ.Z4rvslE8wBN3rWLqnedKtZzwA_tuJCqaTD8HQE7MRlk" \
-     -H "Content-Type: application/json" \
-     -d '{"entity_id": "select.akumulatory_tryb_pracy", "option": "maximise_self_consumption"}' \
-     http://localhost:8123/api/services/select/select_option
-```
+### 4. Sprawdź czy czasy wschodu/zachodu są prawidłowe
 
----
+Przejdź do **Developer Tools > States** i znajdź `sun.sun`:
 
-## ⚠️ POTENCJALNE PROBLEMY I ROZWIĄZANIA
+Sprawdź atrybuty:
+- `last_rising` - dzisiejszy wschód (np. `2025-11-17T07:28:00+01:00`)
+- `last_setting` - dzisiejszy zachód (np. `2025-11-17T16:02:00+01:00`)
+- `next_rising` - jutrzejszy wschód (np. `2025-11-18T07:30:00+01:00`)
+- `next_setting` - jutrzejszy zachód (np. `2025-11-18T16:00:00+01:00`)
 
-### Problem 1: Sensor `binary_sensor.dzien_roboczy` nie istnieje
+## 🔍 Troubleshooting
 
-**Objawy:** Błąd w logach: "Entity not found: binary_sensor.dzien_roboczy"
+### Problem: Dashboard nadal pokazuje stare godziny
 
 **Rozwiązanie:**
-```bash
-# Sprawdź czy sensor istnieje
-curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDkyNTJiNmE1OGU0MmEzYTZiNjBjNWZjMWQ4MTcyZCIsImlhdCI6MTczMDkyNTA1MCwiZXhwIjoyMDQ2Mjg1MDUwfQ.Z4rvslE8wBN3rWLqnedKtZzwA_tuJCqaTD8HQE7MRlk" \
-     http://localhost:8123/api/states/binary_sensor.dzien_roboczy
+1. Sprawdź czy plik faktycznie się zaktualizował:
+   ```bash
+   grep "analyze_tomorrow" /config/python_scripts/battery_algorithm.py
+   ```
+   Powinien zwrócić kilka linii zawierających `analyze_tomorrow`
 
-# Jeśli nie istnieje, dodaj do configuration.yaml:
-# binary_sensor:
-#   - platform: workday
-#     country: PL
-#     name: "Dzień roboczy"
+2. Przeładuj Python Scripts:
+   - Developer Tools > YAML > Python Scripts Reload
+
+3. Poczekaj 1 godzinę (algorytm wykonuje się co godzinę)
+
+### Problem: Błąd w logach "name 'datetime' is not defined"
+
+**Przyczyna:** Import datetime nie zadziałał
+
+**Rozwiązanie:** Sprawdź czy linia 429 zawiera:
+```python
+from datetime import datetime, timedelta
 ```
 
-### Problem 2: Algorytm nie działa (żadne decyzje)
-
-**Objawy:** `input_text.battery_decision_reason` nie aktualizuje się
+### Problem: Dashboard pokazuje "Brak danych"
 
 **Rozwiązanie:**
-```bash
-# Sprawdź logi
-tail -100 /config/home-assistant.log | grep -i "error\|exception\|battery"
+1. Sprawdź czy sensor Pstryk działa:
+   ```
+   Developer Tools > States > sensor.pstryk_current_sell_price
+   ```
 
-# Sprawdź czy python_script działa
-ls -lh /config/python_scripts/battery_algorithm.py
+2. Sprawdź czy ma atrybut `All prices` z listą cen
 
-# Spróbuj ręcznie uruchomić
-curl -X POST -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDkyNTJiNmE1OGU0MmEzYTZiNjBjNWZjMWQ4MTcyZCIsImlhdCI6MTczMDkyNTA1MCwiZXhwIjoyMDQ2Mjg1MDUwfQ.Z4rvslE8wBN3rWLqnedKtZzwA_tuJCqaTD8HQE7MRlk" \
-     -H "Content-Type: application/json" \
-     http://localhost:8123/api/services/python_script/battery_algorithm
+3. Sprawdź czy `sun.sun` istnieje i ma atrybuty `last_rising/last_setting`
+
+## 📊 Różnice przed/po
+
+### Przed (błąd):
+```
+Teraz: 18:30 (po zachodzie)
+Analiza: dziś: [5, 6, 7, 10]  ❌ (minione godziny)
+Algorytm używa: next_rising (jutro 7:30) do filtrowania dzisiejszych cen
 ```
 
-### Problem 3: Moc ładowania nie przywraca się na 5000W
-
-**Objawy:** `number.akumulatory_maksymalna_moc_ladowania` pozostaje na 0W
-
-**Rozwiązanie:**
-```bash
-# Ręcznie ustaw na 5000W
-curl -X POST -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDkyNTJiNmE1OGU0MmEzYTZiNjBjNWZjMWQ4MTcyZCIsImlhdCI6MTczMDkyNTA1MCwiZXhwIjoyMDQ2Mjg1MDUwfQ.Z4rvslE8wBN3rWLqnedKtZzwA_tuJCqaTD8HQE7MRlk" \
-     -H "Content-Type: application/json" \
-     -d '{"entity_id": "number.akumulatory_maksymalna_moc_ladowania", "value": 5000}' \
-     http://localhost:8123/api/services/number/set_value
-
-# Sprawdź logikę w kodzie (linia 86-92)
+### Po (poprawka):
+```
+Teraz: 18:30 (po zachodzie)
+Analiza: jutro: [10, 11, 12, 13]  ✅ (najtańsze jutrzejsze godziny)
+Algorytm używa: next_rising (jutro 7:30) do filtrowania jutrzejszych cen
 ```
 
----
+## 📞 Kontakt
 
-## 📝 CHECKLIST WDROŻENIA
-
-- [ ] Backup obecnej konfiguracji
-- [ ] Pull zmian z GitHub
-- [ ] Weryfikacja składni Python
-- [ ] Restart Home Assistant / Python Scripts
-- [ ] Test 1: Zatrzymanie ładowania przy Target SOC
-- [ ] Test 2: Ładowanie w dni powszednie (SOC >= 40)
-- [ ] Test 3: Weekend/święto - oszczędzanie baterii
-- [ ] Monitoring przez 24h
-- [ ] Sprawdzenie logów pod kątem błędów
-- [ ] Dokumentacja wdrożenia (data, wyniki testów)
+W razie problemów:
+- GitHub Issues: https://github.com/MarekBodynek/home-assistant-huawei/issues
+- Sprawdź logi: `/config/home-assistant.log`
 
 ---
 
-## 📞 KONTAKT W RAZIE PROBLEMÓW
-
-- **GitHub Issue:** https://github.com/MarekBodynek/home-assistant-huawei/issues
-- **Branch:** `claude/fix-target-soc-charging-012QQLrBxYShrL6sUbZQpgw6`
-- **Commit:** `e04df42`
-
----
-
-## 🎯 EXPECTED OUTCOMES
-
-Po pomyślnym wdrożeniu:
-
-1. ✅ Bateria zatrzymuje ładowanie precyzyjnie przy Target SOC (np. 70%)
-2. ✅ Brak przekraczania Target SOC (max +1-2% przez opóźnienie sensora)
-3. ✅ Ładowanie w dni powszednie działa poprawnie niezależnie od SOC
-4. ✅ Weekend/święta - strategia oszczędzania baterii działa jak wcześniej
-5. ✅ Dashboard pokazuje komunikat "✅ Target SOC osiągnięty"
-6. ✅ Moc ładowania wraca automatycznie na 5000W w kolejnym cyklu
-
----
-
-**Powodzenia w wdrożeniu! 🚀**
-
----
-
-_Dokument wygenerowany przez Claude Code_
-_Data: 2025-11-17_
+**Data wdrożenia:** 2025-11-17
+**Wersja:** 1.0
+**Autor:** Claude Code
