@@ -319,34 +319,61 @@ def calculate_cheapest_hours_to_store(data):
         battery_already_charged = energy_to_store <= 0.5
 
         # 2. Ile godzin słonecznych zostało? (użyj rzeczywistych czasów wschodu/zachodu)
-        # Pobierz wschód i zachód słońca z sun.sun
+        # Pobierz DZISIEJSZE i JUTRZEJSZE czasy wschodu/zachodu słońca z sun.sun
         sun_state = hass.states.get('sun.sun')
+
+        # Dzisiejsze czasy (last_rising/last_setting) i jutrzejsze (next_rising/next_setting)
         if sun_state:
-            # next_rising i next_setting są w formacie ISO: "2025-11-16T07:30:00+01:00"
-            next_rising_str = sun_state.attributes.get('next_rising', '')
-            next_setting_str = sun_state.attributes.get('next_setting', '')
+            # Dzisiejsze czasy - dla analizy dzisiejszych godzin
+            today_rising_str = sun_state.attributes.get('last_rising', '')
+            today_setting_str = sun_state.attributes.get('last_setting', '')
 
-            # Parse godziny (ekstrahuj "HH" z "YYYY-MM-DDTHH:MM:SS")
-            if 'T' in next_rising_str:
-                sunrise_hour = int(next_rising_str.split('T')[1].split(':')[0])
-            else:
-                sunrise_hour = 6  # fallback
+            # Jutrzejsze czasy - dla analizy jutrzejszych godzin
+            tomorrow_rising_str = sun_state.attributes.get('next_rising', '')
+            tomorrow_setting_str = sun_state.attributes.get('next_setting', '')
 
-            if 'T' in next_setting_str:
-                sunset_hour = int(next_setting_str.split('T')[1].split(':')[0])
+            # Parse dzisiejsze godziny (format: "2025-11-16T07:30:00+01:00")
+            if 'T' in today_rising_str:
+                today_sunrise_hour = int(today_rising_str.split('T')[1].split(':')[0])
             else:
-                sunset_hour = 18  # fallback
+                today_sunrise_hour = 6  # fallback
+
+            if 'T' in today_setting_str:
+                today_sunset_hour = int(today_setting_str.split('T')[1].split(':')[0])
+            else:
+                today_sunset_hour = 18  # fallback
+
+            # Parse jutrzejsze godziny
+            if 'T' in tomorrow_rising_str:
+                tomorrow_sunrise_hour = int(tomorrow_rising_str.split('T')[1].split(':')[0])
+            else:
+                tomorrow_sunrise_hour = 6  # fallback
+
+            if 'T' in tomorrow_setting_str:
+                tomorrow_sunset_hour = int(tomorrow_setting_str.split('T')[1].split(':')[0])
+            else:
+                tomorrow_sunset_hour = 18  # fallback
         else:
             # Fallback jeśli sun.sun nie istnieje
-            sunrise_hour = 6
-            sunset_hour = 18
+            today_sunrise_hour = 6
+            today_sunset_hour = 18
+            tomorrow_sunrise_hour = 6
+            tomorrow_sunset_hour = 18
 
-        # Oblicz ile godzin słonecznych zostało
-        if hour < sunrise_hour:
-            sun_hours_left = sunset_hour - sunrise_hour  # pełny dzień słoneczny
-        elif hour >= sunset_hour:
-            sun_hours_left = 0  # już po zachodzie
+        # Określ czy analizować DZIŚ czy JUTRO
+        # Po zachodzie słońca (lub w nocy przed wschodem) -> analizuj JUTRO
+        # W ciągu dnia -> analizuj pozostałe godziny DZIŚ
+        if hour >= today_sunset_hour or hour < today_sunrise_hour:
+            # Po zachodzie lub przed wschodem -> analizuj JUTRO
+            analyze_tomorrow = True
+            sunrise_hour = tomorrow_sunrise_hour
+            sunset_hour = tomorrow_sunset_hour
+            sun_hours_left = sunset_hour - sunrise_hour  # pełny jutrzejszy dzień słoneczny
         else:
+            # W ciągu dnia -> analizuj pozostałe godziny DZIŚ
+            analyze_tomorrow = False
+            sunrise_hour = today_sunrise_hour
+            sunset_hour = today_sunset_hour
             sun_hours_left = sunset_hour - hour
 
         # ZAWSZE OBLICZ I WYPEŁNIJ POLA - nawet po zachodzie słońca!
@@ -391,10 +418,24 @@ def calculate_cheapest_hours_to_store(data):
             })
             return None, "Brak cen godzinowych", []
 
-        # Filtruj tylko dzisiejsze godziny słoneczne (sunrise - sunset)
+        # Filtruj godziny słoneczne dla odpowiedniej daty (dziś lub jutro)
         # Pobierz dzisiejszą datę z sensora
         date_state = hass.states.get('sensor.date')
         today_str = date_state.state if date_state else "2025-11-16"
+
+        # Oblicz jutrzejszą datę (prosty sposób: +1 dzień)
+        # Format: "2025-11-16" -> "2025-11-17"
+        try:
+            from datetime import datetime, timedelta
+            today_date = datetime.strptime(today_str, "%Y-%m-%d")
+            tomorrow_date = today_date + timedelta(days=1)
+            tomorrow_str = tomorrow_date.strftime("%Y-%m-%d")
+        except:
+            # Fallback: jeśli parsowanie nie działa, użyj dzisiejszej daty
+            tomorrow_str = today_str
+
+        # Wybierz odpowiednią datę do filtrowania
+        target_date_str = tomorrow_str if analyze_tomorrow else today_str
         sun_prices = []
 
         for price_entry in all_prices:
@@ -413,8 +454,13 @@ def calculate_cheapest_hours_to_store(data):
                 else:
                     continue
 
-                # Tylko dzisiaj + godziny słoneczne (sunrise <= hour < sunset)
-                if date_part == today_str and sunrise_hour <= price_hour < sunset_hour:
+                # Filtruj dla odpowiedniej daty + godziny słoneczne (sunrise <= hour < sunset)
+                # Jeśli dziś - tylko godziny >= aktualnej godziny
+                if date_part == target_date_str and sunrise_hour <= price_hour < sunset_hour:
+                    # Dodatkowy filtr: jeśli analizujemy dziś, weź tylko przyszłe godziny
+                    if not analyze_tomorrow and price_hour < hour:
+                        continue  # Pomiń przeszłe godziny dzisiejszego dnia
+
                     sun_prices.append({
                         'hour': price_hour,
                         'price': float(price_val)
@@ -424,7 +470,8 @@ def calculate_cheapest_hours_to_store(data):
                 continue
 
         if not sun_prices:
-            return None, "Brak cen dla dzisiejszych godzin słonecznych", []
+            day_label = "jutrzejszych" if analyze_tomorrow else "dzisiejszych pozostałych"
+            return None, f"Brak cen dla {day_label} godzin słonecznych", []
 
         # 5. Sortuj godziny po cenie (rosnąco - najtańsze pierwsze)
         sun_prices_sorted = sorted(sun_prices, key=lambda x: x['price'])
@@ -455,12 +502,13 @@ def calculate_cheapest_hours_to_store(data):
                 reason = f"DROGA godzina ({hour}h vs najtańsza {cheapest_price:.3f} zł) - SPRZEDAJ"
 
         # Zapisz status do input_text dla wyświetlenia na dashboardzie
+        day_label = "jutro" if analyze_tomorrow else "dziś"
         if battery_already_charged:
             # Bateria naładowana - pokaż informację + najtańsze godziny
-            status_msg = f"Bateria OK ({int(soc)}%) | Najtańsze: {cheapest_hours} | Teraz: {hour}h"
+            status_msg = f"Bateria OK ({int(soc)}%) | {day_label}: {cheapest_hours} | Teraz: {hour}h"
         else:
             # Normalny tryb - pokazuj potrzebę magazynowania
-            status_msg = f"Potrzeba: {hours_needed}h | Najtańsze: {cheapest_hours} | Teraz: {hour}h"
+            status_msg = f"Potrzeba: {hours_needed}h | {day_label}: {cheapest_hours} | Teraz: {hour}h"
 
         hass.services.call('input_text', 'set_value', {
             'entity_id': 'input_text.battery_storage_status',
