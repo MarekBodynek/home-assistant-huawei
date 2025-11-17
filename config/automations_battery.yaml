@@ -480,3 +480,23 @@
           - Temp: {{ state_attr('weather.forecast_dom', 'temperature') }}°C
           - Sezon grzewczy: {{ states('binary_sensor.sezon_grzewczy') }}
   mode: single
+
+# ============================================
+# ZDALNY GIT PULL
+# ============================================
+
+- id: remote_git_pull
+  alias: "[System] Zdalny Git Pull"
+  description: "Pozwala Claude wykonać git pull zdalnie przez API"
+  trigger:
+    - platform: event
+      event_type: claude_git_pull
+  action:
+    - service: shell_command.git_pull
+    - delay:
+        seconds: 2
+    - service: persistent_notification.create
+      data:
+        title: "🔄 Git Pull"
+        message: "Wykonano git pull o {{ now().strftime('%H:%M:%S') }}"
+  mode: single
