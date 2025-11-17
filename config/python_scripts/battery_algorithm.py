@@ -93,16 +93,20 @@ def execute_strategy():
 
     balance = calculate_power_balance(data)
 
-    # ZAWSZE obliczaj najtańsze godziny - niezależnie od nadwyżki PV
-    # To wypełnia input_text.battery_storage_status i input_text.battery_cheapest_hours
-    try:
-        calculate_cheapest_hours_to_store(data)
-    except Exception as e:
-        # Jeśli błąd - zapisz info
-        hass.services.call('input_text', 'set_value', {
-            'entity_id': 'input_text.battery_storage_status',
-            'value': f"Błąd analizy: {str(e)[:200]}"
-        })
+    # OPTYMALIZACJA: Obliczaj najtańsze godziny RAZ DZIENNIE (o 23:00)
+    # Ceny RCE publikowane są o 17:00 na następny dzień i się nie zmieniają
+    # Nie ma sensu przeliczać 24 razy dziennie - wynik jest zawsze taki sam!
+    # Oblicz o 23:00 i zapisz do input_text.battery_cheapest_hours
+    hour = data['hour']
+    if hour == 23:
+        try:
+            calculate_cheapest_hours_to_store(data)
+        except Exception as e:
+            # Jeśli błąd - zapisz info
+            hass.services.call('input_text', 'set_value', {
+                'entity_id': 'input_text.battery_storage_status',
+                'value': f"Błąd analizy: {str(e)[:200]}"
+            })
 
     strategy = decide_strategy(data, balance)
     result = apply_battery_mode(strategy)
@@ -601,7 +605,29 @@ def handle_pv_surplus(data, balance):
         }
 
     # 4. ALGORYTM WYBORU NAJTAŃSZYCH GODZIN
-    is_cheap_hour, reason, cheapest_hours = calculate_cheapest_hours_to_store(data)
+    # Wczytaj zapisane najtańsze godziny (obliczone o 23:00)
+    cheapest_hours_str = get_state('input_text.battery_cheapest_hours')
+
+    if not cheapest_hours_str or cheapest_hours_str == 'Brak danych':
+        # Brak zapisanych godzin - fallback
+        is_cheap_hour = None
+        reason = "Brak zapisanych najtańszych godzin (czekaj do 23:00)"
+        cheapest_hours = []
+    else:
+        try:
+            # Parse "[10, 11, 12, 13]" → [10, 11, 12, 13]
+            cheapest_hours = eval(cheapest_hours_str)
+            is_cheap_hour = hour in cheapest_hours
+
+            if is_cheap_hour:
+                reason = f"TANIA godzina ({hour}h) - top najtańszych - MAGAZYNUJ"
+            else:
+                reason = f"DROGA godzina ({hour}h) - poza najtańszymi {cheapest_hours} - SPRZEDAJ"
+        except:
+            # Błąd parsowania - fallback
+            is_cheap_hour = None
+            reason = "Błąd parsowania najtańszych godzin"
+            cheapest_hours = []
 
     if is_cheap_hour is None:
         # Błąd w algorytmie - fallback do prostej logiki
