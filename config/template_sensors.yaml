@@ -337,3 +337,30 @@
       icon: mdi:flash-alert
       attributes:
         friendly_name: "Deficyt mocy"
+
+# ============================================
+# LIMITY MOCY BATERII
+# ============================================
+
+- sensor:
+    - name: "Bateria - max moc ładowania"
+      unique_id: battery_max_charge_power
+      unit_of_measurement: "W"
+      state: >
+        {{ states('number.akumulatory_maksymalna_moc_ladowania') | int(5000) }}
+      icon: mdi:battery-charging-high
+      attributes:
+        friendly_name: "Maksymalna moc ładowania baterii"
+        max_spec: "5000W (Luna 2000 15kWh)"
+
+- sensor:
+    - name: "Bateria - max moc rozładowania"
+      unique_id: battery_max_discharge_power
+      unit_of_measurement: "W"
+      state: >
+        {{ states('number.akumulatory_maksymalna_moc_rozladowania') | int(5000) }}
+      icon: mdi:battery-minus
+      attributes:
+        friendly_name: "Maksymalna moc rozładowania baterii"
+        max_spec: "5000W (Luna 2000 15kWh)"
+        note: "0W = blokada rozładowania (tryb L2)"
