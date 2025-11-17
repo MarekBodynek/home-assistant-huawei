@@ -49,6 +49,7 @@
 - [6.2 Pełna instrukcja konfiguracji](#62-pełna-instrukcja-konfiguracji)
 - [6.3 Darmowa subdomena (.trycloudflare.com)](#63-darmowa-subdomena-trycloudflarecom)
 - [6.4 Darmowa domena (.us.kg)](#64-darmowa-domena-uskg)
+- [6.5 SSH przez Cloudflare Tunnel (automatyczny deployment)](#65-ssh-przez-cloudflare-tunnel-automatyczny-deployment)
 
 ### [7. BEZPIECZEŃSTWO I OPTYMALIZACJA](#7-bezpieczeństwo-i-optymalizacja)
 - [7.1 Poprawki bezpieczeństwa](#71-poprawki-bezpieczeństwa)
@@ -1250,6 +1251,171 @@ Otwórz `https://ha.mojeha.us.kg` z dowolnego miejsca!
 5. Dalej identycznie jak us.kg
 
 **Koszt:** 0 zł/rok (us.kg lub eu.org) + 0 zł Cloudflare = **0 zł łącznie**
+
+## 6.5 SSH przez Cloudflare Tunnel (automatyczny deployment)
+
+**Cel:** Automatyczny dostęp SSH do serwera przez Cloudflare Tunnel, umożliwiający Claude Code wykonywanie `git pull` i wdrażanie zmian bez ręcznej interwencji.
+
+### Po co to?
+
+✅ Claude Code może automatycznie wdrażać zmiany na serwerze
+✅ Nie trzeba ręcznie logować się przez TeamViewer
+✅ Działa z dowolnego miejsca na świecie
+✅ Zabezpieczone przez Cloudflare Access (opcjonalnie)
+
+### Konfiguracja (jednorazowa)
+
+#### Etap 1: Włącz Remote Login na serwerze
+
+Na serwerze (Mac mini):
+1. **System Preferences** → **Sharing**
+2. Włącz **Remote Login**
+3. Dodaj użytkownika `marekbodynek` do listy
+
+#### Etap 2: Dodaj SSH jako Published Application Route
+
+1. Idź na: https://one.dash.cloudflare.com/
+2. **Networks** → **Tunnels**
+3. Wybierz swój tunnel (np. `n8n-tunnel`)
+4. Kliknij **Configure**
+5. Zakładka **Public Hostname**
+6. Kliknij **+ Add a public hostname**
+7. Wypełnij:
+   - **Subdomain**: `ssh`
+   - **Domain**: `bodino.us.kg` (twoja domena)
+   - **Type**: `SSH`
+   - **URL**: `localhost:22`
+8. Kliknij **Save**
+
+#### Etap 3: Zrestartuj cloudflared na serwerze
+
+Przez TeamViewer lub lokalnie na serwerze:
+```bash
+sudo launchctl stop com.cloudflare.cloudflared
+sudo launchctl start com.cloudflare.cloudflared
+```
+
+#### Etap 4: Skonfiguruj SSH config lokalnie (na Macu z którym pracujesz)
+
+Edytuj `~/.ssh/config`:
+```bash
+nano ~/.ssh/config
+```
+
+Dodaj:
+```
+Host ssh.bodino.us.kg
+  ProxyCommand /opt/homebrew/bin/cloudflared access ssh --hostname %h
+  User marekbodynek
+  StrictHostKeyChecking no
+```
+
+**Uwaga:** Ścieżka do `cloudflared` może być inna, sprawdź przez:
+```bash
+which cloudflared
+```
+
+#### Etap 5: Testuj SSH
+
+```bash
+ssh ssh.bodino.us.kg "echo '✅ SSH działa!' && hostname && whoami"
+```
+
+Powinno zwrócić:
+```
+✅ SSH działa!
+Mac-mini-Marek.local
+marekbodynek
+```
+
+### Jak używać
+
+#### Automatyczny deployment przez Claude Code
+
+Claude Code teraz może automatycznie:
+1. Połączyć się przez SSH
+2. Wykonać `git pull` w katalogu `~/home-assistant-huawei`
+3. Zrestartować Home Assistant
+
+Przykład komendy:
+```bash
+ssh ssh.bodino.us.kg "cd ~/home-assistant-huawei && git pull"
+```
+
+#### Ręczny deployment
+
+```bash
+# Połącz się z serwerem
+ssh ssh.bodino.us.kg
+
+# Wejdź do katalogu
+cd ~/home-assistant-huawei
+
+# Pobierz najnowsze zmiany
+git pull
+
+# Sprawdź status
+git status
+
+# Wyjdź
+exit
+```
+
+### Troubleshooting
+
+#### Problem: "websocket: bad handshake"
+
+**Rozwiązanie:**
+1. Sprawdź czy Remote Login jest włączony na serwerze
+2. Zrestartuj cloudflared na serwerze
+3. Sprawdź czy ssh.bodino.us.kg istnieje w Published Application Routes
+
+#### Problem: "Connection refused"
+
+**Rozwiązanie:**
+1. Sprawdź czy cloudflared działa na serwerze:
+   ```bash
+   ps aux | grep cloudflared
+   ```
+2. Sprawdź logi cloudflared:
+   ```bash
+   tail -f /var/log/cloudflared.log
+   ```
+
+#### Problem: "No such file or directory: cloudflared"
+
+**Rozwiązanie:**
+Zainstaluj cloudflared lokalnie:
+```bash
+brew install cloudflare/cloudflare/cloudflared
+```
+
+#### Problem: DNS error "An A, AAAA, or CNAME record with that host already exists"
+
+**Rozwiązanie:**
+1. Idź do Cloudflare DNS: https://dash.cloudflare.com/
+2. Znajdź rekord `ssh.bodino.us.kg` (typ CNAME)
+3. Usuń go
+4. Spróbuj ponownie dodać SSH jako Published Application Route
+
+### Bezpieczeństwo (opcjonalnie)
+
+#### Cloudflare Access Policy
+
+Możesz dodatkowo zabezpieczyć SSH przez Cloudflare Access:
+
+1. **Access** → **Applications** → **Add an application**
+2. Application type: **Self-hosted**
+3. Application name: `SSH Server`
+4. Subdomain: `ssh`, Domain: `bodino.us.kg`
+5. **Next**
+6. **Add a policy**:
+   - Policy name: `Allow my email`
+   - Action: `Allow`
+   - Include: `Emails` → `marek.bodynek@gmail.com`
+7. **Next** → **Add application**
+
+Teraz każde połączenie SSH będzie wymagało autoryzacji przez email.
 
 ---
 
