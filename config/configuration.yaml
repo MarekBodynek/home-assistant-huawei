@@ -81,6 +81,7 @@ shell_command:
   git_pull: 'cd /config && git pull'
   git_pull_verbose: 'cd /config && git pull origin main > /config/git_pull.log 2>&1 && echo "SUCCESS" >> /config/git_pull.log || echo "FAILED: $?" >> /config/git_pull.log'
   git_status: 'cd /config && git status > /config/git_status.log 2>&1'
+  copy_logs_to_www: 'mkdir -p /config/www && cp /config/git_pull.log /config/www/git_pull.log 2>/dev/null; cp /config/git_status.log /config/www/git_status.log 2>/dev/null; head -50 /config/lovelace_huawei.yaml > /config/www/lovelace_check.txt 2>&1'
 
 # Time & Date sensors
 sensor:
