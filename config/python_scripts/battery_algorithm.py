@@ -60,28 +60,39 @@ def execute_strategy():
         apply_battery_mode(strategy)
         return
 
-    # PRIORYTET 0: Sprawdź temperaturę baterii - jeśli niebezpieczna, ZATRZYMAJ ładowanie NATYCHMIAST!
-    temp_safe_state = hass.states.get('binary_sensor.bateria_bezpieczna_temperatura')
-    if temp_safe_state and temp_safe_state.state == 'off':
-        # Temperatura niebezpieczna - zatrzymaj natychmiast!
+    # PRIORYTET 0: Sprawdź temperaturę baterii - trzystopniowy mechanizm bezpieczeństwa
+    battery_temp = data.get('battery_temp', 25)
+    temp_safety = check_battery_temperature_safety(battery_temp)
+
+    # Zapisz status temperatury do wyświetlenia
+    hass.services.call('input_text', 'set_value', {
+        'entity_id': 'input_text.battery_temp_status',
+        'value': temp_safety['reason'][:255]
+    })
+
+    # KRYTYCZNY: >43°C - STOP ładowania całkowicie!
+    if not temp_safety['safe']:
         charging_active = hass.states.get('switch.akumulatory_ladowanie_z_sieci')
         if charging_active and charging_active.state == 'on':
             # Zatrzymaj ładowanie
             hass.services.call('switch', 'turn_off', {
                 'entity_id': 'switch.akumulatory_ladowanie_z_sieci'
             })
-            # Ustaw max moc ładowania na 0W (dodatkowe zabezpieczenie)
-            hass.services.call('number', 'set_value', {
-                'entity_id': 'number.akumulatory_maksymalna_moc_ladowania',
-                'value': 0
-            })
-            # Zapisz powód decyzji
-            battery_temp = data.get('battery_temp', 'N/A')
-            hass.services.call('input_text', 'set_value', {
-                'entity_id': 'input_text.battery_decision_reason',
-                'value': f'🚨 ZATRZYMANO - temperatura baterii ({battery_temp}°C) poza bezpiecznym zakresem!'
-            })
-            return
+        # Ustaw max moc ładowania na 0W
+        hass.services.call('number', 'set_value', {
+            'entity_id': 'number.akumulatory_maksymalna_moc_ladowania',
+            'value': 0
+        })
+        # Zapisz powód decyzji
+        hass.services.call('input_text', 'set_value', {
+            'entity_id': 'input_text.battery_decision_reason',
+            'value': temp_safety['reason']
+        })
+        return
+
+    # PODWYŻSZONA lub NISKA temperatura - ograniczenie mocy
+    # Zapisz zalecenie (zostanie użyte w apply_battery_mode)
+    data['temp_max_charge_power'] = temp_safety['max_charge_power']
 
     # PRIORYTET 1: Sprawdź czy osiągnięto Target SOC - jeśli tak, ZATRZYMAJ ładowanie
     soc = data['soc']
@@ -128,6 +139,10 @@ def execute_strategy():
         })
 
     strategy = decide_strategy(data, balance)
+
+    # Przekaż limit mocy ładowania z temperatury do strategii
+    strategy['temp_max_charge_power'] = data.get('temp_max_charge_power', 5000)
+
     result = apply_battery_mode(strategy)
 
     log_decision(data, balance, strategy, result)
@@ -687,25 +702,9 @@ def should_charge_from_grid(data):
     forecast_tomorrow = data['forecast_tomorrow']
     heating_mode = data['heating_mode']
     target_soc = data['target_soc']
-    battery_temp = data['battery_temp']
 
-    # BEZPIECZEŃSTWO TERMICZNE
-    # Nie ładuj jeśli temperatura baterii jest poza bezpiecznym zakresem
-    if battery_temp > 40:
-        return {
-            'should_charge': False,
-            'target_soc': None,
-            'priority': 'critical',
-            'reason': f'🔥 BLOKADA: Temp baterii {battery_temp:.1f}°C > 40°C! Ryzyko przegrzania!'
-        }
-
-    if battery_temp < 5:
-        return {
-            'should_charge': False,
-            'target_soc': None,
-            'priority': 'high',
-            'reason': f'❄️ BLOKADA: Temp baterii {battery_temp:.1f}°C < 5°C! Ryzyko uszkodzenia ogniw!'
-        }
+    # Bezpieczeństwo termiczne jest teraz obsługiwane w execute_strategy() (PRIORYTET 0)
+    # przez funkcję check_battery_temperature_safety() z trzystopniowym mechanizmem
 
     # RCE ujemne
     if rce_now < 0 and soc < 80:
@@ -900,6 +899,7 @@ def apply_battery_mode(strategy):
     """Aplikuje strategię do baterii"""
     mode = strategy['mode']
     reason = strategy.get('reason', 'Brak powodu')
+    temp_max_charge_power = strategy.get('temp_max_charge_power', 5000)
 
     # logger.info(f"Applying strategy: {mode} - {reason}")
 
@@ -910,7 +910,8 @@ def apply_battery_mode(strategy):
     })
 
     if mode == 'charge_from_pv':
-        set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
+        set_huawei_mode('maximise_self_consumption', charge_from_grid=False,
+                       temp_max_charge_power=temp_max_charge_power)
 
     elif mode == 'charge_from_grid':
         target_soc = strategy.get('target_soc', 80)
@@ -918,10 +919,12 @@ def apply_battery_mode(strategy):
         # WAŻNE: W L2 podczas ładowania BLOKUJ rozładowanie (oszczędzaj baterię na L1!)
         # Tryb time_of_use_luna2000 + harmonogram TOU + grid charging
         set_huawei_mode('time_of_use_luna2000', charge_from_grid=True, charge_soc_limit=target_soc,
-                       urgent_charge=urgent_charge, max_discharge_power=0)
+                       urgent_charge=urgent_charge, max_discharge_power=0,
+                       temp_max_charge_power=temp_max_charge_power)
 
     elif mode == 'discharge_to_home':
-        set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
+        set_huawei_mode('maximise_self_consumption', charge_from_grid=False,
+                       temp_max_charge_power=temp_max_charge_power)
 
     elif mode == 'discharge_to_grid':
         min_soc = strategy.get('target_soc', 30)
@@ -929,15 +932,18 @@ def apply_battery_mode(strategy):
                        discharge_soc_limit=min_soc,
                        max_charge_power=0,
                        max_discharge_power=5000,
-                       charge_from_grid=False)
+                       charge_from_grid=False,
+                       temp_max_charge_power=temp_max_charge_power)
 
     elif mode == 'grid_to_home':
         # W L2 - BLOKUJ rozładowywanie baterii! Ustaw max moc rozładowania na 0W
         # Tryb time_of_use_luna2000 + moc 0W = bateria nie rozładowuje się
-        set_huawei_mode('time_of_use_luna2000', charge_from_grid=False, max_discharge_power=0)
+        set_huawei_mode('time_of_use_luna2000', charge_from_grid=False, max_discharge_power=0,
+                       temp_max_charge_power=temp_max_charge_power)
 
     elif mode == 'idle':
-        set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
+        set_huawei_mode('maximise_self_consumption', charge_from_grid=False,
+                       temp_max_charge_power=temp_max_charge_power)
 
     return True
 
@@ -987,9 +993,14 @@ def set_huawei_mode(working_mode, **kwargs):
         # Ustaw maksymalną moc ładowania
         # Domyślnie 5000W (normalne ładowanie), chyba że explicite ustawiono inaczej
         max_charge = kwargs.get('max_charge_power', 5000)
+
+        # Zastosuj limit temperatury (wybierz mniejszą wartość - bardziej restrykcyjną)
+        temp_max_charge = kwargs.get('temp_max_charge_power', 5000)
+        final_max_charge = min(max_charge, temp_max_charge)
+
         hass.services.call('number', 'set_value', {
             'entity_id': 'number.akumulatory_maksymalna_moc_ladowania',
-            'value': max_charge
+            'value': final_max_charge
         })
 
         # Ustaw harmonogram TOU dla ładowania z sieci
@@ -1052,6 +1063,70 @@ def set_huawei_mode(working_mode, **kwargs):
 # ============================================
 # FUNKCJE POMOCNICZE
 # ============================================
+
+def check_battery_temperature_safety(battery_temp):
+    """
+    Trzystopniowy mechanizm bezpieczeństwa baterii oparty na temperaturze
+
+    POZIOMY BEZPIECZEŃSTWA:
+    - 38-40°C: Zmniejsz moc ładowania o 30% (max 3500W zamiast 5000W)
+    - 40-43°C: Zmniejsz moc ładowania o 50% (max 2500W zamiast 5000W)
+    - > 43°C: STOP ładowania całkowicie (0W), dozwolone tylko rozładowanie
+    - < 5°C: Zmniejsz moc ładowania o 30% (max 3500W) - baterie litowe nie lubią mrozu
+    - 5-38°C: Normalna praca (5000W)
+
+    Returns:
+        dict: {
+            'safe': bool - czy można ładować,
+            'max_charge_power': int - maksymalna moc ładowania w W,
+            'max_discharge_power': int - maksymalna moc rozładowania w W,
+            'reason': str - przyczyna ograniczenia
+        }
+    """
+    # KRYTYCZNY: > 43°C - STOP ładowania!
+    if battery_temp > 43:
+        return {
+            'safe': False,
+            'max_charge_power': 0,
+            'max_discharge_power': 5000,  # Rozładowanie OK (pomaga schłodzić)
+            'reason': f'🚨 KRYTYCZNE: Temp {battery_temp:.1f}°C > 43°C! STOP ładowania!'
+        }
+
+    # WYSOKA: 40-43°C - Redukcja mocy o 50%
+    if battery_temp > 40:
+        return {
+            'safe': True,
+            'max_charge_power': 2500,  # 50% normalnej mocy
+            'max_discharge_power': 5000,
+            'reason': f'🔥 WYSOKA: Temp {battery_temp:.1f}°C (40-43°C) - moc ładowania -50% (2.5kW)'
+        }
+
+    # PODWYŻSZONA: 38-40°C - Redukcja mocy o 30%
+    if battery_temp > 38:
+        return {
+            'safe': True,
+            'max_charge_power': 3500,  # 70% normalnej mocy
+            'max_discharge_power': 5000,
+            'reason': f'⚠️ PODWYŻSZONA: Temp {battery_temp:.1f}°C (38-40°C) - moc ładowania -30% (3.5kW)'
+        }
+
+    # NISKA: < 5°C - Redukcja mocy o 30%
+    if battery_temp < 5:
+        return {
+            'safe': True,
+            'max_charge_power': 3500,  # 70% normalnej mocy
+            'max_discharge_power': 5000,
+            'reason': f'❄️ NISKA: Temp {battery_temp:.1f}°C < 5°C - moc ładowania -30% (3.5kW) - baterie litowe nie lubią mrozu'
+        }
+
+    # NORMALNA: 5-38°C - pełna moc
+    return {
+        'safe': True,
+        'max_charge_power': 5000,  # 100% mocy
+        'max_discharge_power': 5000,
+        'reason': f'✅ NORMALNA: Temp {battery_temp:.1f}°C (5-38°C) - pełna moc (5kW)'
+    }
+
 
 def get_state(entity_id):
     """Pobiera stan encji"""

@@ -22,3 +22,10 @@ battery_cheapest_hours:
   initial: "Brak danych"
   max: 100
   icon: mdi:clock-outline
+
+# Status temperatury baterii
+battery_temp_status:
+  name: "Status temperatury baterii"
+  initial: "Oczekiwanie na pomiar"
+  max: 255
+  icon: mdi:thermometer
