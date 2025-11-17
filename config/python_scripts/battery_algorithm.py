@@ -319,62 +319,82 @@ def calculate_cheapest_hours_to_store(data):
         battery_already_charged = energy_to_store <= 0.5
 
         # 2. Ile godzin słonecznych zostało? (użyj rzeczywistych czasów wschodu/zachodu)
-        # Pobierz DZISIEJSZE i JUTRZEJSZE czasy wschodu/zachodu słońca z sun.sun
+        # WAŻNE: sun.sun ma TYLKO next_rising i next_setting (NIE MA last_rising/last_setting!)
+        # next_rising/next_setting zawierają DATĘ, więc możemy sprawdzić czy to dziś czy jutro
+
         sun_state = hass.states.get('sun.sun')
 
-        # Dzisiejsze czasy (last_rising/last_setting) i jutrzejsze (next_rising/next_setting)
+        # Pobierz dzisiejszą datę (potrzebną do porównań i obliczenia jutrzejszej daty)
+        date_state = hass.states.get('sensor.date')
+        today_str = date_state.state if date_state else "2025-11-17"
+
         if sun_state:
-            # Dzisiejsze czasy - dla analizy dzisiejszych godzin
-            today_rising_str = sun_state.attributes.get('last_rising', '')
-            today_setting_str = sun_state.attributes.get('last_setting', '')
+            # Pobierz next_rising i next_setting (jedyne dostępne atrybuty)
+            next_rising_str = sun_state.attributes.get('next_rising', '')
+            next_setting_str = sun_state.attributes.get('next_setting', '')
 
-            # Jutrzejsze czasy - dla analizy jutrzejszych godzin
-            tomorrow_rising_str = sun_state.attributes.get('next_rising', '')
-            tomorrow_setting_str = sun_state.attributes.get('next_setting', '')
+            # Parse DATĘ i GODZINĘ z next_setting (format: "2025-11-17T16:02:00+01:00")
+            try:
+                if 'T' in next_setting_str:
+                    setting_date = next_setting_str.split('T')[0]  # "2025-11-17"
+                    setting_hour = int(next_setting_str.split('T')[1].split(':')[0])  # 16
 
-            # Parse dzisiejsze godziny (format: "2025-11-16T07:30:00+01:00")
-            if 'T' in today_rising_str:
-                today_sunrise_hour = int(today_rising_str.split('T')[1].split(':')[0])
-            else:
-                today_sunrise_hour = 6  # fallback
+                    # Sprawdź czy next_setting to DZIŚ czy JUTRO
+                    if setting_date == today_str:
+                        # Słońce JESZCZE NIE zaszło dziś -> analizuj pozostałe godziny DZIŚ
+                        today_sunset_hour = setting_hour
+                        today_sunrise_hour = 6  # Wschód już był (domyślnie 6)
 
-            if 'T' in today_setting_str:
-                today_sunset_hour = int(today_setting_str.split('T')[1].split(':')[0])
-            else:
-                today_sunset_hour = 18  # fallback
+                        if hour < today_sunset_hour:
+                            # Jeszcze jest dzień
+                            analyze_tomorrow = False
+                            sunrise_hour = hour  # Od teraz do zachodu
+                            sunset_hour = today_sunset_hour
+                            sun_hours_left = sunset_hour - hour
+                        else:
+                            # Słońce właśnie zaszło (edge case: hour == sunset_hour)
+                            analyze_tomorrow = True
+                            # Użyj next_rising dla jutrzejszego wschodu
+                            if 'T' in next_rising_str:
+                                sunrise_hour = int(next_rising_str.split('T')[1].split(':')[0])
+                            else:
+                                sunrise_hour = 6
+                            sunset_hour = setting_hour  # Jutrzejszy zachód = dzisiejszy next_setting
+                            sun_hours_left = sunset_hour - sunrise_hour
+                    else:
+                        # Słońce JUŻ zaszło (next_setting jest JUTRO lub później) -> analizuj JUTRO
+                        analyze_tomorrow = True
 
-            # Parse jutrzejsze godziny
-            if 'T' in tomorrow_rising_str:
-                tomorrow_sunrise_hour = int(tomorrow_rising_str.split('T')[1].split(':')[0])
-            else:
-                tomorrow_sunrise_hour = 6  # fallback
+                        # Jutrzejszy zachód
+                        tomorrow_sunset_hour = setting_hour
 
-            if 'T' in tomorrow_setting_str:
-                tomorrow_sunset_hour = int(tomorrow_setting_str.split('T')[1].split(':')[0])
-            else:
-                tomorrow_sunset_hour = 18  # fallback
+                        # Jutrzejszy wschód z next_rising
+                        if 'T' in next_rising_str:
+                            tomorrow_sunrise_hour = int(next_rising_str.split('T')[1].split(':')[0])
+                        else:
+                            tomorrow_sunrise_hour = 6  # fallback
+
+                        sunrise_hour = tomorrow_sunrise_hour
+                        sunset_hour = tomorrow_sunset_hour
+                        sun_hours_left = sunset_hour - sunrise_hour
+                else:
+                    # Brak danych - fallback
+                    analyze_tomorrow = True
+                    sunrise_hour = 6
+                    sunset_hour = 18
+                    sun_hours_left = 12
+            except Exception as e:
+                # Błąd parsowania - fallback
+                analyze_tomorrow = True
+                sunrise_hour = 6
+                sunset_hour = 18
+                sun_hours_left = 12
         else:
-            # Fallback jeśli sun.sun nie istnieje
-            today_sunrise_hour = 6
-            today_sunset_hour = 18
-            tomorrow_sunrise_hour = 6
-            tomorrow_sunset_hour = 18
-
-        # Określ czy analizować DZIŚ czy JUTRO
-        # Po zachodzie słońca (lub w nocy przed wschodem) -> analizuj JUTRO
-        # W ciągu dnia -> analizuj pozostałe godziny DZIŚ
-        if hour >= today_sunset_hour or hour < today_sunrise_hour:
-            # Po zachodzie lub przed wschodem -> analizuj JUTRO
+            # Brak sun.sun - fallback
             analyze_tomorrow = True
-            sunrise_hour = tomorrow_sunrise_hour
-            sunset_hour = tomorrow_sunset_hour
-            sun_hours_left = sunset_hour - sunrise_hour  # pełny jutrzejszy dzień słoneczny
-        else:
-            # W ciągu dnia -> analizuj pozostałe godziny DZIŚ
-            analyze_tomorrow = False
-            sunrise_hour = today_sunrise_hour
-            sunset_hour = today_sunset_hour
-            sun_hours_left = sunset_hour - hour
+            sunrise_hour = 6
+            sunset_hour = 18
+            sun_hours_left = 12
 
         # ZAWSZE OBLICZ I WYPEŁNIJ POLA - nawet po zachodzie słońca!
         # Po zachodzie: pokaż dzisiejsze godziny słoneczne (analiza historyczna)
@@ -419,9 +439,7 @@ def calculate_cheapest_hours_to_store(data):
             return None, "Brak cen godzinowych", []
 
         # Filtruj godziny słoneczne dla odpowiedniej daty (dziś lub jutro)
-        # Pobierz dzisiejszą datę z sensora
-        date_state = hass.states.get('sensor.date')
-        today_str = date_state.state if date_state else "2025-11-16"
+        # today_str już został pobrany wcześniej (linia 329)
 
         # Oblicz jutrzejszą datę (prosty sposób: +1 dzień)
         # Format: "2025-11-16" -> "2025-11-17"
