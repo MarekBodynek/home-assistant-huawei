@@ -235,7 +235,7 @@ def decide_strategy(data, balance):
     if soc < 20:
         return {
             'mode': 'charge_from_grid',
-            'target_soc': 35,
+            'target_soc': 20,
             'priority': 'critical',
             'reason': 'SOC < 20% - PILNE ładowanie w najbliższym oknie L2!'
         }
