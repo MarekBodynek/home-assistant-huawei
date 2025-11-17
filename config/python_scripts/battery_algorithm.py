@@ -166,7 +166,7 @@ def collect_input_data():
             'cwu_window': get_state('binary_sensor.okno_cwu') == 'on',
 
             # Target SOC
-            'target_soc': int(float(get_state('input_number.battery_target_soc') or 70)),
+            'target_soc': int(float(get_state('input_number.battery_target_soc') or 80)),
         }
     except Exception as e:
         # Błąd zbierania danych
@@ -703,21 +703,18 @@ def should_charge_from_grid(data):
                 'reason': f'RCE bardzo niskie ({rce_now:.3f}) + pochmurno jutro'
             }
 
-    # WIOSNA/JESIEŃ - doładowanie w oknie L2 13-15h (miesiące: III, IV, V, IX, X, XI)
-    if data['month'] in [3, 4, 5, 9, 10, 11]:
-        if hour in [13, 14, 15] and tariff == 'L2' and soc < 80:
-            # Oszacowanie dziennego zużycia energii
-            daily_consumption = 35 if heating_mode == 'heating_season' else 20
-            forecast_today = data['forecast_today']
+    # POPOŁUDNIOWE ŁADOWANIE w oknie L2 13-15h - TYLKO jeśli prognoza < 5 kWh
+    if hour in [13, 14, 15] and tariff == 'L2' and soc < 80:
+        forecast_today = data['forecast_today']
 
-            # Jeśli produkcja PV nie wystarczy na dzienne potrzeby
-            if forecast_today < daily_consumption:
-                return {
-                    'should_charge': True,
-                    'target_soc': 80,
-                    'priority': 'high',
-                    'reason': f'Wiosna/jesień: PV {forecast_today:.1f} < potrzeby {daily_consumption} kWh - doładowanie w L2 13-15h'
-                }
+        # Ładuj tylko jeśli prognoza bardzo niska (< 5 kWh)
+        if forecast_today < 5:
+            return {
+                'should_charge': True,
+                'target_soc': 80,
+                'priority': 'high',
+                'reason': f'Prognoza bardzo niska ({forecast_today:.1f} kWh) - doładowanie w L2 13-15h'
+            }
 
     # NOC L2 - główne ładowanie
     if tariff == 'L2' and hour in [22, 23, 0, 1, 2, 3, 4, 5]:
