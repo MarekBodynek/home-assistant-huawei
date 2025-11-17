@@ -1,0 +1,37 @@
+# Services for Energy ML component
+
+collect_historical_data:
+  name: Collect Historical Data
+  description: Collect historical data from Home Assistant recorder for training ML models
+  fields:
+    days:
+      name: Number of days
+      description: Number of days of historical data to collect (default: 30)
+      required: false
+      default: 30
+      example: 30
+      selector:
+        number:
+          min: 7
+          max: 365
+          mode: box
+
+collect_and_process:
+  name: Collect and Process Data
+  description: Full pipeline - collect, clean, engineer features, and save data
+  fields:
+    days:
+      name: Number of days
+      description: Number of days of historical data to collect (default: 30)
+      required: false
+      default: 30
+      example: 30
+      selector:
+        number:
+          min: 7
+          max: 365
+          mode: box
+
+get_storage_stats:
+  name: Get Storage Statistics
+  description: Get statistics about collected data and models

@@ -36,6 +36,7 @@ logger:
   default: info
   logs:
     huawei_solar: debug
+    custom_components.energy_ml: debug
 
 # Historia
 history:
@@ -65,6 +66,9 @@ input_text: !include input_text.yaml
 
 # Python Scripts
 python_script:
+
+# Energy ML - Machine Learning for Battery Management
+energy_ml:
 
 # Automatyzacje
 automation manual: !include automations.yaml

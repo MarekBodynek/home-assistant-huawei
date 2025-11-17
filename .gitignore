@@ -28,3 +28,9 @@ __pycache__/
 
 # Logs
 *.log
+
+# Machine Learning data (energy_ml)
+config/ml_data/
+*.pkl
+*.joblib
+*.h5
