@@ -902,7 +902,11 @@ def apply_battery_mode(strategy):
 
     elif mode == 'discharge_to_grid':
         min_soc = strategy.get('target_soc', 30)
-        set_huawei_mode('fully_fed_to_grid', discharge_soc_limit=min_soc)
+        set_huawei_mode('maximise_self_consumption',
+                       discharge_soc_limit=min_soc,
+                       max_charge_power=0,
+                       max_discharge_power=5000,
+                       charge_from_grid=False)
 
     elif mode == 'grid_to_home':
         # W L2 - BLOKUJ rozładowywanie baterii! Ustaw max moc rozładowania na 0W
@@ -961,6 +965,14 @@ def set_huawei_mode(working_mode, **kwargs):
         hass.services.call('number', 'set_value', {
             'entity_id': 'number.akumulatory_maksymalna_moc_rozladowania',
             'value': max_discharge
+        })
+
+        # Ustaw maksymalną moc ładowania
+        # Domyślnie 5000W (normalne ładowanie), chyba że explicite ustawiono inaczej
+        max_charge = kwargs.get('max_charge_power', 5000)
+        hass.services.call('number', 'set_value', {
+            'entity_id': 'number.akumulatory_maksymalna_moc_ladowania',
+            'value': max_charge
         })
 
         # Ustaw harmonogram TOU dla ładowania z sieci
