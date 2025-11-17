@@ -892,7 +892,9 @@ def apply_battery_mode(strategy):
     elif mode == 'charge_from_grid':
         target_soc = strategy.get('target_soc', 80)
         urgent_charge = strategy.get('urgent_charge', False)
-        set_huawei_mode('time_of_use_luna2000', charge_from_grid=True, charge_soc_limit=target_soc, urgent_charge=urgent_charge)
+        # WAŻNE: Przy ładowaniu ustaw max moc rozładowania na 0W (blokuj rozładowanie)
+        set_huawei_mode('time_of_use_luna2000', charge_from_grid=True, charge_soc_limit=target_soc,
+                       urgent_charge=urgent_charge, max_discharge_power=0)
 
     elif mode == 'discharge_to_home':
         set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
@@ -1004,6 +1006,15 @@ def set_huawei_mode(working_mode, **kwargs):
 
     except Exception as e:
         # logger.error(f"Błąd ustawiania trybu Huawei: {e}")
+        # Zapisz błąd do input_text żeby było widoczne na dashboardzie
+        try:
+            error_msg = f"BŁĄD set_huawei_mode: {str(e)[:200]}"
+            hass.services.call('input_text', 'set_value', {
+                'entity_id': 'input_text.battery_decision_reason',
+                'value': error_msg
+            })
+        except:
+            pass
         return False
 
 
