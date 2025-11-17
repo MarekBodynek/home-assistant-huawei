@@ -979,31 +979,37 @@ def set_huawei_mode(working_mode, **kwargs):
         })
 
         # Ustaw harmonogram TOU dla ładowania z sieci
+        # UWAGA: Wymaga poprawnego device_id - jeśli nie działa, harmonogram może być ustawiony ręcznie
         if 'charge_from_grid' in kwargs and kwargs['charge_from_grid']:
-            # SUPER PILNY (SOC < 5%): Ładuj NATYCHMIAST przez całą dobę!
-            if kwargs.get('urgent_charge', False):
-                tou_periods = "00:00-23:59/1234567/+"
-            # NORMALNY/PILNY: Ładuj tylko w godzinach L2
-            else:
-                # Sprawdź czy dzisiaj jest dzień roboczy (wykrywa święta + weekendy)
-                workday_state = hass.states.get('binary_sensor.dzien_roboczy')
-                is_workday = workday_state and workday_state.state == 'on'
-
-                if is_workday:
-                    # Dzień powszedni: ładuj w godzinach L2 (22:00-06:00 + 13:00-15:00)
-                    tou_periods = (
-                        "22:00-23:59/12345/+\n"  # Pn-Pt wieczór (22-24h)
-                        "00:00-05:59/12345/+\n"  # Pn-Pt noc (0-6h)
-                        "13:00-14:59/12345/+"    # Pn-Pt południe (13-15h)
-                    )
+            try:
+                # SUPER PILNY (SOC < 5%): Ładuj NATYCHMIAST przez całą dobę!
+                if kwargs.get('urgent_charge', False):
+                    tou_periods = "00:00-23:59/1234567/+"
+                # NORMALNY/PILNY: Ładuj tylko w godzinach L2
                 else:
-                    # Weekend lub ŚWIĘTO: ładuj całą dobę (L2 przez 24h)
-                    tou_periods = "00:00-23:59/67/+"
+                    # Sprawdź czy dzisiaj jest dzień roboczy (wykrywa święta + weekendy)
+                    workday_state = hass.states.get('binary_sensor.dzien_roboczy')
+                    is_workday = workday_state and workday_state.state == 'on'
 
-            hass.services.call('huawei_solar', 'set_tou_periods', {
-                'device_id': device_id,
-                'periods': tou_periods
-            })
+                    if is_workday:
+                        # Dzień powszedni: ładuj w godzinach L2 (22:00-06:00 + 13:00-15:00)
+                        tou_periods = (
+                            "22:00-23:59/12345/+\n"  # Pn-Pt wieczór (22-24h)
+                            "00:00-05:59/12345/+\n"  # Pn-Pt noc (0-6h)
+                            "13:00-14:59/12345/+"    # Pn-Pt południe (13-15h)
+                        )
+                    else:
+                        # Weekend lub ŚWIĘTO: ładuj całą dobę (L2 przez 24h)
+                        tou_periods = "00:00-23:59/67/+"
+
+                hass.services.call('huawei_solar', 'set_tou_periods', {
+                    'device_id': device_id,
+                    'periods': tou_periods
+                })
+            except:
+                # Jeśli nie udało się ustawić TOU periods (np. błędny device_id),
+                # kontynuuj - harmonogram może być już ustawiony ręcznie na urządzeniu
+                pass
 
         # logger.info(f"Huawei mode set: {working_mode}")
         return True
