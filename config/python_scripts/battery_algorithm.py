@@ -756,12 +756,12 @@ def should_charge_from_grid(data):
             }
 
     # SOC krytyczne
-    if soc < 15:
+    if soc < 5:
         return {
             'should_charge': True,
-            'target_soc': 30,
+            'target_soc': 20,
             'priority': 'critical',
-            'reason': 'SOC krytyczne - bezpieczeństwo'
+            'reason': 'SOC krytyczne < 5% - ładuj do 20%!'
         }
 
     return {
