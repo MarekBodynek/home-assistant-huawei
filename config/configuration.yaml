@@ -79,6 +79,8 @@ scene: !include scenes.yaml
 # Shell commands
 shell_command:
   git_pull: 'cd /config && git pull'
+  git_pull_verbose: 'cd /config && git pull origin main > /config/git_pull.log 2>&1 && echo "SUCCESS" >> /config/git_pull.log || echo "FAILED: $?" >> /config/git_pull.log'
+  git_status: 'cd /config && git status > /config/git_status.log 2>&1'
 
 # Time & Date sensors
 sensor:
