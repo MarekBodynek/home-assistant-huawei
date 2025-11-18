@@ -143,14 +143,11 @@ views:
                 name: Uzysk w ostatniej godzinie
                 icon: mdi:clock-outline
 
-          # Sezon grzewczy i temperatura
+          # Sezon grzewczy
           - type: entities
-            title: Sezon grzewczy i temperatura
-            icon: mdi:thermometer
+            title: Sezon grzewczy
+            icon: mdi:radiator
             entities:
-              - entity: sensor.temperatura_zewnetrzna
-                name: Temperatura zewnętrzna
-                icon: mdi:thermometer
               - entity: binary_sensor.sezon_grzewczy
                 name: Sezon grzewczy aktywny
                 icon: mdi:radiator
