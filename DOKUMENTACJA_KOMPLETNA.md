@@ -2070,15 +2070,15 @@ curl -s -H "Authorization: Bearer TOKEN" \
   | python3 -m json.tool
 ```
 
-**Oczekiwany wynik:**
+**Oczekiwany wynik (gdy JV* <5°C - sensor OFF):**
 ```json
 {
-  "state": "on",
+  "state": "off",
   "attributes": {
-    "measured_temp": "5.5°C",
-    "effective_temp": "5.5°C (JV*)",
+    "current_temp": "3.5°C (JV* - optymalizatory PV)",
     "safe_range": "5-40°C",
-    "status": "BEZPIECZNA (5-40°C)"
+    "note": "Sensor OFF - JV* pokazuje temp. dachu (<5°C). Wieczorem: FusionSolar Cloud API",
+    "status": "NIEBEZPIECZNE (<5°C)"
   }
 }
 ```
@@ -2125,31 +2125,31 @@ Zmiany:
 - Zaktualizowano configuration.yaml
 ```
 
-**Commit 2: `d3824dd`** - Fix sensora temperatury
+**Commit 2: `d3824dd`** - ~~Fix sensora temperatury~~ (ZREZYGNOWANO)
 ```
-🌡️ Fix: Sensor temperatury baterii z fallback 25°C
-
-Zmiany:
-- binary_sensor.bateria_bezpieczna_temperatura
-- Fallback: gdy JV* (PV optimizers) <5°C → użyj 25°C
-- Nowe atrybuty: measured_temp, effective_temp
-- Sensor: ON ✅ (effective_temp = 25°C mieści się w 5-40°C)
+UWAGA: Ten commit zawierał fallback logic (gdy JV* <5°C → użyj 25°C)
+Użytkownik odrzucił to rozwiązanie: "nie uzywaj fallbcku"
+Fallback został usunięty w następnym commicie.
 ```
 
 ### Bezpieczeństwo
 
 - ✅ Monitoring błędów nie wpływa na wydajność systemu
-- ✅ Fallback 25°C bezpieczny dla baterii w garażu 15°C
+- ⚠️ Sensor temperatury OFF - JV* (PV optimizers) pokazują temp. dachu <5°C
+- ⚠️ Ładowanie baterii ZABLOKOWANE do czasu integracji FusionSolar Cloud API
 - ✅ Zachowany zakres 5-40°C (zgodnie z specyfikacją Huawei)
 - ✅ Automatyzacje błędów nie blokują normalnej pracy algorytmu
 - ✅ Historia błędów przechowywana przez 30 dni (recorder)
 
 ### Następne kroki
 
-**Wieczorem (2025-11-18):**
-- Integracja FusionSolar Cloud API
-- Pobranie prawdziwej temperatury baterii (31.6°C)
-- Usunięcie fallback logic z sensora temperatury
+**Wieczorem (2025-11-18) - WYMAGANE:**
+- ✅ Usunięto fallback logic (zgodnie z instrukcją użytkownika)
+- 🔴 **KRYTYCZNE**: Integracja FusionSolar Cloud API
+  - Sensor temperatury OFF (JV* <5°C)
+  - Ładowanie baterii zablokowane
+  - Wymagane: RESTful sensor do FusionSolar Cloud
+  - Prawdziwa temp. baterii: 31.6°C (z FusionSolar)
 - Test z prawdziwymi danymi przez 24h
 
 **Opcjonalnie (przyszłość):**
