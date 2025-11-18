@@ -122,6 +122,75 @@
   mode: single
 
 # ============================================
+# WYBUDZANIE BATERII Z SLEEP MODE
+# ============================================
+
+- id: battery_wake_from_sleep_l2_night
+  alias: "[Bateria] Wybudź ze Sleep o 22:00 (start L2 noc)"
+  description: "Wymusza ładowanie gdy bateria jest w Sleep mode na początku L2 nocnego"
+  trigger:
+    - platform: time
+      at: "22:00:30"
+  condition:
+    - condition: state
+      entity_id: sensor.akumulatory_status
+      state: "Sleep mode"
+    - condition: numeric_state
+      entity_id: sensor.akumulatory_stan_pojemnosci
+      below: "{{ states('input_number.battery_target_soc') | float }}"
+  action:
+    - service: huawei_solar.forcible_charge
+      data:
+        device_id: "7aa193fa5ec07dc7da9f5034f97e6987"
+        power: 5000
+        duration: 30
+    - delay:
+        seconds: 30
+    - service: python_script.battery_algorithm
+    - service: persistent_notification.create
+      data:
+        title: "🔋 Bateria wybudzona (22:00)"
+        message: |
+          Bateria była w Sleep mode o 22:00.
+          Wymuszono ładowanie 5kW/30min żeby wybudzić.
+          SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%
+  mode: single
+
+- id: battery_wake_from_sleep_l2_midday
+  alias: "[Bateria] Wybudź ze Sleep o 13:00 (start L2 południe)"
+  description: "Wymusza ładowanie gdy bateria jest w Sleep mode na początku L2 południowego"
+  trigger:
+    - platform: time
+      at: "13:00:30"
+  condition:
+    - condition: state
+      entity_id: binary_sensor.dzien_roboczy
+      state: "on"
+    - condition: state
+      entity_id: sensor.akumulatory_status
+      state: "Sleep mode"
+    - condition: numeric_state
+      entity_id: sensor.akumulatory_stan_pojemnosci
+      below: "{{ states('input_number.battery_target_soc') | float }}"
+  action:
+    - service: huawei_solar.forcible_charge
+      data:
+        device_id: "7aa193fa5ec07dc7da9f5034f97e6987"
+        power: 5000
+        duration: 30
+    - delay:
+        seconds: 30
+    - service: python_script.battery_algorithm
+    - service: persistent_notification.create
+      data:
+        title: "🔋 Bateria wybudzona (13:00)"
+        message: |
+          Bateria była w Sleep mode o 13:00.
+          Wymuszono ładowanie 5kW/30min żeby wybudzić.
+          SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%
+  mode: single
+
+# ============================================
 # POBIERANIE PROGNOZ
 # ============================================
 
