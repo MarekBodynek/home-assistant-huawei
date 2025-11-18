@@ -302,14 +302,15 @@ def decide_strategy(data, balance):
             'reason': f'L2 niedziela/święto (tania 0.72 zł) - pobieraj z sieci, oszczędzaj baterię na poniedziałek (droga 1.11 zł)'
         }
 
-    # ŁADOWANIE W L2 - NIEZALEŻNIE od bilansu PV!
-    # WAŻNE: Te warunki muszą być PRZED autoconsumption, bo ładowanie w L2 jest priorytetem
+    # ŁADOWANIE W L2 - INTELIGENTNE ZARZĄDZANIE PV vs SIEĆ
+    # PRIORYTET: PV (darmowe) > Sieć L2 (tanie 0.72 zł) > Sieć L1 (drogie 1.11 zł)
     hour = data['hour']
     target_soc = data['target_soc']
     forecast_today = data['forecast_today']
     forecast_tomorrow = data['forecast_tomorrow']
+    pv_surplus = balance['surplus']
 
-    # L2 NOC (22-06h) - główne ładowanie do Target SOC
+    # L2 NOC (22-06h) - główne ładowanie do Target SOC (zawsze z sieci, bo brak PV)
     if tariff == 'L2' and hour in [22, 23, 0, 1, 2, 3, 4, 5] and soc < target_soc:
         if forecast_tomorrow < 15:
             priority = 'critical'
@@ -328,16 +329,46 @@ def decide_strategy(data, balance):
             'reason': reason
         }
 
-    # L2 POŁUDNIE (13-15h) - doładowanie gdy prognoza < 5 kWh
+    # L2 POŁUDNIE (13-15h) - INTELIGENTNE ZARZĄDZANIE: PV vs SIEĆ
     if tariff == 'L2' and hour in [13, 14] and soc < 80:
-        # Ładuj gdy prognoza bardzo niska (< 5 kWh) LUB SOC < Target SOC
-        if forecast_today < 5 or soc < target_soc:
-            return {
-                'mode': 'charge_from_grid',
-                'target_soc': min(80, target_soc),
-                'priority': 'high',
-                'reason': f'L2 południe (13-15h): prognoza {forecast_today:.1f} kWh, SOC {soc}% < Target {target_soc}%'
-            }
+        # Warunek: warto ładować (niska prognoza LUB SOC < Target)
+        should_charge = forecast_today < 5 or soc < target_soc
+
+        if should_charge:
+            # PRIORYTET 1: Jeśli duża nadwyżka PV (>1.5 kW) - magazynuj TYLKO z PV (darmowe!)
+            if pv_surplus > 1.5:
+                return {
+                    'mode': 'charge_from_pv',
+                    'priority': 'medium',
+                    'reason': f'L2 13-15h: nadwyżka PV {pv_surplus:.1f} kW - magazynuj z PV (darmowe!), sieć niepotrzebna'
+                }
+
+            # PRIORYTET 2: Mała nadwyżka PV (0.5-1.5 kW) lub balans
+            # Oblicz ile godzin zostało do końca okna L2 (15:00)
+            hours_left_l2 = 15 - hour
+            # Ile kWh trzeba doładować?
+            kwh_needed = (target_soc - soc) * 15 / 100  # 15 kWh nominalna
+            # Czy PV + pozostały czas wystarczą?
+            kwh_from_pv_estimate = pv_surplus * hours_left_l2 * 0.7  # 70% efektywność
+
+            if kwh_from_pv_estimate >= kwh_needed:
+                # PV wystarczy do naładowania do Target SOC
+                return {
+                    'mode': 'charge_from_pv',
+                    'priority': 'medium',
+                    'reason': f'L2 13-15h: PV wystarczy ({kwh_from_pv_estimate:.1f} kWh z {pv_surplus:.1f} kW), ładuj z PV'
+                }
+            else:
+                # PV NIE wystarczy - uzupełnij z sieci (hybryda)
+                return {
+                    'mode': 'charge_from_grid',
+                    'target_soc': min(80, target_soc),
+                    'priority': 'high',
+                    'reason': f'L2 13-15h: PV ({pv_surplus:.1f} kW) nie wystarczy, uzupełnij z sieci do {target_soc}%'
+                }
+
+            # PRIORYTET 3: Brak/małe PV - ładuj z sieci
+            # (Ten kod nigdy się nie wykona bo powyższe case'y pokrywają wszystko, ale zostawiam dla przejrzystości)
 
     # AUTOCONSUMPTION
     if balance['surplus'] > 0:
