@@ -32,10 +32,7 @@ lovelace:
       type: module
 
 # Logowanie
-logger:
-  default: info
-  logs:
-    huawei_solar: debug
+logger: !include logger.yaml
 
 # Historia
 history:
@@ -69,6 +66,7 @@ python_script:
 # Automatyzacje
 automation manual: !include automations.yaml
 automation battery: !include automations_battery.yaml
+automation errors: !include automations_errors.yaml
 
 # Skrypty
 script: !include scripts.yaml

@@ -1,0 +1,59 @@
+# ============================================
+# SYSTEM LOGOWANIA BŁĘDÓW
+# ============================================
+# Autor: Marek Bodynek + Claude Code
+# Data: 2025-11-18
+# Cel: Zbieranie błędów, ostrzeżeń i konfliktów w jednym miejscu
+
+default: warning
+
+logs:
+  # ===== ALGORYTM BATERII =====
+  homeassistant.components.python_script: info
+  homeassistant.helpers.template: warning
+
+  # ===== INTEGRACJE =====
+  # Huawei Solar
+  custom_components.huawei_solar: warning
+  huawei_solar: warning
+
+  # Pstryk (RCE)
+  custom_components.pstryk: warning
+
+  # Forecast.Solar
+  homeassistant.components.forecast_solar: warning
+
+  # Panasonic Comfort Cloud
+  custom_components.panasonic_cc: warning
+
+  # Workday
+  homeassistant.components.workday: warning
+
+  # ===== AUTOMATIONS =====
+  homeassistant.components.automation: info
+
+  # ===== SENSORY =====
+  homeassistant.components.template: warning
+  homeassistant.components.sensor: warning
+
+  # ===== SWITCHE I KONTROLKI =====
+  homeassistant.components.switch: warning
+  homeassistant.components.number: warning
+  homeassistant.components.select: warning
+
+  # ===== SIEĆ I API =====
+  homeassistant.components.http: warning
+  aiohttp.access: warning
+
+  # ===== BAZA DANYCH =====
+  homeassistant.components.recorder: warning
+  homeassistant.components.history: warning
+
+# ===== FILTRY =====
+# Ignoruj znane, nieszkodliwe ostrzeżenia
+filters:
+  homeassistant.components.recorder:
+    - "Error during connection setup"
+  aiohttp.access:
+    - "GET /api/states"
+    - "GET /api/services"

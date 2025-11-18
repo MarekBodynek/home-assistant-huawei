@@ -269,6 +269,8 @@
 - binary_sensor:
     - name: "Bateria - bezpieczna temperatura"
       unique_id: battery_temperature_safe
+      # UWAGA: Sensor używa temp. optymalizatorów PV (JV*), nie baterii!
+      # TODO WIECZOREM: Integracja FusionSolar Cloud API (prawdziwa temp. baterii 31.6°C)
       state: >
         {% set temp = states('sensor.bateria_temperatura_maksymalna') | float(25) %}
         {{ temp >= 5 and temp <= 40 }}
@@ -278,9 +280,9 @@
           mdi:fire-alert
         {% elif temp > 40 %}
           mdi:thermometer-alert
-        {% elif temp < 0 %}
+        {% elif temp < -5 %}
           mdi:snowflake-alert
-        {% elif temp < 5 %}
+        {% elif temp < 0 %}
           mdi:thermometer-low
         {% else %}
           mdi:thermometer-check
@@ -290,14 +292,16 @@
         temperature: "{{ states('sensor.bateria_temperatura_maksymalna') }}°C"
         safe_range: "5-40°C"
         optimal_range: "15-25°C"
+        note: "UWAGA: Sensor używa temp. optymalizatorów PV (JV*), nie baterii! Wieczorem: integracja FusionSolar API."
+        real_battery_temp: "~31.6°C (FusionSolar)"
         status: >
           {% set temp = states('sensor.bateria_temperatura_maksymalna') | float(25) %}
           {% if temp > 45 %}
             EKSTREMALNIE NIEBEZPIECZNE (>45°C)
-          {% elif temp > 43 %}
-            KRYTYCZNE (>43°C)
           {% elif temp > 40 %}
-            OSTRZEŻENIE (>40°C)
+            KRYTYCZNE (>40°C)
+          {% elif temp > 35 %}
+            OSTRZEŻENIE (>35°C)
           {% elif temp < 0 %}
             ZAMARZANIE (<0°C)
           {% elif temp < 5 %}
@@ -364,3 +368,74 @@
         friendly_name: "Maksymalna moc rozładowania baterii"
         max_spec: "5000W (Luna 2000 15kWh)"
         note: "0W = blokada rozładowania (tryb L2)"
+
+# ============================================
+# SYSTEM BŁĘDÓW I MONITORINGU
+# ============================================
+
+- sensor:
+    # ===== LICZNIK BŁĘDÓW ALGORYTMU =====
+    - name: "Błędy Algorytmu - Licznik"
+      unique_id: algorithm_errors_count
+      state: >
+        {% set decision = states('input_text.battery_decision_reason') %}
+        {% if 'BŁĄD' in decision or 'błąd' in decision or 'ERROR' in decision %}
+          {{ states('sensor.bledy_algorytmu_licznik') | int(0) + 1 }}
+        {% else %}
+          {{ states('sensor.bledy_algorytmu_licznik') | int(0) }}
+        {% endif %}
+      attributes:
+        friendly_name: "Błędy algorytmu (dziś)"
+        last_error: "{{ states('input_text.battery_decision_reason') }}"
+        icon: mdi:alert-circle
+
+    # ===== OSTATNI BŁĄD SYSTEMU =====
+    - name: "System - Ostatni Błąd"
+      unique_id: system_last_error
+      state: >
+        {% set errors = [
+          states('input_text.battery_decision_reason'),
+          'Huawei Solar: ' + state_attr('binary_sensor.huawei_connection_status', 'last_error') | string if state_attr('binary_sensor.huawei_connection_status', 'last_error') else '',
+          'Pstryk: ' + state_attr('sensor.pstryk_current_buy_price', 'error') | string if state_attr('sensor.pstryk_current_buy_price', 'error') else ''
+        ] %}
+        {% set errors_list = errors | reject('eq', '') | list %}
+        {{ errors_list[0] if errors_list | length > 0 else 'Brak błędów' }}
+      attributes:
+        friendly_name: "Ostatni błąd systemu"
+        all_errors: >
+          {% set errors = [] %}
+          {% set decision = states('input_text.battery_decision_reason') %}
+          {% if 'BŁĄD' in decision or 'błąd' in decision %}
+            {% set errors = errors + ['Algorytm: ' + decision] %}
+          {% endif %}
+          {{ errors | join(', ') if errors | length > 0 else 'Brak błędów' }}
+        icon: mdi:alert-octagon
+
+- binary_sensor:
+    # ===== STATUS SYSTEMÓW =====
+    - name: "System - Błąd Krytyczny"
+      unique_id: system_critical_error
+      state: >
+        {% set decision = states('input_text.battery_decision_reason') %}
+        {{ 'BŁĄD' in decision or '🚨' in decision or 'ZATRZYMANO' in decision }}
+      attributes:
+        friendly_name: "Błąd krytyczny w systemie"
+        details: "{{ states('input_text.battery_decision_reason') }}"
+        icon: mdi:alert-circle
+      device_class: problem
+
+    # ===== MONITORING INTEGRACJI =====
+    - name: "Integracje - Status"
+      unique_id: integrations_status
+      state: >
+        {% set huawei = states('sensor.akumulatory_stan_pojemnosci') != 'unavailable' %}
+        {% set pstryk = states('sensor.pstryk_current_buy_price') != 'unavailable' %}
+        {% set forecast = states('sensor.prognoza_pv_jutro') != 'unavailable' %}
+        {{ huawei and pstryk and forecast }}
+      attributes:
+        friendly_name: "Status integracji"
+        huawei_solar: "{{ 'OK' if states('sensor.akumulatory_stan_pojemnosci') != 'unavailable' else 'BŁĄD' }}"
+        pstryk_rce: "{{ 'OK' if states('sensor.pstryk_current_buy_price') != 'unavailable' else 'BŁĄD' }}"
+        forecast_solar: "{{ 'OK' if states('sensor.prognoza_pv_jutro') != 'unavailable' else 'BŁĄD' }}"
+        icon: mdi:lan-connect
+      device_class: connectivity

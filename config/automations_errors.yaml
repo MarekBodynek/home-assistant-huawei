@@ -1,0 +1,128 @@
+# ============================================
+# AUTOMATIONS - POWIADOMIENIA O BŁĘDACH
+# ============================================
+# Automatyczne powiadomienia o błędach krytycznych i ostrzeżeniach
+
+# ===== BŁĄD KRYTYCZNY - NATYCHMIASTOWE POWIADOMIENIE =====
+- alias: "[BŁĄD] Krytyczny błąd systemu"
+  description: "Powiadomienie o błędzie krytycznym algorytmu lub systemu"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.system_blad_krytyczny
+      to: "on"
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "🚨 BŁĄD KRYTYCZNY SYSTEMU"
+        message: |
+          **Wykryto błąd krytyczny!**
+
+          {{ states('input_text.battery_decision_reason') }}
+
+          **Czas:** {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
+
+          **Status systemów:**
+          - Bateria SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%
+          - Ładowanie: {{ states('switch.akumulatory_ladowanie_z_sieci') }}
+          - Temperatura: {{ states('sensor.bateria_temperatura_maksymalna') }}°C
+        notification_id: "critical_error"
+
+# ===== INTEGRACJA OFFLINE - OSTRZEŻENIE =====
+- alias: "[OSTRZEŻENIE] Integracja offline"
+  description: "Powiadomienie gdy integracja (Huawei/Pstryk/Forecast) przestaje działać"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.integracje_status
+      to: "off"
+      for:
+        minutes: 5
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "⚠️ OSTRZEŻENIE: Integracja offline"
+        message: |
+          **Jedna lub więcej integracji nie działa!**
+
+          **Status:**
+          - Huawei Solar: {{ state_attr('binary_sensor.integracje_status', 'huawei_solar') }}
+          - Pstryk RCE: {{ state_attr('binary_sensor.integracje_status', 'pstryk_rce') }}
+          - Forecast.Solar: {{ state_attr('binary_sensor.integracje_status', 'forecast_solar') }}
+
+          **Czas:** {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
+        notification_id: "integration_offline"
+
+# ===== BŁĄD ALGORYTMU - LOG =====
+- alias: "[LOG] Błąd algorytmu baterii"
+  description: "Loguj błędy algorytmu do pliku"
+  trigger:
+    - platform: state
+      entity_id: input_text.battery_decision_reason
+  condition:
+    - condition: template
+      value_template: >
+        {{ 'BŁĄD' in states('input_text.battery_decision_reason') or
+           'błąd' in states('input_text.battery_decision_reason') or
+           'ERROR' in states('input_text.battery_decision_reason') }}
+  action:
+    - service: system_log.write
+      data:
+        message: "BŁĄD ALGORYTMU: {{ states('input_text.battery_decision_reason') }}"
+        level: error
+        logger: homeassistant.components.python_script
+
+# ===== RESET LICZNIKA BŁĘDÓW O PÓŁNOCY =====
+- alias: "[SYSTEM] Reset licznika błędów"
+  description: "Resetuj licznik błędów o północy"
+  trigger:
+    - platform: time
+      at: "00:00:00"
+  action:
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.error_counter
+      data:
+        value: 0
+
+# ===== TEMPERATURA BATERII - FAŁSZYWY ALARM =====
+- alias: "[INFO] Temperatura baterii - fałszywy alarm"
+  description: "Loguj informację o fałszywym alarmie temperatury (sensory JV* = optymalizatory PV)"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.bateria_bezpieczna_temperatura
+      to: "off"
+  action:
+    - service: system_log.write
+      data:
+        message: >
+          INFO: Temperatura baterii poza zakresem ({{ states('sensor.bateria_temperatura_maksymalna') }}°C).
+          UWAGA: To może być fałszywy alarm - sensor używa temp. optymalizatorów PV (dach).
+          Prawdziwa temp. baterii w FusionSolar: ~31°C.
+        level: info
+        logger: homeassistant.components.template
+
+# ===== RAPORT DZIENNY - PODSUMOWANIE BŁĘDÓW =====
+- alias: "[RAPORT] Dzienny raport błędów"
+  description: "Codzienny raport błędów o 23:55"
+  trigger:
+    - platform: time
+      at: "23:55:00"
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "📊 Raport dzienny - Błędy systemu"
+        message: |
+          **Podsumowanie za {{ now().strftime('%Y-%m-%d') }}**
+
+          **Błędy algorytmu:** {{ states('sensor.bledy_algorytmu_licznik') | int(0) }}
+          **Ostatni błąd:** {{ states('sensor.system_ostatni_blad') }}
+
+          **Status integracji:**
+          - Huawei Solar: {{ state_attr('binary_sensor.integracje_status', 'huawei_solar') }}
+          - Pstryk RCE: {{ state_attr('binary_sensor.integracje_status', 'pstryk_rce') }}
+          - Forecast.Solar: {{ state_attr('binary_sensor.integracje_status', 'forecast_solar') }}
+
+          **Status baterii:**
+          - SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%
+          - Temperatura: {{ states('sensor.bateria_temperatura_maksymalna') }}°C
+          - Bezpieczeństwo: {{ 'OK' if states('binary_sensor.bateria_bezpieczna_temperatura') == 'on' else 'ALARM' }}
+        notification_id: "daily_error_report"
