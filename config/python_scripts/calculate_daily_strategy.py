@@ -80,7 +80,13 @@ def calculate_daily_strategy():
             if temp < -5:
                 target_soc = max(target_soc, 75)  # Max 80% (limit Huawei)
 
-            reason = f'Sezon grzewczy: temp {temp:.1f}°C, CO+dom={suma_l1:.0f}kWh, PV={pokrycie_pv:.0f}kWh, bateria={z_baterii:.0f}kWh'
+            # Przy bardzo niskiej prognozie PV → maksymalne ładowanie
+            if forecast_tomorrow < 5:
+                target_soc = 80  # Pochmurno - ładuj do max
+            elif forecast_tomorrow < 10:
+                target_soc = max(target_soc, 75)  # Częściowo pochmurno
+
+            reason = f'Sezon grzewczy: temp {temp:.1f}°C, CO+dom={suma_l1:.0f}kWh, PV={pokrycie_pv:.0f}kWh, bateria={z_baterii:.0f}kWh, prognoza={forecast_tomorrow:.1f}kWh'
 
         # POZA SEZONEM
         else:
