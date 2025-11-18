@@ -228,17 +228,19 @@
 
 - sensor:
     # TEMPERATURA BATERII - używa prawdziwego sensora z Huawei Solar
+    # WAŻNE: Sensor sensor.akumulator_1_bms_temperature musi być włączony w UI!
+    # Settings → Devices & Services → Huawei Solar → Akumulator 1 → Entities → Enable "BMS temperature"
     - name: "Bateria - temperatura maksymalna"
       unique_id: battery_temperature_max
       unit_of_measurement: "°C"
       device_class: temperature
       state: >
-        {{ states('sensor.akumulator_1_temperatura') | float(25) }}
+        {{ states('sensor.akumulator_1_bms_temperature') | float(25) }}
       icon: mdi:battery-thermometer
       attributes:
         friendly_name: "Bateria - temperatura"
-        source: "Huawei Solar (sensor.akumulator_1_temperatura)"
-        note: "Prawdziwa temperatura baterii z falownika Huawei"
+        source: "Huawei Solar (sensor.akumulator_1_bms_temperature)"
+        note: "Prawdziwa temperatura BMS baterii (Internal temperature) z falownika Huawei"
 
     # TEMPERATURA OPTYMALIZATORÓW PV - dla referencji (JV* na dachu)
     - name: "PV Optimizers - temperatura maksymalna"

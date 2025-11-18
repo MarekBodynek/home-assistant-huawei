@@ -1,11 +1,37 @@
 {
+  "env": {
+    "HA_URL": "https://ha.bodino.us.kg",
+    "HA_TOKEN": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIxYTI1MDAzOTdjOWI0YjZhOGRiOWI5YTgyMGUwYzdhMyIsImlhdCI6MTc2MzM3Mjg1MCwiZXhwIjoyMDc4NzMyODUwfQ.4ORxf2t2HkcIyZ0c0yfBbmabpvfGJq34Qp2nrAsh5ek",
+    "HA_SSH_HOST": "192.168.0.106",
+    "HA_SSH_USER": "marekbodynek"
+  },
   "permissions": {
     "allow": [
-      "Bash(sshpass -p 'Keram1qazXSW@' ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no marekbodynek@192.168.0.106 \"curl -s -H ''Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDkyNTJiNmE1OGU0MmEzYTZiNjBjNWZjMWQ4MTcyZCIsImlhdCI6MTczMDkyNTA1MCwiZXhwIjoyMDQ2Mjg1MDUwfQ.Z4rvslE8wBN3rWLqnedKtZzwA_tuJCqaTD8HQE7MRlk'' http://localhost:8123/api/states/sensor.pstryk_current_sell_price | python3 -m json.tool\")",
-      "Bash(sshpass:*)",
+      "Bash(do sleep 3)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(ssh:*)",
+      "Bash(for sensor in \"sensor.time\" \"sensor.strefa_taryfowa\" \"sensor.akumulatory_stan_pojemnosci\" \"input_number.battery_target_soc\" \"sensor.prognoza_pv_dzisiaj\" \"binary_sensor.dzien_roboczy\")",
+      "Bash(do echo -n \"$sensor: \")",
+      "Bash(done)",
+      "Bash(git push)",
       "Bash(git add:*)",
-      "Bash(git commit -m \"$(cat <<''EOF''\n📚 Skonsolidowano dokumentację w jeden plik\n\n- Utworzono DOKUMENTACJA_KOMPLETNA.md (kompilacja 14 plików MD)\n- Usunięto pojedyncze pliki dokumentacji\n- Zachowano tylko pliki third-party (HACS, Huawei Solar)\n- Pełny spis treści z 10 sekcjami\n- Łącznie ~2000 linii kompleksowej dokumentacji\n\nSekcje:\n1. Instalacja i konfiguracja\n2. Algorytm zarządzania baterią\n3. Integracje (Pstryk, Forecast.Solar, Panasonic)\n4. Automatyzacje\n5. Dashboard\n6. Dostęp zewnętrzny (Cloudflare Tunnel)\n7. Bezpieczeństwo i optymalizacja\n8. Rozwiązywanie problemów\n9. Zarządzanie systemem\n10. Checklisty\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
-      "Bash(git push:*)"
+      "Bash(git commit -m \"$(cat <<''EOF''\n📊 Dokumentacja: Pełne drzewo decyzyjne algorytmu (Mermaid)\n\nDODANO:\n- docs/decision_tree.md - wizualizacja Mermaid całego algorytmu\n- Kompletny diagram przepływu decyzji\n- Priorytety, progi, okna czasowe\n- Tryby pracy i ich mapowanie\n\nSTRUKTURA DRZEWA:\n1. Bezpieczeństwo (temperatura, SOC <5%)\n2. L2 ładowanie (NOC 22-06h, POŁUDNIE 13-15h)\n3. Autoconsumption (surplus/deficit)\n4. Sezon grzewczy (PC CO logika)\n\nKLUCZOWE DECYZJE:\n- SOC <5%: KRYTYCZNE - ładuj 24/7\n- SOC <20%: PILNE - ładuj w L2\n- SOC ≤20% w L1: CZEKAJ na L2 (FIX!)\n- L2 13-15h: PV > sieć (inteligentne)\n\nPOMAGA:\n✅ Zrozumieć całą logikę algorytmu\n✅ Znaleźć błędy i konflikty\n✅ Planować nowe funkcje\n✅ Onboarding nowych osób\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git fetch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git restore:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\n🌡️ FIX KRYTYCZNY: Prawdziwa temperatura baterii z Huawei Solar\n\nPROBLEM:\n- sensor.bateria_temperatura_maksymalna używał JV* (optymalizatory PV na dachu)\n- Pokazywał 7.8°C (temperatura dachu) zamiast 31.6°C (bateria w garażu)\n- binary_sensor.bateria_bezpieczna_temperatura = OFF (<5°C)\n- Blokował ładowanie pomimo prawidłowej temperatury baterii!\n\nROZWIĄZANIE:\n✅ sensor.bateria_temperatura_maksymalna → sensor.akumulator_1_temperatura\n✅ Używa prawdziwej temp. baterii z integracji Huawei Solar (~31°C)\n✅ Dodano oddzielny sensor dla PV optimizers (referencyjnie)\n✅ Nie trzeba custom FusionSolar API - sensor już istniał!\n\nKORZYŚCI:\n- Temperatura safety checks działają poprawnie\n- Ładowanie nie jest blokowane niepotrzebnie\n- Gotowe do implementacji three-tier temperature protection\n- Wszystkie alarmy temp. działają z prawdziwymi danymi\n\nŹRÓDŁO:\n- sensor.akumulator_1_temperatura (Huawei Solar integration)\n- Poprzednio używany w automations_battery.yaml, ale nie w algorytmie\n\nVERSION: 3.3\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(ping:*)",
+      "Bash(for:*)",
+      "Bash(do)",
+      "Bash(if ping -c 1 -W 2 192.168.7.25)",
+      "Bash(/dev/null)",
+      "Bash(then)",
+      "Bash(break)",
+      "Bash(else)",
+      "Bash([ $i -lt 10 ])",
+      "Bash(fi)",
+      "Bash(git commit -m \"$(cat <<''EOF''\n🔧 FIX: Poprawna nazwa sensora temperatury baterii\n\nPROBLEM:\n- Użyto nieistniejącego sensora sensor.akumulator_1_temperatura\n- Wszystkie sensory temp. pokazywały \"unknown\"\n\nROZWIĄZANIE:\n✅ sensor.akumulator_1_bms_temperature - poprawna nazwa\n✅ To jest \"Internal temperature\" (34.5°C) z FusionSolar\n✅ Sensor jest disabled by integration - trzeba włączyć w UI\n\nINSTRUKCJA WŁĄCZENIA:\nSettings → Devices & Services → Huawei Solar → \nAkumulator 1 → Entities → Enable \"BMS temperature\"\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []
