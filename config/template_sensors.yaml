@@ -227,8 +227,22 @@
 # ============================================
 
 - sensor:
+    # TEMPERATURA BATERII - używa prawdziwego sensora z Huawei Solar
     - name: "Bateria - temperatura maksymalna"
       unique_id: battery_temperature_max
+      unit_of_measurement: "°C"
+      device_class: temperature
+      state: >
+        {{ states('sensor.akumulator_1_temperatura') | float(25) }}
+      icon: mdi:battery-thermometer
+      attributes:
+        friendly_name: "Bateria - temperatura"
+        source: "Huawei Solar (sensor.akumulator_1_temperatura)"
+        note: "Prawdziwa temperatura baterii z falownika Huawei"
+
+    # TEMPERATURA OPTYMALIZATORÓW PV - dla referencji (JV* na dachu)
+    - name: "PV Optimizers - temperatura maksymalna"
+      unique_id: pv_optimizers_temperature_max
       unit_of_measurement: "°C"
       device_class: temperature
       state: >
@@ -252,10 +266,11 @@
           states('sensor.jv2279a93075_temperatura') | float(0)
         ] %}
         {% set valid_temps = temps | reject('eq', 0) | list %}
-        {{ valid_temps | max if valid_temps | length > 0 else 25 }}
+        {{ valid_temps | max if valid_temps | length > 0 else 0 }}
       icon: mdi:thermometer-high
       attributes:
-        friendly_name: "Bateria - najwyższa temperatura modułu"
+        friendly_name: "PV Optymalizatory - najwyższa temperatura"
+        note: "Temperatura optymalizatorów PV (JV*) na dachu - dla referencji"
         valid_sensors: >
           {% set temps = [
             'JV...38: ' + states('sensor.jv2279a93038_temperatura'),
@@ -269,9 +284,9 @@
 - binary_sensor:
     - name: "Bateria - bezpieczna temperatura"
       unique_id: battery_temperature_safe
-      # UWAGA: Sensor używa temp. optymalizatorów PV (JV*), nie baterii!
-      # JV* pokazuje temp. dachu (3-5°C), więc sensor OFF (blokuje ładowanie)
-      # TODO WIECZOREM: Integracja FusionSolar Cloud API (prawdziwa temp. baterii 31.6°C)
+      # ✅ FIXED: Używa prawdziwej temperatury baterii z Huawei Solar (sensor.akumulator_1_temperatura)
+      # Poprzednio: JV* (optymalizatory PV na dachu 7.8°C) - BŁĄD!
+      # Teraz: sensor.akumulator_1_temperatura (~31.6°C) - POPRAWNE!
       state: >
         {% set temp = states('sensor.bateria_temperatura_maksymalna') | float(25) %}
         {{ temp >= 5 and temp <= 40 }}
@@ -290,10 +305,11 @@
         {% endif %}
       attributes:
         friendly_name: "Bateria - bezpieczna temperatura"
-        current_temp: "{{ states('sensor.bateria_temperatura_maksymalna') }}°C (JV* - optymalizatory PV)"
+        current_temp: "{{ states('sensor.bateria_temperatura_maksymalna') }}°C (Huawei Solar - prawdziwa temp. baterii)"
         safe_range: "5-40°C"
         optimal_range: "15-25°C"
-        note: "Sensor OFF - JV* pokazuje temp. dachu (<5°C). Wieczorem: FusionSolar Cloud API (prawdziwa temp. baterii 31.6°C)."
+        source: "sensor.akumulator_1_temperatura via Huawei Solar integration"
+        note: "✅ FIXED v3.3: Używa prawdziwej temp. baterii z falownika (~31°C), nie optymalizatorów PV (~8°C)"
         status: >
           {% set temp = states('sensor.bateria_temperatura_maksymalna') | float(25) %}
           {% if temp > 45 %}
