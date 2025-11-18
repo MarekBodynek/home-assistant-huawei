@@ -302,6 +302,43 @@ def decide_strategy(data, balance):
             'reason': f'L2 niedziela/święto (tania 0.72 zł) - pobieraj z sieci, oszczędzaj baterię na poniedziałek (droga 1.11 zł)'
         }
 
+    # ŁADOWANIE W L2 - NIEZALEŻNIE od bilansu PV!
+    # WAŻNE: Te warunki muszą być PRZED autoconsumption, bo ładowanie w L2 jest priorytetem
+    hour = data['hour']
+    target_soc = data['target_soc']
+    forecast_today = data['forecast_today']
+    forecast_tomorrow = data['forecast_tomorrow']
+
+    # L2 NOC (22-06h) - główne ładowanie do Target SOC
+    if tariff == 'L2' and hour in [22, 23, 0, 1, 2, 3, 4, 5] and soc < target_soc:
+        if forecast_tomorrow < 15:
+            priority = 'critical'
+            reason = f'Noc L2 + pochmurno jutro ({forecast_tomorrow:.1f} kWh) - ładuj do {target_soc}%!'
+        elif forecast_tomorrow < 25:
+            priority = 'high'
+            reason = f'Noc L2 + średnio jutro - ładuj do {target_soc}%'
+        else:
+            priority = 'medium'
+            reason = f'Noc L2 + słonecznie jutro - ładuj do {target_soc}%'
+
+        return {
+            'mode': 'charge_from_grid',
+            'target_soc': target_soc,
+            'priority': priority,
+            'reason': reason
+        }
+
+    # L2 POŁUDNIE (13-15h) - doładowanie gdy prognoza < 5 kWh
+    if tariff == 'L2' and hour in [13, 14] and soc < 80:
+        # Ładuj gdy prognoza bardzo niska (< 5 kWh) LUB SOC < Target SOC
+        if forecast_today < 5 or soc < target_soc:
+            return {
+                'mode': 'charge_from_grid',
+                'target_soc': min(80, target_soc),
+                'priority': 'high',
+                'reason': f'L2 południe (13-15h): prognoza {forecast_today:.1f} kWh, SOC {soc}% < Target {target_soc}%'
+            }
+
     # AUTOCONSUMPTION
     if balance['surplus'] > 0:
         return handle_pv_surplus(data, balance)
@@ -726,44 +763,9 @@ def should_charge_from_grid(data):
                 'reason': f'RCE bardzo niskie ({rce_now:.3f}) + pochmurno jutro'
             }
 
-    # POPOŁUDNIOWE ŁADOWANIE w oknie L2 13-15h - TYLKO jeśli prognoza < 5 kWh
-    if hour in [13, 14, 15] and tariff == 'L2' and soc < 80:
-        forecast_today = data['forecast_today']
-
-        # Ładuj tylko jeśli prognoza bardzo niska (< 5 kWh)
-        if forecast_today < 5:
-            return {
-                'should_charge': True,
-                'target_soc': 80,
-                'priority': 'high',
-                'reason': f'Prognoza bardzo niska ({forecast_today:.1f} kWh) - doładowanie w L2 13-15h'
-            }
-
-    # NOC L2 - główne ładowanie
-    if tariff == 'L2' and hour in [22, 23, 0, 1, 2, 3, 4, 5]:
-        if soc < target_soc:
-            if forecast_tomorrow < 15:
-                priority = 'critical'
-                reason = f'Noc L2 + pochmurno jutro ({forecast_tomorrow:.1f} kWh) - ładuj do {target_soc}%!'
-            elif forecast_tomorrow < 25:
-                priority = 'high'
-                reason = f'Noc L2 + średnio jutro - ładuj do {target_soc}%'
-            else:
-                priority = 'medium'
-                reason = f'Noc L2 + słonecznie jutro - ładuj do {target_soc}%'
-
-            if heating_mode == 'heating_season':
-                if priority == 'medium':
-                    priority = 'high'
-                elif priority == 'high':
-                    priority = 'critical'
-
-            return {
-                'should_charge': True,
-                'target_soc': target_soc,
-                'priority': priority,
-                'reason': reason
-            }
+    # UWAGA: Ładowanie L2 NOC (22-06h) i POŁUDNIE (13-15h) przeniesione do decide_strategy()
+    # aby działało NIEZALEŻNIE od bilansu mocy (surplus/deficit)
+    # Te warunki były tutaj, ale powodowały problem: nie uruchamiały się gdy była nadwyżka PV!
 
     # Rano przed końcem L2
     if tariff == 'L2' and hour in [4, 5]:
