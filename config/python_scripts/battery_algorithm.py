@@ -955,45 +955,8 @@ def set_huawei_mode(working_mode, **kwargs):
             'option': working_mode
         })
 
-        # Ustaw ładowanie z sieci
-        if 'charge_from_grid' in kwargs:
-            service = 'turn_on' if kwargs['charge_from_grid'] else 'turn_off'
-            hass.services.call('switch', service, {
-                'entity_id': 'switch.akumulatory_ladowanie_z_sieci'
-            })
-
-        # Ustaw limit SOC ładowania
-        if 'charge_soc_limit' in kwargs:
-            hass.services.call('number', 'set_value', {
-                'entity_id': 'number.akumulatory_lmit_ladowania_z_sieci_soc',
-                'value': kwargs['charge_soc_limit']
-            })
-
-        # Ustaw limit SOC rozładowania
-        if 'discharge_soc_limit' in kwargs:
-            hass.services.call('number', 'set_value', {
-                'entity_id': 'number.akumulatory_koniec_rozladowania_soc',
-                'value': kwargs['discharge_soc_limit']
-            })
-
-        # Ustaw maksymalną moc rozładowania
-        # Domyślnie 5000W (normalne rozładowanie), chyba że explicite ustawiono inaczej
-        max_discharge = kwargs.get('max_discharge_power', 5000)
-        hass.services.call('number', 'set_value', {
-            'entity_id': 'number.akumulatory_maksymalna_moc_rozladowania',
-            'value': max_discharge
-        })
-
-        # Ustaw maksymalną moc ładowania
-        # Domyślnie 5000W (normalne ładowanie), chyba że explicite ustawiono inaczej
-        max_charge = kwargs.get('max_charge_power', 5000)
-        hass.services.call('number', 'set_value', {
-            'entity_id': 'number.akumulatory_maksymalna_moc_ladowania',
-            'value': max_charge
-        })
-
-        # Ustaw harmonogram TOU dla ładowania z sieci
-        # Wymagane dla trybu time_of_use_luna2000
+        # WAŻNE: Ustaw harmonogram TOU PRZED włączeniem switcha ładowania!
+        # Tryb time_of_use_luna2000 wymaga harmonogramu NAJPIERW
         if 'charge_from_grid' in kwargs and kwargs['charge_from_grid']:
             try:
                 # SUPER PILNY (SOC < 5%): Ładuj NATYCHMIAST przez całą dobę!
@@ -1031,6 +994,43 @@ def set_huawei_mode(working_mode, **kwargs):
                     })
                 except:
                     pass
+
+        # Teraz można bezpiecznie włączyć ładowanie z sieci (harmonogram już ustawiony)
+        if 'charge_from_grid' in kwargs:
+            service = 'turn_on' if kwargs['charge_from_grid'] else 'turn_off'
+            hass.services.call('switch', service, {
+                'entity_id': 'switch.akumulatory_ladowanie_z_sieci'
+            })
+
+        # Ustaw limit SOC ładowania
+        if 'charge_soc_limit' in kwargs:
+            hass.services.call('number', 'set_value', {
+                'entity_id': 'number.akumulatory_lmit_ladowania_z_sieci_soc',
+                'value': kwargs['charge_soc_limit']
+            })
+
+        # Ustaw limit SOC rozładowania
+        if 'discharge_soc_limit' in kwargs:
+            hass.services.call('number', 'set_value', {
+                'entity_id': 'number.akumulatory_koniec_rozladowania_soc',
+                'value': kwargs['discharge_soc_limit']
+            })
+
+        # Ustaw maksymalną moc rozładowania
+        # Domyślnie 5000W (normalne rozładowanie), chyba że explicite ustawiono inaczej
+        max_discharge = kwargs.get('max_discharge_power', 5000)
+        hass.services.call('number', 'set_value', {
+            'entity_id': 'number.akumulatory_maksymalna_moc_rozladowania',
+            'value': max_discharge
+        })
+
+        # Ustaw maksymalną moc ładowania
+        # Domyślnie 5000W (normalne ładowanie), chyba że explicite ustawiono inaczej
+        max_charge = kwargs.get('max_charge_power', 5000)
+        hass.services.call('number', 'set_value', {
+            'entity_id': 'number.akumulatory_maksymalna_moc_ladowania',
+            'value': max_charge
+        })
 
         # logger.info(f"Huawei mode set: {working_mode}")
         return True
