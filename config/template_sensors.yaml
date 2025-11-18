@@ -270,9 +270,15 @@
     - name: "Bateria - bezpieczna temperatura"
       unique_id: battery_temperature_safe
       # UWAGA: Sensor używa temp. optymalizatorów PV (JV*), nie baterii!
+      # Fallback: jeśli JV* pokazuje <5°C (nierealne dla baterii w garażu 15°C), użyj bezpiecznej wartości
       # TODO WIECZOREM: Integracja FusionSolar Cloud API (prawdziwa temp. baterii 31.6°C)
       state: >
-        {% set temp = states('sensor.bateria_temperatura_maksymalna') | float(25) %}
+        {% set measured_temp = states('sensor.bateria_temperatura_maksymalna') | float(-999) %}
+        {% if measured_temp < 5 %}
+          {% set temp = 25 %}
+        {% else %}
+          {% set temp = measured_temp %}
+        {% endif %}
         {{ temp >= 5 and temp <= 40 }}
       icon: >
         {% set temp = states('sensor.bateria_temperatura_maksymalna') | float(25) %}
@@ -289,11 +295,17 @@
         {% endif %}
       attributes:
         friendly_name: "Bateria - bezpieczna temperatura"
-        temperature: "{{ states('sensor.bateria_temperatura_maksymalna') }}°C"
+        measured_temp: "{{ states('sensor.bateria_temperatura_maksymalna') }}°C"
+        effective_temp: >
+          {% set measured = states('sensor.bateria_temperatura_maksymalna') | float(-999) %}
+          {% if measured < 5 %}
+            25°C (fallback - JV* pokazuje {{ measured }}°C)
+          {% else %}
+            {{ measured }}°C (JV*)
+          {% endif %}
         safe_range: "5-40°C"
         optimal_range: "15-25°C"
-        note: "UWAGA: Sensor używa temp. optymalizatorów PV (JV*), nie baterii! Wieczorem: integracja FusionSolar API."
-        real_battery_temp: "~31.6°C (FusionSolar)"
+        note: "TYMCZASOWE: Gdy JV* (PV optimizers) <5°C, użyj 25°C. Wieczorem: FusionSolar API (prawdziwa temp. 31.6°C)."
         status: >
           {% set temp = states('sensor.bateria_temperatura_maksymalna') | float(25) %}
           {% if temp > 45 %}
