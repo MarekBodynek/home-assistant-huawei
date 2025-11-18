@@ -688,17 +688,22 @@ def handle_power_deficit(data, balance):
     # Sezon grzewczy
     if heating_mode == 'heating_season':
         if tariff == 'L1':
-            if soc > 25:
+            # W L1 (droga taryfa 1.11 zł/kWh) - MINIMALIZUJ pobór z sieci!
+            # Używaj baterii ile się da, NIE ładuj (czekaj na tanie L2 22:00)
+            if soc > 20:
                 return {
                     'mode': 'discharge_to_home',
                     'priority': 'critical',
-                    'reason': f'PC pracuje w L1 (temp {temp:.1f}°C) - oszczędzaj L1!'
+                    'reason': f'PC w L1 (temp {temp:.1f}°C) - rozładowuj baterię, oszczędzaj drogą L1!'
                 }
             else:
+                # SOC ≤ 20%: NIE ŁADUJ w drogiej L1!
+                # Czekaj na L2 22:00 (tanie 0.72 zł vs 1.11 zł - oszczędność 54%!)
+                # Wyjątek: SOC ≤5% jest obsłużony wcześniej w decide_strategy (linia 248)
                 return {
-                    'mode': 'charge_from_grid',
+                    'mode': 'idle',
                     'priority': 'high',
-                    'reason': 'SOC niskie w L1 z PC - doładuj!'
+                    'reason': f'SOC {soc:.0f}% w L1 - CZEKAJ na L2 22:00 (oszczędność 54%!), nie marnuj pieniędzy!'
                 }
         else:  # L2
             if data['cwu_window']:
