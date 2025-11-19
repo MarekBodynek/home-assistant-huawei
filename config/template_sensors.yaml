@@ -227,20 +227,47 @@
 # ============================================
 
 - sensor:
-    # TEMPERATURA BATERII - używa prawdziwego sensora z Huawei Solar
-    # WAŻNE: Sensor sensor.akumulator_1_bms_temperature musi być włączony w UI!
-    # Settings → Devices & Services → Huawei Solar → Akumulator 1 → Entities → Enable "BMS temperature"
+    # TEMPERATURA BATERII - max z trzech Pack max temperatures
     - name: "Bateria - temperatura maksymalna"
       unique_id: battery_temperature_max
       unit_of_measurement: "°C"
       device_class: temperature
       state: >
-        {{ states('sensor.akumulator_1_bms_temperature') | float(25) }}
+        {% set temps = [
+          states('sensor.akumulator_1_pack_1_max_temperature') | float(0),
+          states('sensor.akumulator_1_pack_2_max_temperature') | float(0),
+          states('sensor.akumulator_1_pack_3_max_temperature') | float(0)
+        ] %}
+        {% set valid = temps | reject('eq', 0) | list %}
+        {{ valid | max if valid | length > 0 else 25 }}
       icon: mdi:battery-thermometer
       attributes:
-        friendly_name: "Bateria - temperatura"
-        source: "Huawei Solar (sensor.akumulator_1_bms_temperature)"
-        note: "Prawdziwa temperatura BMS baterii (Internal temperature) z falownika Huawei"
+        friendly_name: "Bateria - temperatura max"
+        source: "max(Pack 1/2/3 max temperature)"
+        pack_1: "{{ states('sensor.akumulator_1_pack_1_max_temperature') }}"
+        pack_2: "{{ states('sensor.akumulator_1_pack_2_max_temperature') }}"
+        pack_3: "{{ states('sensor.akumulator_1_pack_3_max_temperature') }}"
+
+    # TEMPERATURA BATERII - min z trzech Pack min temperatures
+    - name: "Bateria - temperatura minimalna"
+      unique_id: battery_temperature_min
+      unit_of_measurement: "°C"
+      device_class: temperature
+      state: >
+        {% set temps = [
+          states('sensor.akumulator_1_pack_1_min_temperature') | float(100),
+          states('sensor.akumulator_1_pack_2_min_temperature') | float(100),
+          states('sensor.akumulator_1_pack_3_min_temperature') | float(100)
+        ] %}
+        {% set valid = temps | reject('eq', 100) | list %}
+        {{ valid | min if valid | length > 0 else 25 }}
+      icon: mdi:battery-thermometer-outline
+      attributes:
+        friendly_name: "Bateria - temperatura min"
+        source: "min(Pack 1/2/3 min temperature)"
+        pack_1: "{{ states('sensor.akumulator_1_pack_1_min_temperature') }}"
+        pack_2: "{{ states('sensor.akumulator_1_pack_2_min_temperature') }}"
+        pack_3: "{{ states('sensor.akumulator_1_pack_3_min_temperature') }}"
 
     # TEMPERATURA OPTYMALIZATORÓW PV - dla referencji (JV* na dachu)
     - name: "PV Optimizers - temperatura maksymalna"
@@ -310,14 +337,13 @@
         current_temp: >
           {% set temp = states('sensor.bateria_temperatura_maksymalna') %}
           {% if temp in ['unknown', 'unavailable'] %}
-            Brak danych - włącz sensor.akumulator_1_bms_temperature w UI!
+            Brak danych - sprawdź sensory Pack temperature
           {% else %}
-            {{ temp }}°C (Huawei Solar)
+            {{ temp }}°C
           {% endif %}
         safe_range: "5-40°C"
         optimal_range: "15-25°C"
-        source: "sensor.akumulator_1_bms_temperature via Huawei Solar integration"
-        note: "✅ FIXED v3.4: Lepsze komunikaty gdy sensor wyłączony. WAŻNE: Włącz sensor w Settings → Devices → Huawei Solar → Akumulator 1 → Enable BMS temperature"
+        source: "max(Pack 1/2/3 max temperature)"
         status: >
           {% set temp = states('sensor.bateria_temperatura_maksymalna') | float(25) %}
           {% if temp > 45 %}
