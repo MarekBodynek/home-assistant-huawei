@@ -310,6 +310,36 @@ def decide_strategy(data, balance):
     forecast_tomorrow = data['forecast_tomorrow']
     pv_surplus = balance['surplus']
 
+    # ===========================================
+    # POPRAWKA 1: L2 (noc/południe) - CHROŃ baterię gdy SOC >= Target
+    # ===========================================
+    if tariff == 'L2':
+        is_night_l2 = hour in [22, 23, 0, 1, 2, 3, 4, 5]
+        is_midday_l2 = hour in [13, 14]
+
+        if (is_night_l2 or is_midday_l2) and soc >= target_soc:
+            return {
+                'mode': 'grid_to_home',
+                'priority': 'normal',
+                'reason': f'L2 - SOC {soc:.0f}% >= Target {target_soc}% - pobieraj z sieci, zachowaj baterię na L1'
+            }
+
+    # ===========================================
+    # POPRAWKA 2: L1 (droga taryfa) - ROZŁADOWUJ baterię
+    # ===========================================
+    if tariff == 'L1' and soc > 20:
+        # Sprawdź czy nie ma nadwyżki PV do sprzedaży
+        if pv_surplus > 0.5:  # >500W nadwyżki
+            # Nadwyżka PV - pozwól handle_pv_surplus zdecydować (może sprzedać)
+            pass
+        else:
+            # Brak znaczącej nadwyżki - rozładowuj do domu
+            return {
+                'mode': 'discharge_to_home',
+                'priority': 'high',
+                'reason': f'L1 droga taryfa (1.11 zł) - rozładowuj baterię (SOC {soc:.0f}%)'
+            }
+
     # L2 NOC (22-06h) - główne ładowanie do Target SOC (zawsze z sieci, bo brak PV)
     if tariff == 'L2' and hour in [22, 23, 0, 1, 2, 3, 4, 5] and soc < target_soc:
         if forecast_tomorrow < 15:
@@ -706,6 +736,26 @@ def handle_power_deficit(data, balance):
                     'reason': f'SOC {soc:.0f}% w L1 - CZEKAJ na L2 22:00 (oszczędność 54%!), nie marnuj pieniędzy!'
                 }
         else:  # L2
+            # ===========================================
+            # POPRAWKA 3: L2 noc - ładuj lub trzymaj baterię
+            # ===========================================
+            is_night_l2 = hour in [22, 23, 0, 1, 2, 3, 4, 5]
+
+            if is_night_l2:
+                if soc < target_soc:
+                    return {
+                        'mode': 'charge_from_grid',
+                        'target_soc': target_soc,
+                        'priority': 'high',
+                        'reason': f'Noc L2 + deficit - ładuj do {target_soc}%'
+                    }
+                else:
+                    return {
+                        'mode': 'grid_to_home',
+                        'priority': 'normal',
+                        'reason': f'Noc L2, SOC {soc:.0f}% OK - pobieraj z sieci, zachowaj baterię'
+                    }
+
             if data['cwu_window']:
                 if soc > 70:
                     return {
@@ -975,7 +1025,16 @@ def apply_battery_mode(strategy):
         set_huawei_mode('time_of_use_luna2000', charge_from_grid=False, max_discharge_power=0)
 
     elif mode == 'idle':
-        set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
+        # ===========================================
+        # POPRAWKA 4: W L2 chroń baterię, w L1 normalne zachowanie
+        # ===========================================
+        tariff_state = hass.states.get('sensor.strefa_taryfowa')
+        if tariff_state and tariff_state.state == 'L2':
+            # W L2 - blokuj rozładowanie baterii
+            set_huawei_mode('time_of_use_luna2000', charge_from_grid=False, max_discharge_power=0)
+        else:
+            # W L1 - normalne zachowanie
+            set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
 
     return True
 
