@@ -73,16 +73,16 @@
 
 - id: battery_monitor_critical_soc
   alias: "[Bateria] Monitor SOC krytyczne"
-  description: "Monitoruje SOC i reaguje na krytyczne wartości (limit Huawei 20%)"
+  description: "Monitoruje SOC i reaguje na krytyczne wartości (<5%)"
   trigger:
     - platform: numeric_state
       entity_id: sensor.akumulatory_stan_pojemnosci
-      below: 22
+      below: 5
   action:
     - service: persistent_notification.create
       data:
         title: "🚨 BATERIA KRYTYCZNIE NISKA!"
-        message: "SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}% - wymuszam ładowanie!"
+        message: "SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}% - wymuszam ładowanie awaryjne!"
     - service: python_script.battery_algorithm
   mode: single
 

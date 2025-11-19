@@ -307,11 +307,17 @@
         {% endif %}
       attributes:
         friendly_name: "Bateria - bezpieczna temperatura"
-        current_temp: "{{ states('sensor.bateria_temperatura_maksymalna') }}°C (Huawei Solar - prawdziwa temp. baterii)"
+        current_temp: >
+          {% set temp = states('sensor.bateria_temperatura_maksymalna') %}
+          {% if temp in ['unknown', 'unavailable'] %}
+            Brak danych - włącz sensor.akumulator_1_bms_temperature w UI!
+          {% else %}
+            {{ temp }}°C (Huawei Solar)
+          {% endif %}
         safe_range: "5-40°C"
         optimal_range: "15-25°C"
-        source: "sensor.akumulator_1_temperatura via Huawei Solar integration"
-        note: "✅ FIXED v3.3: Używa prawdziwej temp. baterii z falownika (~31°C), nie optymalizatorów PV (~8°C)"
+        source: "sensor.akumulator_1_bms_temperature via Huawei Solar integration"
+        note: "✅ FIXED v3.4: Lepsze komunikaty gdy sensor wyłączony. WAŻNE: Włącz sensor w Settings → Devices → Huawei Solar → Akumulator 1 → Enable BMS temperature"
         status: >
           {% set temp = states('sensor.bateria_temperatura_maksymalna') | float(25) %}
           {% if temp > 45 %}
