@@ -101,13 +101,19 @@ def calculate_daily_strategy():
             target_soc = int((z_baterii / 15) * 100)
             target_soc = max(20, min(80, target_soc))  # ✅ ZAWSZE 20-80% (bezpieczeństwo Huawei)
 
-            # Latem mniej (ale minimum 20%)
-            if forecast_tomorrow > 30:
-                target_soc = max(20, 30)
-            elif forecast_tomorrow > 20:
-                target_soc = max(20, 40)
+            # Poza sezonem - target SOC zależny od prognozy PV
+            if forecast_tomorrow < 5:
+                target_soc = 80  # Bardzo pochmurno - ładuj do max
+            elif forecast_tomorrow < 10:
+                target_soc = 70  # Pochmurno - ładuj więcej
+            elif forecast_tomorrow < 15:
+                target_soc = 60  # Średnio - umiarkowane ładowanie
+            elif forecast_tomorrow < 20:
+                target_soc = 50  # Częściowo słonecznie
+            elif forecast_tomorrow < 30:
+                target_soc = 40  # Słonecznie
             else:
-                target_soc = max(20, 50)
+                target_soc = 30  # Bardzo słonecznie - minimum
 
             reason = f'Bez CO: dom={dom_l1:.0f}kWh, PV={pokrycie_pv:.0f}kWh, bateria={z_baterii:.0f}kWh'
 

@@ -5,6 +5,6 @@ battery_target_soc:
   min: 20
   max: 80  # ✅ BEZPIECZEŃSTWO: Limit Huawei Luna (20-80%)
   step: 5
-  initial: 70
+  initial: 80  # ✅ Domyślnie max dla bezpieczeństwa
   unit_of_measurement: "%"
   icon: mdi:battery-charging-80
