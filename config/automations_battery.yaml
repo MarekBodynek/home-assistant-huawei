@@ -135,9 +135,9 @@
     - condition: state
       entity_id: sensor.akumulatory_status
       state: "Sleep mode"
-    - condition: numeric_state
-      entity_id: sensor.akumulatory_stan_pojemnosci
-      below: input_number.battery_target_soc
+    - condition: template
+      value_template: >
+        {{ states('sensor.akumulatory_stan_pojemnosci') | float(0) < states('input_number.battery_target_soc') | float(80) }}
   action:
     - service: huawei_solar.forcible_charge
       data:
@@ -169,9 +169,9 @@
     - condition: state
       entity_id: sensor.akumulatory_status
       state: "Sleep mode"
-    - condition: numeric_state
-      entity_id: sensor.akumulatory_stan_pojemnosci
-      below: input_number.battery_target_soc
+    - condition: template
+      value_template: >
+        {{ states('sensor.akumulatory_stan_pojemnosci') | float(0) < states('input_number.battery_target_soc') | float(80) }}
   action:
     - service: huawei_solar.forcible_charge
       data:
