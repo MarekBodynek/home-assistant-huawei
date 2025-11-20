@@ -127,17 +127,22 @@
 
 - id: battery_wake_from_sleep_l2_night
   alias: "[Bateria] Wybudź ze Sleep o 22:00 (start L2 noc)"
-  description: "Wymusza ładowanie gdy bateria jest w Sleep mode na początku L2 nocnego"
+  description: "Wymusza ładowanie gdy bateria jest w Sleep mode/Standby na początku L2 nocnego"
   trigger:
     - platform: time
       at: "22:00:30"
   condition:
-    - condition: state
-      entity_id: sensor.akumulatory_status
-      state: "Sleep mode"
+    - condition: or
+      conditions:
+        - condition: state
+          entity_id: sensor.akumulatory_status
+          state: "Sleep mode"
+        - condition: state
+          entity_id: sensor.akumulatory_status
+          state: "Standby"
     - condition: template
       value_template: >
-        {{ states('sensor.akumulatory_stan_pojemnosci') | float(0) < states('input_number.battery_target_soc') | float(80) }}
+        {{ states('sensor.akumulatory_stan_pojemnosci') | float(0) <= states('input_number.battery_target_soc') | float(80) }}
   action:
     - service: huawei_solar.forcible_charge
       data:
@@ -151,14 +156,14 @@
       data:
         title: "🔋 Bateria wybudzona (22:00)"
         message: |
-          Bateria była w Sleep mode o 22:00.
+          Bateria była w {{ states('sensor.akumulatory_status') }} o 22:00.
           Wymuszono ładowanie 5kW/30min żeby wybudzić.
-          SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%
+          SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}% → Target: {{ states('input_number.battery_target_soc') }}%
   mode: single
 
 - id: battery_wake_from_sleep_l2_midday
   alias: "[Bateria] Wybudź ze Sleep o 13:00 (start L2 południe)"
-  description: "Wymusza ładowanie gdy bateria jest w Sleep mode na początku L2 południowego"
+  description: "Wymusza ładowanie gdy bateria jest w Sleep mode/Standby na początku L2 południowego"
   trigger:
     - platform: time
       at: "13:00:30"
@@ -166,12 +171,17 @@
     - condition: state
       entity_id: binary_sensor.dzien_roboczy
       state: "on"
-    - condition: state
-      entity_id: sensor.akumulatory_status
-      state: "Sleep mode"
+    - condition: or
+      conditions:
+        - condition: state
+          entity_id: sensor.akumulatory_status
+          state: "Sleep mode"
+        - condition: state
+          entity_id: sensor.akumulatory_status
+          state: "Standby"
     - condition: template
       value_template: >
-        {{ states('sensor.akumulatory_stan_pojemnosci') | float(0) < states('input_number.battery_target_soc') | float(80) }}
+        {{ states('sensor.akumulatory_stan_pojemnosci') | float(0) <= states('input_number.battery_target_soc') | float(80) }}
   action:
     - service: huawei_solar.forcible_charge
       data:
@@ -185,9 +195,57 @@
       data:
         title: "🔋 Bateria wybudzona (13:00)"
         message: |
-          Bateria była w Sleep mode o 13:00.
+          Bateria była w {{ states('sensor.akumulatory_status') }} o 13:00.
           Wymuszono ładowanie 5kW/30min żeby wybudzić.
-          SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%
+          SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}% → Target: {{ states('input_number.battery_target_soc') }}%
+  mode: single
+
+# ============================================
+# DIAGNOSTYKA WYBUDZANIA (INFORMACJE O POMINIĘCIU)
+# ============================================
+
+- id: battery_wake_diagnostic_l2_night
+  alias: "[Bateria] 🔍 Diagnostyka - dlaczego NIE wybudzona o 22:00"
+  description: "Informuje dlaczego bateria nie została wybudzona o 22:00"
+  trigger:
+    - platform: time
+      at: "22:01:00"
+  condition:
+    # Uruchom tylko jeśli bateria NIE została wybudzona
+    - condition: template
+      value_template: >
+        {% set status = states('sensor.akumulatory_status') %}
+        {% set soc = states('sensor.akumulatory_stan_pojemnosci') | float(0) %}
+        {% set target = states('input_number.battery_target_soc') | float(80) %}
+        {{ (status not in ['Sleep mode', 'Standby']) or (soc > target) }}
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "🔍 Bateria NIE wybudzona o 22:00 - diagnostyka"
+        message: |
+          **Status baterii:** {{ states('sensor.akumulatory_status') }}
+          **SOC:** {{ states('sensor.akumulatory_stan_pojemnosci') }}%
+          **Target SOC:** {{ states('input_number.battery_target_soc') }}%
+
+          **Możliwe przyczyny:**
+          {% set status = states('sensor.akumulatory_status') %}
+          {% set soc = states('sensor.akumulatory_stan_pojemnosci') | float(0) %}
+          {% set target = states('input_number.battery_target_soc') | float(80) %}
+
+          {% if status == 'Running' %}
+          ✅ Bateria już pracuje (Running) - wybudzanie niepotrzebne
+          {% elif status == 'Offline' %}
+          ⚠️ Bateria OFFLINE - sprawdź połączenie!
+          {% elif status == 'Fault' %}
+          🔴 Bateria w stanie FAULT - sprawdź błędy!
+          {% elif soc > target %}
+          ✅ SOC ({{ soc }}%) > Target ({{ target }}%) - ładowanie niepotrzebne
+          {% else %}
+          ❓ Status: {{ status }} - nieznana przyczyna
+          {% endif %}
+
+          Algorytm i tak uruchomi się o 22:00:00 (główna pętla).
+        notification_id: battery_wake_diagnostic
   mode: single
 
 # ============================================
