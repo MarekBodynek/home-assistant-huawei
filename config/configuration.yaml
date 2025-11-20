@@ -60,6 +60,25 @@ input_number: !include input_numbers.yaml
 # Input text
 input_text: !include input_text.yaml
 
+# Input boolean
+input_boolean: !include input_boolean.yaml
+
+# Input select
+input_select: !include input_select.yaml
+
+# Telegram Bot
+telegram_bot:
+  - platform: polling
+    api_key: !secret telegram_bot_token
+    allowed_chat_ids:
+      - !secret telegram_chat_id
+
+# Telegram Notifications
+notify:
+  - platform: telegram
+    name: telegram
+    chat_id: !secret telegram_chat_id
+
 # Python Scripts
 python_script:
 

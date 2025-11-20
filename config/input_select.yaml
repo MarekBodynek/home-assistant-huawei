@@ -1,0 +1,14 @@
+# ============================================
+# INPUT SELECT - Lista wyboru
+# ============================================
+
+# Minimalny poziom powiadomień wysyłanych na Telegram
+telegram_notification_level:
+  name: "Telegram - Minimalny poziom powiadomień"
+  options:
+    - "DEBUG"
+    - "INFO"
+    - "WARNING"
+    - "CRITICAL"
+  initial: "INFO"
+  icon: mdi:telegram

@@ -26,10 +26,11 @@
             end_time: "06:00"
             charge_flag: 1  # 1 = ładowanie dozwolone
             days_effective: [1,2,3,4,5,6,7]  # wszystkie dni tygodnia
-    - service: notify.persistent_notification
+    - service: script.send_notification
       data:
         title: "⚡ Huawei Solar"
         message: "Włączono ładowanie baterii w taniej taryfie ({{ now().strftime('%H:%M') }})"
+        priority: "INFO"
 
 # ===================================================================
 # AUTOMATYKA 2: Przerwanie ładowania po osiągnięciu 90%
@@ -55,10 +56,11 @@
             end_time: "06:00"
             charge_flag: 0  # 0 = ładowanie wstrzymane
             days_effective: [1,2,3,4,5,6,7]
-    - service: notify.persistent_notification
+    - service: script.send_notification
       data:
         title: "✅ Huawei Solar"
         message: "Bateria naładowana do {{ states('sensor.akumulatory_stan_pojemnosci') }}%, stop ładowania"
+        priority: "INFO"
 
 # ===================================================================
 # AUTOMATYKA 3: Powrót do trybu PV Priority po zakończeniu taniej taryfy
@@ -79,10 +81,11 @@
             end_time: "22:00"
             charge_flag: 2  # 2 = tylko z PV (priorytet fotowoltaiki)
             days_effective: [1,2,3,4,5,6,7]
-    - service: notify.persistent_notification
+    - service: script.send_notification
       data:
         title: "☀️ Huawei Solar"
         message: "Przełączono na tryb PV PRIORITY ({{ now().strftime('%H:%M') }})"
+        priority: "INFO"
 
 # ===================================================================
 # AUTOMATYKA 4: Awaryjne ładowanie przy krytycznie niskim stanie baterii
@@ -100,10 +103,12 @@
         device_id: 450d2d6fd853d7876315d70559e1dd83
         power: 5000  # Moc ładowania w W (dla Luna 2000 15kWh max 5kW)
         duration: 120  # Czas w minutach
-    - service: notify.persistent_notification
+    - service: script.send_notification
       data:
         title: "⚠️ Huawei Solar - Alarm"
         message: "Niski stan baterii ({{ states('sensor.akumulatory_stan_pojemnosci') }}%)! Rozpoczęto awaryjne ładowanie."
+        priority: "CRITICAL"
+        notification_id: "emergency_charging"
 
 # ===================================================================
 # AUTOMATYKA 5: Optymalizacja według prognozy pogody
@@ -131,7 +136,8 @@
         device_id: 450d2d6fd853d7876315d70559e1dd83
         power: 3000
         duration: 480  # 8 godzin
-    - service: notify.persistent_notification
+    - service: script.send_notification
       data:
         title: "🌧️ Huawei Solar"
         message: "Prognozowane zachmurzenie. Zwiększono ładowanie nocne."
+        priority: "INFO"

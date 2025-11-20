@@ -1,5 +1,106 @@
 # Skrypty dla Huawei Solar
 
+# =================================================================
+# SCENTRALIZOWANY SYSTEM POWIADOMIEŃ
+# =================================================================
+# Ten skrypt wysyła powiadomienia zarówno do Telegram jak i Persistent Notifications
+# z obsługą priorytetów i formatowania.
+#
+# Parametry:
+#   - title: Tytuł powiadomienia
+#   - message: Treść powiadomienia
+#   - priority: DEBUG | INFO | WARNING | CRITICAL (domyślnie INFO)
+#   - notification_id: ID dla persistent notification (opcjonalne)
+#
+# Poziomy priorytetów:
+#   DEBUG    - 🟢 Raporty dzienne, szczegóły techniczne
+#   INFO     - 🟡 Standardowe informacje (ładowanie, tryby)
+#   WARNING  - 🟠 Ostrzeżenia (watchdog, temperature warnings)
+#   CRITICAL - 🔴 Krytyczne alerty (temp >43°C, SOC <5%)
+# =================================================================
+
+send_notification:
+  alias: "Wyślij powiadomienie (Telegram + HA)"
+  description: "Scentralizowany system wysyłania powiadomień z obsługą priorytetów"
+  fields:
+    title:
+      description: "Tytuł powiadomienia"
+      example: "🔋 Bateria"
+    message:
+      description: "Treść powiadomienia"
+      example: "Ładowanie rozpoczęte"
+    priority:
+      description: "Priorytet: DEBUG, INFO, WARNING, CRITICAL"
+      example: "INFO"
+      default: "INFO"
+    notification_id:
+      description: "ID dla persistent notification (opcjonalne)"
+      example: "battery_charging"
+  sequence:
+    # Krok 1: Przygotowanie priorytetów numerycznych dla porównania
+    - variables:
+        priority_value: >
+          {% set priorities = {'DEBUG': 0, 'INFO': 1, 'WARNING': 2, 'CRITICAL': 3} %}
+          {{ priorities.get(priority, 1) }}
+        min_priority_value: >
+          {% set priorities = {'DEBUG': 0, 'INFO': 1, 'WARNING': 2, 'CRITICAL': 3} %}
+          {% set min_level = states('input_select.telegram_notification_level') %}
+          {{ priorities.get(min_level, 1) }}
+
+    # Krok 2: Formatowanie wiadomości według priorytetu
+    - variables:
+        formatted_message: >
+          {% if priority == 'CRITICAL' %}
+          🚨 **{{ title }}**
+
+          **{{ message }}**
+          {% elif priority == 'WARNING' %}
+          ⚠️ **{{ title }}**
+
+          {{ message }}
+          {% elif priority == 'DEBUG' %}
+          📊 {{ title }}
+
+          `{{ message }}`
+          {% else %}
+          ℹ️ {{ title }}
+
+          {{ message }}
+          {% endif %}
+
+    # Krok 3: Wysłanie do Telegram (jeśli włączone i priority >= min_priority)
+    - choose:
+        - conditions:
+            - condition: state
+              entity_id: input_boolean.telegram_notifications_enabled
+              state: 'on'
+            - condition: template
+              value_template: "{{ priority_value|int >= min_priority_value|int }}"
+          sequence:
+            - service: notify.telegram
+              data:
+                message: "{{ formatted_message }}"
+                # Telegram wspiera markdown v2 formatting
+                data:
+                  parse_mode: markdown
+
+    # Krok 4: Wysłanie do Persistent Notification (jeśli włączone)
+    - choose:
+        - conditions:
+            - condition: state
+              entity_id: input_boolean.persistent_notifications_enabled
+              state: 'on'
+          sequence:
+            - service: persistent_notification.create
+              data:
+                title: "{{ title }}"
+                message: "{{ message }}"
+                notification_id: "{{ notification_id if notification_id is defined else omit }}"
+
+# =================================================================
+# ORYGINALNE SKRYPTY MANUALNEGO STEROWANIA
+# =================================================================
+
 # Skrypt do ręcznego wymuszenia ładowania
 force_battery_charge:
   alias: "Wymuś ładowanie baterii"
@@ -9,10 +110,11 @@ force_battery_charge:
         device_id: 450d2d6fd853d7876315d70559e1dd83
         power: 5000
         duration: 60
-    - service: notify.persistent_notification
+    - service: script.send_notification
       data:
         title: "🔋 Huawei Solar"
         message: "Uruchomiono ręczne ładowanie baterii"
+        priority: "INFO"
 
 # Skrypt do zatrzymania ładowania
 stop_battery_charge:
@@ -21,10 +123,11 @@ stop_battery_charge:
     - service: huawei_solar.stop_forcible_charge
       data:
         device_id: 450d2d6fd853d7876315d70559e1dd83
-    - service: notify.persistent_notification
+    - service: script.send_notification
       data:
         title: "🛑 Huawei Solar"
         message: "Zatrzymano ładowanie baterii"
+        priority: "INFO"
 
 # Skrypt do przełączenia w tryb TOU (Time of Use)
 enable_tou_mode:
@@ -34,10 +137,11 @@ enable_tou_mode:
       data:
         entity_id: select.battery_working_mode
         option: "Time of Use"
-    - service: notify.persistent_notification
+    - service: script.send_notification
       data:
         title: "⏰ Huawei Solar"
         message: "Włączono tryb Time of Use"
+        priority: "INFO"
 
 # Skrypt do przełączenia w tryb Maximise Self Consumption
 enable_self_consumption:
@@ -47,7 +151,8 @@ enable_self_consumption:
       data:
         entity_id: select.battery_working_mode
         option: "Maximise Self Consumption"
-    - service: notify.persistent_notification
+    - service: script.send_notification
       data:
         title: "🏠 Huawei Solar"
         message: "Włączono tryb Maksymalnej Autoconsumpcji"
+        priority: "INFO"

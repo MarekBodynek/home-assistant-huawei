@@ -1,0 +1,15 @@
+# ============================================
+# INPUT BOOLEAN - Przełączniki logiczne
+# ============================================
+
+# Globalne włączanie/wyłączanie powiadomień Telegram
+telegram_notifications_enabled:
+  name: "Telegram - Powiadomienia włączone"
+  initial: true
+  icon: mdi:telegram
+
+# Włączanie/wyłączanie persistent notifications
+persistent_notifications_enabled:
+  name: "Persistent Notifications włączone"
+  initial: true
+  icon: mdi:bell

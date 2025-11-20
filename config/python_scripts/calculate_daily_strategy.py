@@ -126,11 +126,13 @@ def calculate_daily_strategy():
         logger.info(f"Daily strategy calculated: Target SOC = {target_soc}% | {reason}")
 
         # Wyślij notyfikację
-        hass.services.call('persistent_notification', 'create', {
+        hass.services.call('script', 'send_notification', {
             'title': '📊 Strategia dzienna obliczona',
             'message': f'**Target SOC:** {target_soc}%\n\n{reason}\n\n'
                        f'Prognoza jutro: {forecast_tomorrow:.1f} kWh\n'
-                       f'Temperatura: {temp:.1f}°C'
+                       f'Temperatura: {temp:.1f}°C',
+            'priority': 'DEBUG',
+            'notification_id': 'daily_strategy'
         })
 
         return {

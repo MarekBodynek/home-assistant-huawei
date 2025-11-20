@@ -79,10 +79,12 @@
       entity_id: sensor.akumulatory_stan_pojemnosci
       below: 5
   action:
-    - service: persistent_notification.create
+    - service: script.send_notification
       data:
         title: "🚨 BATERIA KRYTYCZNIE NISKA!"
         message: "SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}% - wymuszam ładowanie awaryjne!"
+        priority: "CRITICAL"
+        notification_id: "battery_critical_soc"
     - service: python_script.battery_algorithm
   mode: single
 
@@ -98,10 +100,12 @@
       entity_id: sensor.strefa_taryfowa
       state: "L1"
   action:
-    - service: persistent_notification.create
+    - service: script.send_notification
       data:
         title: "⚠️ Bateria niska w L1"
         message: "SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}% w drogie strefie L1!"
+        priority: "WARNING"
+        notification_id: "battery_low_l1"
   mode: single
 
 - id: battery_monitor_soc_max
@@ -115,10 +119,12 @@
     - service: switch.turn_off
       target:
         entity_id: switch.akumulatory_ladowanie_z_sieci
-    - service: persistent_notification.create
+    - service: script.send_notification
       data:
         title: "✅ Bateria naładowana"
         message: "SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}% - zatrzymano ładowanie"
+        priority: "INFO"
+        notification_id: "battery_charged"
   mode: single
 
 # ============================================
@@ -147,13 +153,15 @@
     - delay:
         seconds: 30
     - service: python_script.battery_algorithm
-    - service: persistent_notification.create
+    - service: script.send_notification
       data:
         title: "🔋 Bateria wybudzona (22:00)"
         message: |
           Bateria była w Sleep mode o 22:00.
           Wymuszono ładowanie 5kW/30min żeby wybudzić.
           SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%
+        priority: "INFO"
+        notification_id: "battery_wake_22"
   mode: single
 
 - id: battery_wake_from_sleep_l2_midday
@@ -181,13 +189,15 @@
     - delay:
         seconds: 30
     - service: python_script.battery_algorithm
-    - service: persistent_notification.create
+    - service: script.send_notification
       data:
         title: "🔋 Bateria wybudzona (13:00)"
         message: |
           Bateria była w Sleep mode o 13:00.
           Wymuszono ładowanie 5kW/30min żeby wybudzić.
           SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%
+        priority: "INFO"
+        notification_id: "battery_wake_13"
   mode: single
 
 # ============================================
@@ -269,7 +279,7 @@
       entity_id: sensor.bateria_temperatura_maksymalna
       above: 40
   action:
-    - service: persistent_notification.create
+    - service: script.send_notification
       data:
         title: "🟠 OSTRZEŻENIE: Temperatura baterii wysoka!"
         message: |
@@ -285,7 +295,8 @@
           - Słaba wentylacja pomieszczenia
 
           **Bezpieczny zakres:** 15-40°C
-        notification_id: battery_temp_warning
+        priority: "WARNING"
+        notification_id: "battery_temp_warning"
   mode: single
 
 - id: battery_temperature_critical_stop_charging
@@ -307,7 +318,7 @@
       data:
         option: "maximise_self_consumption"
     # ALARM!
-    - service: persistent_notification.create
+    - service: script.send_notification
       data:
         title: "🔴🚨 ALARM: Temperatura baterii KRYTYCZNA!"
         message: |
@@ -326,7 +337,8 @@
           4. Rozważ kontakt z serwisem Huawei
 
           **LIMIT BEZPIECZEŃSTWA:** >45°C = ryzyko pożaru!
-        notification_id: battery_temp_critical
+        priority: "CRITICAL"
+        notification_id: "battery_temp_critical"
   mode: single
 
 - id: battery_temperature_extreme_alarm
@@ -347,7 +359,7 @@
       data:
         option: "maximise_self_consumption"
     # EKSTREMALNY ALARM
-    - service: persistent_notification.create
+    - service: script.send_notification
       data:
         title: "⚫🚨🔥 EKSTREMALNIE NIEBEZPIECZNE: BATERIA PRZEGRZANA!"
         message: |
@@ -364,7 +376,8 @@
           5. 📞 W razie oznak dymu/ognia: 998 (straż pożarna)
 
           **NIE IGNORUJ TEGO ALARMU!**
-        notification_id: battery_temp_extreme
+        priority: "CRITICAL"
+        notification_id: "battery_temp_extreme"
 
 - id: battery_temperature_freezing
   alias: "[Bateria] ❄️ Temperatura poniżej 0°C - mróz!"
@@ -378,7 +391,7 @@
     - service: switch.turn_off
       target:
         entity_id: switch.akumulatory_ladowanie_z_sieci
-    - service: persistent_notification.create
+    - service: script.send_notification
       data:
         title: "❄️ OSTRZEŻENIE: Bateria zamarza!"
         message: |
@@ -400,7 +413,8 @@
           3. NIE ładuj przy temp < 5°C
 
           **Bezpieczny zakres:** 0-40°C (optymalnie 15-25°C)
-        notification_id: battery_temp_freezing
+        priority: "CRITICAL"
+        notification_id: "battery_temp_freezing"
   mode: single
 
 - id: battery_temperature_normal_resumed
@@ -418,7 +432,7 @@
       entity_id: sensor.bateria_temperatura_maksymalna
       below: 38
   action:
-    - service: persistent_notification.create
+    - service: script.send_notification
       data:
         title: "✅ Temperatura baterii bezpieczna"
         message: |
@@ -428,7 +442,8 @@
           Algorytm zarządzania baterią może działać normalnie.
 
           **Bezpieczny zakres:** 15-40°C
-        notification_id: battery_temp_normal
+        priority: "INFO"
+        notification_id: "battery_temp_normal"
     # Usuń stare alerty
     - service: persistent_notification.dismiss
       data:
@@ -457,7 +472,7 @@
         {% set now = now() %}
         {{ (now - last_changed).total_seconds() > 7200 }}
   action:
-    - service: persistent_notification.create
+    - service: script.send_notification
       data:
         title: "🚨 WATCHDOG: Algorytm baterii nie działa!"
         message: |
@@ -468,7 +483,8 @@
           Strefa: {{ states('sensor.strefa_taryfowa') }}
 
           🔧 Sprawdź logi Home Assistant i poprawność konfiguracji!
-        notification_id: battery_watchdog_alert
+        priority: "WARNING"
+        notification_id: "battery_watchdog_alert"
     # Ustaw tryb awaryjny - Maximise Self Consumption (bezpieczny fallback)
     - service: select.select_option
       target:
@@ -489,7 +505,7 @@
       for:
         hours: 6
   action:
-    - service: persistent_notification.create
+    - service: script.send_notification
       data:
         title: "⚠️ WATCHDOG: SOC baterii nie zmienia się!"
         message: |
@@ -501,7 +517,8 @@
           - Problem z inwerterem
 
           Sprawdź fizyczne połączenie i stan urządzeń!
-        notification_id: battery_soc_stuck_alert
+        priority: "WARNING"
+        notification_id: "battery_soc_stuck_alert"
   mode: single
 
 # ============================================
@@ -529,7 +546,7 @@
     - platform: time
       at: "23:00:00"
   action:
-    - service: persistent_notification.create
+    - service: script.send_notification
       data:
         title: "📊 Podsumowanie dnia - Bateria"
         message: |
@@ -548,6 +565,8 @@
           **Pogoda jutro:**
           - Temp: {{ state_attr('weather.forecast_dom', 'temperature') }}°C
           - Sezon grzewczy: {{ states('binary_sensor.sezon_grzewczy') }}
+        priority: "DEBUG"
+        notification_id: "battery_daily_summary"
   mode: single
 
 # ============================================
@@ -564,8 +583,10 @@
     - service: shell_command.git_pull
     - delay:
         seconds: 2
-    - service: persistent_notification.create
+    - service: script.send_notification
       data:
         title: "🔄 Git Pull"
         message: "Wykonano git pull o {{ now().strftime('%H:%M:%S') }}"
+        priority: "DEBUG"
+        notification_id: "git_pull_done"
   mode: single

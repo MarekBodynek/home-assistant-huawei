@@ -11,7 +11,7 @@
       entity_id: binary_sensor.system_blad_krytyczny
       to: "on"
   action:
-    - service: persistent_notification.create
+    - service: script.send_notification
       data:
         title: "🚨 BŁĄD KRYTYCZNY SYSTEMU"
         message: |
@@ -25,6 +25,7 @@
           - Bateria SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%
           - Ładowanie: {{ states('switch.akumulatory_ladowanie_z_sieci') }}
           - Temperatura: {{ states('sensor.bateria_temperatura_maksymalna') }}°C
+        priority: "CRITICAL"
         notification_id: "critical_error"
 
 # ===== INTEGRACJA OFFLINE - OSTRZEŻENIE =====
@@ -37,7 +38,7 @@
       for:
         minutes: 5
   action:
-    - service: persistent_notification.create
+    - service: script.send_notification
       data:
         title: "⚠️ OSTRZEŻENIE: Integracja offline"
         message: |
@@ -49,6 +50,7 @@
           - Forecast.Solar: {{ state_attr('binary_sensor.integracje_status', 'forecast_solar') }}
 
           **Czas:** {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
+        priority: "WARNING"
         notification_id: "integration_offline"
 
 # ===== BŁĄD ALGORYTMU - LOG =====
@@ -107,7 +109,7 @@
     - platform: time
       at: "23:55:00"
   action:
-    - service: persistent_notification.create
+    - service: script.send_notification
       data:
         title: "📊 Raport dzienny - Błędy systemu"
         message: |
@@ -125,4 +127,5 @@
           - SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%
           - Temperatura: {{ states('sensor.bateria_temperatura_maksymalna') }}°C
           - Bezpieczeństwo: {{ 'OK' if states('binary_sensor.bateria_bezpieczna_temperatura') == 'on' else 'ALARM' }}
+        priority: "DEBUG"
         notification_id: "daily_error_report"
