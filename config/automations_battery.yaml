@@ -245,7 +245,54 @@
           {% endif %}
 
           Algorytm i tak uruchomi się o 22:00:00 (główna pętla).
-        notification_id: battery_wake_diagnostic
+        notification_id: battery_wake_diagnostic_night
+  mode: single
+
+- id: battery_wake_diagnostic_l2_midday
+  alias: "[Bateria] 🔍 Diagnostyka - dlaczego NIE wybudzona o 13:00"
+  description: "Informuje dlaczego bateria nie została wybudzona o 13:00"
+  trigger:
+    - platform: time
+      at: "13:01:00"
+  condition:
+    # Uruchom tylko w dni robocze i jeśli bateria NIE została wybudzona
+    - condition: state
+      entity_id: binary_sensor.dzien_roboczy
+      state: "on"
+    - condition: template
+      value_template: >
+        {% set status = states('sensor.akumulatory_status') %}
+        {% set soc = states('sensor.akumulatory_stan_pojemnosci') | float(0) %}
+        {% set target = states('input_number.battery_target_soc') | float(80) %}
+        {{ (status not in ['Sleep mode', 'Standby']) or (soc > target) }}
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "🔍 Bateria NIE wybudzona o 13:00 - diagnostyka"
+        message: |
+          **Status baterii:** {{ states('sensor.akumulatory_status') }}
+          **SOC:** {{ states('sensor.akumulatory_stan_pojemnosci') }}%
+          **Target SOC:** {{ states('input_number.battery_target_soc') }}%
+
+          **Możliwe przyczyny:**
+          {% set status = states('sensor.akumulatory_status') %}
+          {% set soc = states('sensor.akumulatory_stan_pojemnosci') | float(0) %}
+          {% set target = states('input_number.battery_target_soc') | float(80) %}
+
+          {% if status == 'Running' %}
+          ✅ Bateria już pracuje (Running) - wybudzanie niepotrzebne
+          {% elif status == 'Offline' %}
+          ⚠️ Bateria OFFLINE - sprawdź połączenie!
+          {% elif status == 'Fault' %}
+          🔴 Bateria w stanie FAULT - sprawdź błędy!
+          {% elif soc > target %}
+          ✅ SOC ({{ soc }}%) > Target ({{ target }}%) - ładowanie niepotrzebne
+          {% else %}
+          ❓ Status: {{ status }} - nieznana przyczyna
+          {% endif %}
+
+          Algorytm i tak uruchomi się o 13:00:00 (główna pętla kluczowych momentów).
+        notification_id: battery_wake_diagnostic_midday
   mode: single
 
 # ============================================
