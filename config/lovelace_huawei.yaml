@@ -149,6 +149,21 @@ views:
                 name: Okno CWU aktywne
                 icon: mdi:water-boiler
 
+          # Powiadomienia
+          - type: entities
+            title: Powiadomienia
+            icon: mdi:bell
+            entities:
+              - entity: input_boolean.telegram_notifications_enabled
+                name: 📱 Telegram
+                icon: mdi:telegram
+              - entity: input_boolean.persistent_notifications_enabled
+                name: 🔔 Powiadomienia UI
+                icon: mdi:bell-ring
+              - entity: input_select.telegram_notification_level
+                name: 📊 Min. poziom Telegram
+                icon: mdi:filter
+
   - title: Statystyki
     icon: mdi:chart-bar
     cards:
