@@ -1,0 +1,13 @@
+# Input Select - listy wyboru
+
+# Poziom powiadomień Telegram
+telegram_notification_level:
+  name: "Poziom powiadomień Telegram"
+  icon: mdi:filter
+  options:
+    - DEBUG
+    - INFO
+    - WARNING
+    - ERROR
+    - CRITICAL
+  initial: INFO

@@ -51,3 +51,55 @@ enable_self_consumption:
       data:
         title: "🏠 Huawei Solar"
         message: "Włączono tryb Maksymalnej Autoconsumpcji"
+
+# ============================================
+# UNIWERSALNY SKRYPT POWIADOMIEŃ
+# ============================================
+send_notification:
+  alias: "Wyślij powiadomienie"
+  description: "Wysyła powiadomienie przez Telegram i/lub UI w zależności od ustawień"
+  fields:
+    title:
+      description: "Tytuł powiadomienia"
+      example: "Bateria"
+    message:
+      description: "Treść powiadomienia"
+      example: "SOC spadł poniżej 20%"
+    priority:
+      description: "Priorytet: DEBUG, INFO, WARNING, ERROR, CRITICAL"
+      example: "INFO"
+  sequence:
+    # Mapowanie priorytetów na liczby
+    - variables:
+        priority_levels:
+          DEBUG: 0
+          INFO: 1
+          WARNING: 2
+          ERROR: 3
+          CRITICAL: 4
+        current_priority: "{{ priority_levels[priority | default('INFO')] | default(1) }}"
+        min_level: "{{ priority_levels[states('input_select.telegram_notification_level')] | default(1) }}"
+
+    # Telegram - jeśli włączony i priorytet wystarczający
+    - if:
+        - condition: state
+          entity_id: input_boolean.telegram_notifications_enabled
+          state: "on"
+        - condition: template
+          value_template: "{{ current_priority >= min_level }}"
+      then:
+        - service: notify.telegram
+          data:
+            title: "{{ title }}"
+            message: "{{ message }}"
+
+    # Persistent notification - jeśli włączony
+    - if:
+        - condition: state
+          entity_id: input_boolean.persistent_notifications_enabled
+          state: "on"
+      then:
+        - service: persistent_notification.create
+          data:
+            title: "{{ title }}"
+            message: "{{ message }}"

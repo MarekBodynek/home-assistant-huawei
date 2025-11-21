@@ -1,30 +1,25 @@
+# Backupy
+# Docker
 # Home Assistant
-config/.storage/
+# IDE
+# Logs
+# Python
+# Sekrety - WAŻNE!
+*.log
+*.pyc
+.DS_Store
+.idea/
+.vscode/
+__pycache__/
+backups/
+config/.HA_VERSION
 config/.cloud/
+config/.ha_run.lock
+config/.storage/
+config/__pycache__/
+config/deps/
 config/home-assistant.log*
 config/home-assistant_v2.db*
-config/deps/
-config/tts/
-config/__pycache__/
-config/.HA_VERSION
-config/.ha_run.lock
-
-# Sekrety - WAŻNE!
 config/secrets.yaml
-
-# Backupy
-backups/
-
-# Docker
-.DS_Store
-
-# IDE
-.vscode/
-.idea/
-
-# Python
-*.pyc
-__pycache__/
-
-# Logs
-*.log
+config/tts/
+secrets.yaml

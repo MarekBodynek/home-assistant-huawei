@@ -1,0 +1,12 @@
+# Input Boolean - przełączniki
+# Używane do kontroli powiadomień i innych funkcji
+
+# Powiadomienia Telegram
+telegram_notifications_enabled:
+  name: "Powiadomienia Telegram"
+  icon: mdi:telegram
+
+# Powiadomienia Persistent (w UI)
+persistent_notifications_enabled:
+  name: "Powiadomienia w UI"
+  icon: mdi:bell
