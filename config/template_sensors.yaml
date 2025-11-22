@@ -90,7 +90,7 @@
       unique_id: energy_buy_price
       unit_of_measurement: "PLN/kWh"
       state: >
-        {{ (states('sensor.rce_pse_cena') | float(650)) / 1000 }}
+        {{ ((states('sensor.rce_pse_cena') | float(650)) / 1000) | round(2) }}
       icon: mdi:cash-multiple
       attributes:
         friendly_name: "Cena zakupu energii (RCE PSE)"
@@ -107,7 +107,7 @@
       unique_id: energy_sell_price
       unit_of_measurement: "PLN/kWh"
       state: >
-        {{ (states('sensor.rce_pse_cena') | float(550)) / 1000 }}
+        {{ ((states('sensor.rce_pse_cena') | float(550)) / 1000) | round(2) }}
       icon: mdi:cash-plus
       attributes:
         friendly_name: "Cena sprzedaży energii (RCE PSE)"
@@ -133,12 +133,12 @@
             {% endif %}
           {% endfor %}
           {% if evening_prices | length > 0 %}
-            {{ (evening_prices | sum / evening_prices | length) | round(3) }}
+            {{ (evening_prices | sum / evening_prices | length) | round(2) }}
           {% else %}
-            {{ (states('sensor.rce_pse_cena') | float(650)) / 1000 }}
+            {{ ((states('sensor.rce_pse_cena') | float(650)) / 1000) | round(2) }}
           {% endif %}
         {% else %}
-          {{ (states('sensor.rce_pse_cena') | float(650)) / 1000 }}
+          {{ ((states('sensor.rce_pse_cena') | float(650)) / 1000) | round(2) }}
         {% endif %}
       icon: mdi:chart-line
       attributes:
