@@ -17,8 +17,8 @@ logs:
   custom_components.huawei_solar: warning
   huawei_solar: warning
 
-  # Pstryk (RCE)
-  custom_components.pstryk: warning
+  # RCE PSE (ceny energii)
+  custom_components.rce_pse: warning
 
   # Forecast.Solar
   homeassistant.components.forecast_solar: warning

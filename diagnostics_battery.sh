@@ -204,17 +204,21 @@ echo -e "   Dziś wyprodukowano: ${DAILY} kWh"
 echo ""
 
 # ============================================
-# 6. CENY ENERGII (Pstryk)
+# 6. CENY ENERGII (RCE PSE)
 # ============================================
-echo -e "${BLUE}━━━ 6. CENY ENERGII (Pstryk RCE) ━━━${NC}"
+echo -e "${BLUE}━━━ 6. CENY ENERGII (RCE PSE) ━━━${NC}"
 
-# Aktualna cena zakupu
-BUY_PRICE=$(get_state "sensor.pstryk_current_buy_price")
-echo -e "   Cena zakupu: ${BUY_PRICE} zł/kWh"
-
-# Aktualna cena sprzedaży
-SELL_PRICE=$(get_state "sensor.pstryk_current_sell_price")
-echo -e "   Cena sprzedaży: ${SELL_PRICE} zł/kWh"
+# Aktualna cena RCE (PLN/MWh → PLN/kWh)
+RCE_MWH=$(get_state "sensor.rce_pse_cena")
+if [ "$RCE_MWH" != "unavailable" ] && [ "$RCE_MWH" != "unknown" ]; then
+    RCE_KWH=$(echo "scale=3; $RCE_MWH / 1000" | bc)
+    echo -e "   Cena RCE: ${RCE_KWH} zł/kWh (${RCE_MWH} PLN/MWh)"
+else
+    RCE_KWH="N/A"
+    echo -e "   Cena RCE: niedostępna"
+fi
+BUY_PRICE=$RCE_KWH
+SELL_PRICE=$RCE_KWH
 
 # Próg arbitrażu
 if [ "$HEATING" = "on" ]; then
@@ -224,10 +228,10 @@ else
 fi
 echo -e "   Próg arbitrażu: ${THRESHOLD} zł/kWh"
 
-# Najtańsza godzina (o ile sensor istnieje)
-CHEAPEST=$(get_state "sensor.pstryk_cheapest_hour_today" 2>/dev/null || echo "N/A")
-if [ "$CHEAPEST" != "N/A" ] && [ "$CHEAPEST" != "unavailable" ]; then
-    echo -e "${GREEN}✅ Najtańsza godzina dziś: ${CHEAPEST}${NC}"
+# Najtańsze godziny (z algorytmu)
+CHEAPEST=$(get_state "input_text.battery_cheapest_hours" 2>/dev/null || echo "N/A")
+if [ "$CHEAPEST" != "N/A" ] && [ "$CHEAPEST" != "unavailable" ] && [ "$CHEAPEST" != "Brak danych" ]; then
+    echo -e "${GREEN}✅ Najtańsze godziny dziś: ${CHEAPEST}${NC}"
 fi
 
 echo ""
@@ -279,9 +283,9 @@ if [ "$FORECAST_TODAY" = "unavailable" ] || [ "$FORECAST_TOMORROW" = "unavailabl
     ((WARNINGS++))
 fi
 
-# Sprawdź ceny Pstryk
-if [ "$BUY_PRICE" = "unavailable" ] || [ "$SELL_PRICE" = "unavailable" ]; then
-    echo -e "${YELLOW}⚠️  UWAGA: Brak danych o cenach RCE (Pstryk offline?)${NC}"
+# Sprawdź ceny RCE PSE
+if [ "$BUY_PRICE" = "N/A" ] || [ "$SELL_PRICE" = "N/A" ]; then
+    echo -e "${YELLOW}⚠️  UWAGA: Brak danych o cenach RCE (RCE PSE offline?)${NC}"
     ((WARNINGS++))
 fi
 

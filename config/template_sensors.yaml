@@ -82,7 +82,7 @@
         weekend_window: "07:00-23:59"
 
 # ============================================
-# CENY ENERGII - ZAKUP (z sieci)
+# CENY ENERGII - ZAKUP (z sieci) - RCE PSE
 # ============================================
 
 - sensor:
@@ -90,16 +90,16 @@
       unique_id: energy_buy_price
       unit_of_measurement: "PLN/kWh"
       state: >
-        {{ states('sensor.pstryk_current_sell_price') | float(0.65) }}
+        {{ (states('sensor.rce_pse_cena') | float(650)) / 1000 }}
       icon: mdi:cash-multiple
       attributes:
-        friendly_name: "Cena zakupu energii (RCE z Pstryk)"
+        friendly_name: "Cena zakupu energii (RCE PSE)"
         zone: "{{ states('sensor.strefa_taryfowa') }}"
-        source: "Pstryk SELL prices (RCE)"
-        note: "Używa cen sprzedaży = ceny RCE"
+        source: "RCE PSE (PSE API)"
+        rce_mwh: "{{ states('sensor.rce_pse_cena') }}"
 
 # ============================================
-# CENY ENERGII - SPRZEDAŻ (do sieci)
+# CENY ENERGII - SPRZEDAŻ (do sieci) - RCE PSE
 # ============================================
 
 - sensor:
@@ -107,15 +107,15 @@
       unique_id: energy_sell_price
       unit_of_measurement: "PLN/kWh"
       state: >
-        {{ states('sensor.pstryk_current_sell_price') | float(0.55) }}
+        {{ (states('sensor.rce_pse_cena') | float(550)) / 1000 }}
       icon: mdi:cash-plus
       attributes:
-        friendly_name: "Cena sprzedaży energii (z Pstryk)"
-        source: "Pstryk API"
-        note: "Pstryk już zawiera VAT"
+        friendly_name: "Cena sprzedaży energii (RCE PSE)"
+        source: "RCE PSE (PSE API)"
+        note: "Cena RCE = cena hurtowa"
 
 # ============================================
-# ŚREDNIA CENA RCE WIECZORNA (19-22h)
+# ŚREDNIA CENA RCE WIECZORNA (19-22h) - RCE PSE
 # ============================================
 
 - sensor:
@@ -123,27 +123,27 @@
       unique_id: rce_evening_average
       unit_of_measurement: "PLN/kWh"
       state: >
-        {% set prices = state_attr('sensor.pstryk_current_sell_price', 'All prices') %}
+        {% set prices = state_attr('sensor.rce_pse_cena', 'prices') %}
         {% if prices %}
           {% set evening_prices = [] %}
           {% for p in prices %}
-            {% set hour = p.start.split('T')[1].split(':')[0] | int %}
+            {% set hour = p.dtime.split(' ')[1].split(':')[0] | int %}
             {% if hour in [19, 20, 21] %}
-              {% set evening_prices = evening_prices + [p.price] %}
+              {% set evening_prices = evening_prices + [p.rce_pln / 1000] %}
             {% endif %}
           {% endfor %}
           {% if evening_prices | length > 0 %}
             {{ (evening_prices | sum / evening_prices | length) | round(3) }}
           {% else %}
-            {{ states('sensor.pstryk_current_sell_price') | float(0.65) }}
+            {{ (states('sensor.rce_pse_cena') | float(650)) / 1000 }}
           {% endif %}
         {% else %}
-          {{ states('sensor.pstryk_current_sell_price') | float(0.65) }}
+          {{ (states('sensor.rce_pse_cena') | float(650)) / 1000 }}
         {% endif %}
       icon: mdi:chart-line
       attributes:
         friendly_name: "RCE średnia wieczorna (19-22h)"
-        source: "Pstryk SELL API - ceny RCE"
+        source: "RCE PSE (PSE API)"
 
 # ============================================
 # PROGNOZA PV - POMOCNICZE SENSORY
@@ -446,7 +446,7 @@
         {% set errors = [
           states('input_text.battery_decision_reason'),
           'Huawei Solar: ' + state_attr('binary_sensor.huawei_connection_status', 'last_error') | string if state_attr('binary_sensor.huawei_connection_status', 'last_error') else '',
-          'Pstryk: ' + state_attr('sensor.pstryk_current_buy_price', 'error') | string if state_attr('sensor.pstryk_current_buy_price', 'error') else ''
+          'RCE PSE: unavailable' if states('sensor.rce_pse_cena') in ['unavailable', 'unknown'] else ''
         ] %}
         {% set errors_list = errors | reject('eq', '') | list %}
         {{ errors_list[0] if errors_list | length > 0 else 'Brak błędów' }}
@@ -478,14 +478,14 @@
     - name: "Integracje - Status"
       unique_id: integrations_status
       state: >
-        {% set huawei = states('sensor.akumulatory_stan_pojemnosci') != 'unavailable' %}
-        {% set pstryk = states('sensor.pstryk_current_buy_price') != 'unavailable' %}
-        {% set forecast = states('sensor.prognoza_pv_jutro') != 'unavailable' %}
-        {{ huawei and pstryk and forecast }}
+        {% set huawei = states('sensor.akumulatory_stan_pojemnosci') not in ['unavailable', 'unknown'] %}
+        {% set rce = states('sensor.rce_pse_cena') not in ['unavailable', 'unknown'] %}
+        {% set forecast = states('sensor.prognoza_pv_jutro') not in ['unavailable', 'unknown'] %}
+        {{ huawei and rce and forecast }}
       attributes:
         friendly_name: "Status integracji"
-        huawei_solar: "{{ 'OK' if states('sensor.akumulatory_stan_pojemnosci') != 'unavailable' else 'BŁĄD' }}"
-        pstryk_rce: "{{ 'OK' if states('sensor.pstryk_current_buy_price') != 'unavailable' else 'BŁĄD' }}"
-        forecast_solar: "{{ 'OK' if states('sensor.prognoza_pv_jutro') != 'unavailable' else 'BŁĄD' }}"
+        huawei_solar: "{{ 'OK' if states('sensor.akumulatory_stan_pojemnosci') not in ['unavailable', 'unknown'] else 'BŁĄD' }}"
+        rce_pse: "{{ 'OK' if states('sensor.rce_pse_cena') not in ['unavailable', 'unknown'] else 'BŁĄD' }}"
+        forecast_solar: "{{ 'OK' if states('sensor.prognoza_pv_jutro') not in ['unavailable', 'unknown'] else 'BŁĄD' }}"
         icon: mdi:lan-connect
       device_class: connectivity

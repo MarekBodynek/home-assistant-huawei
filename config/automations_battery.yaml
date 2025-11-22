@@ -346,20 +346,19 @@
 # ============================================
 
 - id: battery_fetch_rce_prices
-  alias: "[Bateria] Pobierz ceny RCE (18:00)"
-  description: "Pobiera ceny RCE z Pstryk o 18:00 z losowym opóźnieniem"
+  alias: "[Bateria] Odśwież ceny RCE (18:00)"
+  description: "Odświeża ceny RCE PSE o 18:00 (po publikacji cen na jutro)"
   trigger:
     - platform: time
       at: "18:00:00"
   action:
-    # Losowe opóźnienie 0-15 min
+    # Losowe opóźnienie 0-15 min (żeby nie obciążać API)
     - delay:
         seconds: "{{ range(0, 900) | random }}"
     - service: homeassistant.update_entity
       target:
         entity_id:
-          - sensor.pstryk_current_buy_price
-          - sensor.pstryk_current_sell_price
+          - sensor.rce_pse_cena
   mode: single
 
 # ============================================
@@ -646,9 +645,9 @@
           - Dziś: {{ states('sensor.inwerter_dzienna_produkcja') }} kWh
           - Prognoza jutro: {{ states('sensor.prognoza_pv_jutro') }} kWh
 
-          **Ceny:**
-          - Cena kupna: {{ states('sensor.pstryk_current_buy_price') }} zł/kWh
-          - Cena sprzedaży: {{ states('sensor.pstryk_current_sell_price') }} zł/kWh
+          **Ceny RCE:**
+          - Aktualna cena: {{ (states('sensor.rce_pse_cena') | float / 1000) | round(3) }} zł/kWh
+          - Najtańsza godzina: {{ states('input_text.battery_cheapest_hours') }}
 
           **Pogoda jutro:**
           - Temp: {{ state_attr('weather.forecast_dom', 'temperature') }}°C

@@ -485,21 +485,22 @@ def calculate_cheapest_hours_to_store(data):
 
         hours_needed = max(1, hours_needed)  # minimum 1 godzina
 
-        # 4. Pobierz ceny godzinowe z Pstryk
-        pstryk_sensor = hass.states.get('sensor.pstryk_current_sell_price')
-        if not pstryk_sensor or pstryk_sensor.state in ['unavailable', 'unknown', None]:
-            # Brak sensora Pstryk - zapisz status i zakończ
+        # 4. Pobierz ceny godzinowe z RCE PSE
+        rce_sensor = hass.states.get('sensor.rce_pse_cena')
+        if not rce_sensor or rce_sensor.state in ['unavailable', 'unknown', None]:
+            # Brak sensora RCE PSE - zapisz status i zakończ
             hass.services.call('input_text', 'set_value', {
                 'entity_id': 'input_text.battery_storage_status',
-                'value': f"Brak danych Pstryk | Teraz: {hour}h"[:255]
+                'value': f"Brak danych RCE PSE | Teraz: {hour}h"[:255]
             })
             hass.services.call('input_text', 'set_value', {
                 'entity_id': 'input_text.battery_cheapest_hours',
                 'value': "Brak danych"[:100]
             })
-            return None, "Brak danych Pstryk", []
+            return None, "Brak danych RCE PSE", []
 
-        all_prices = pstryk_sensor.attributes.get('All prices', [])
+        # RCE PSE używa atrybutu 'prices' z formatem dtime/rce_pln
+        all_prices = rce_sensor.attributes.get('prices', [])
         if not all_prices:
             # Brak cen godzinowych - zapisz status i zakończ
             hass.services.call('input_text', 'set_value', {
@@ -520,25 +521,35 @@ def calculate_cheapest_hours_to_store(data):
 
         for price_entry in all_prices:
             try:
-                start_str = price_entry.get('start', '')
-                price_val = price_entry.get('price')
+                # RCE PSE format: dtime="2025-11-22 00:15:00", rce_pln=497.22 (PLN/MWh)
+                start_str = price_entry.get('dtime', '') or price_entry.get('start', '') or price_entry.get('datetime', '')
+                price_val = price_entry.get('rce_pln') or price_entry.get('price') or price_entry.get('value')
 
                 if not start_str or price_val is None:
                     continue
 
-                # Parse datetime ręcznie: "2025-11-16T14:00:00" -> date="2025-11-16", hour=14
-                if 'T' in start_str:
+                # Parse datetime: "2025-11-22 14:00:00" lub "2025-11-22T14:00:00"
+                if ' ' in start_str:
+                    date_part = start_str.split(' ')[0]
+                    time_part = start_str.split(' ')[1].split(':')[0]
+                    price_hour = int(time_part)
+                elif 'T' in start_str:
                     date_part = start_str.split('T')[0]
                     time_part = start_str.split('T')[1].split(':')[0]
                     price_hour = int(time_part)
                 else:
                     continue
 
+                # RCE PSE zwraca ceny w PLN/MWh - przelicz na PLN/kWh
+                price_float = float(price_val)
+                if price_float > 10:  # Powyżej 10 = PLN/MWh
+                    price_float = price_float / 1000  # Przelicz na PLN/kWh
+
                 # Tylko dzisiaj + godziny słoneczne (sunrise <= hour < sunset)
                 if date_part == today_str and sunrise_hour <= price_hour < sunset_hour:
                     sun_prices.append({
                         'hour': price_hour,
-                        'price': float(price_val)
+                        'price': price_float
                     })
             except Exception as e:
                 # Błąd parsowania ceny

@@ -29,7 +29,7 @@
 
 # ===== INTEGRACJA OFFLINE - OSTRZEŻENIE =====
 - alias: "[OSTRZEŻENIE] Integracja offline"
-  description: "Powiadomienie gdy integracja (Huawei/Pstryk/Forecast) przestaje działać"
+  description: "Powiadomienie gdy integracja (Huawei/RCE PSE/Forecast) przestaje działać"
   trigger:
     - platform: state
       entity_id: binary_sensor.integracje_status
@@ -45,7 +45,7 @@
 
           **Status:**
           - Huawei Solar: {{ state_attr('binary_sensor.integracje_status', 'huawei_solar') }}
-          - Pstryk RCE: {{ state_attr('binary_sensor.integracje_status', 'pstryk_rce') }}
+          - RCE PSE: {{ state_attr('binary_sensor.integracje_status', 'rce_pse') }}
           - Forecast.Solar: {{ state_attr('binary_sensor.integracje_status', 'forecast_solar') }}
 
           **Czas:** {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
@@ -118,7 +118,7 @@
 
           **Status integracji:**
           - Huawei Solar: {{ state_attr('binary_sensor.integracje_status', 'huawei_solar') }}
-          - Pstryk RCE: {{ state_attr('binary_sensor.integracje_status', 'pstryk_rce') }}
+          - RCE PSE: {{ state_attr('binary_sensor.integracje_status', 'rce_pse') }}
           - Forecast.Solar: {{ state_attr('binary_sensor.integracje_status', 'forecast_solar') }}
 
           **Status baterii:**
