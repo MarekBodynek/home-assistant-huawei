@@ -100,19 +100,47 @@ def execute_strategy():
                 'entity_id': 'number.akumulatory_maksymalna_moc_ladowania',
                 'value': 0
             })
-            # Zapisz powód decyzji
+
+        # ===========================================
+        # FIX: W L2 CHROŃ baterię - zablokuj rozładowanie!
+        # BUG: Poprzednio bateria rozładowywała się mimo L2
+        # bo nie ustawialiśmy max_discharge_power=0
+        # ===========================================
+        tariff_state = hass.states.get('sensor.strefa_taryfowa')
+        tariff = tariff_state.state if tariff_state else 'L1'
+
+        if tariff == 'L2':
+            # W L2 (tania taryfa) - ZABLOKUJ rozładowanie baterii!
+            # Pobieraj z sieci (tania 0.41 zł), zachowaj baterię na L1 (droga 1.11 zł)
+            hass.services.call('number', 'set_value', {
+                'entity_id': 'number.akumulatory_maksymalna_moc_rozladowania',
+                'value': 0  # BLOKADA rozładowania!
+            })
+            hass.services.call('select', 'select_option', {
+                'entity_id': 'select.akumulatory_tryb_pracy',
+                'option': 'time_of_use_luna2000'
+            })
             hass.services.call('input_text', 'set_value', {
                 'entity_id': 'input_text.battery_decision_reason',
-                'value': f'✅ Target SOC osiągnięty ({soc:.0f}% >= {target_soc}%) - ZATRZYMANO ładowanie'
+                'value': f'✅ L2 + SOC {soc:.0f}% >= Target {target_soc}% - pobieraj z sieci, CHROŃ baterię na L1!'
             })
             return
-        # Jeśli ładowanie już wyłączone, ale przywróć moc ładowania na normalną (5000W)
-        # Bo mogła być ustawiona na 0W w poprzednim cyklu
         else:
+            # W L1 (droga taryfa) - pozwól rozładowywać baterię do domu
+            # Przywróć normalną moc rozładowania
+            hass.services.call('number', 'set_value', {
+                'entity_id': 'number.akumulatory_maksymalna_moc_rozladowania',
+                'value': 5000
+            })
             hass.services.call('number', 'set_value', {
                 'entity_id': 'number.akumulatory_maksymalna_moc_ladowania',
                 'value': 5000
             })
+            hass.services.call('input_text', 'set_value', {
+                'entity_id': 'input_text.battery_decision_reason',
+                'value': f'✅ L1 + SOC {soc:.0f}% >= Target {target_soc}% - rozładowuj do domu (oszczędzaj drogą L1)'
+            })
+            # NIE return - kontynuuj do decide_strategy() żeby obsłużyć inne przypadki
 
     balance = calculate_power_balance(data)
 
