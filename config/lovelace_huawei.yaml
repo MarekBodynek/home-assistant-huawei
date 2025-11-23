@@ -164,25 +164,21 @@ views:
                 name: 📊 Min. poziom Telegram
                 icon: mdi:filter
 
-          # Event Log - Historia zdarzeń
-          - type: markdown
+          # Event Log - Ostatnie zdarzenie
+          - type: entities
             title: 📋 Event Log
-            content: |
-              {% set s1 = state_attr('sensor.event_log_markdown', 'slot_1') %}
-              {% set s2 = state_attr('sensor.event_log_markdown', 'slot_2') %}
-              {% set s3 = state_attr('sensor.event_log_markdown', 'slot_3') %}
-              {% if s1 and s1 not in ['', 'unknown'] %}
-              {% set e = s1 | from_json %}
-              {% if e.msg %}ℹ️ **{{ e.ts[:16] | replace('T', ' ') }}** [{{ e.cat }}] {{ e.msg }}{% endif %}
-              {% endif %}
-              {% if s2 and s2 not in ['', 'unknown'] %}
-              {% set e = s2 | from_json %}
-              {% if e.msg %}ℹ️ **{{ e.ts[:16] | replace('T', ' ') }}** [{{ e.cat }}] {{ e.msg }}{% endif %}
-              {% endif %}
-              {% if s3 and s3 not in ['', 'unknown'] %}
-              {% set e = s3 | from_json %}
-              {% if e.msg %}ℹ️ **{{ e.ts[:16] | replace('T', ' ') }}** [{{ e.cat }}] {{ e.msg }}{% endif %}
-              {% endif %}
+            icon: mdi:text-box-outline
+            entities:
+              - entity: sensor.event_log_ostatnie_zdarzenie
+                name: Ostatnie zdarzenie
+                secondary_info: attribute
+                attribute: full_message
+              - entity: input_text.event_log_1
+                name: "Slot 1"
+              - entity: input_text.event_log_2
+                name: "Slot 2"
+              - entity: input_text.event_log_3
+                name: "Slot 3"
 
           # Event Log - Statystyki
           - type: entities
