@@ -384,41 +384,33 @@ def decide_strategy(data, balance):
 
         # === POZA SEZONEM GRZEWCZYM: INTELIGENTNE ŁADOWANIE ===
         # Jeśli prognoza PV dobra - pozwól słońcu naładować baterię za darmo!
+        # UWAGA: Próg krytyczny SOC < 20% obsługiwany wcześniej (linie 266-272)
 
-        # BEZPIECZEŃSTWO: SOC < 30% - zawsze ładuj (rezerwa)
-        if soc < 30:
-            return {
-                'mode': 'charge_from_grid',
-                'target_soc': target_soc,
-                'priority': 'high',
-                'reason': f'Noc L2 + SOC {soc:.0f}% < 30% (rezerwa) - ładuj do {target_soc}%'
-            }
-
-        # Doskonała prognoza (>25 kWh) + SOC >= 30% → NIE ŁADUJ
-        if pv_forecast >= 25 and soc >= 30:
+        # Doskonała prognoza (>25 kWh) → NIE ŁADUJ - słońce naładuje za darmo
+        if pv_forecast >= 25:
             return {
                 'mode': 'grid_to_home',
                 'priority': 'low',
                 'reason': f'Noc L2 + słonecznie {forecast_label} ({pv_forecast:.1f} kWh) - PV naładuje baterię za darmo! (SOC {soc:.0f}%)'
             }
 
-        # Bardzo dobra prognoza (>20 kWh) + SOC >= 40% → NIE ŁADUJ
-        if pv_forecast >= 20 and soc >= 40:
+        # Bardzo dobra prognoza (>20 kWh) → NIE ŁADUJ
+        if pv_forecast >= 20:
             return {
                 'mode': 'grid_to_home',
                 'priority': 'low',
                 'reason': f'Noc L2 + dobra prognoza {forecast_label} ({pv_forecast:.1f} kWh) - PV wystarczy! (SOC {soc:.0f}%)'
             }
 
-        # Dobra prognoza (>15 kWh) + SOC >= 50% → NIE ŁADUJ
-        if pv_forecast >= 15 and soc >= 50:
+        # Dobra prognoza (>15 kWh) → NIE ŁADUJ
+        if pv_forecast >= 15:
             return {
                 'mode': 'grid_to_home',
                 'priority': 'low',
                 'reason': f'Noc L2 + prognoza {forecast_label} {pv_forecast:.1f} kWh - PV powinno wystarczyć (SOC {soc:.0f}%)'
             }
 
-        # Słaba prognoza lub niski SOC → ŁADUJ
+        # Słaba prognoza (<15 kWh) → ŁADUJ
         if soc < target_soc:
             if pv_forecast < 10:
                 priority = 'critical'
