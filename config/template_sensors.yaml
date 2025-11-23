@@ -611,25 +611,12 @@
     # ===== FORMATOWANA LISTA ZDARZEŃ (dla Markdown card) =====
     - name: "Event Log - Markdown"
       unique_id: event_log_markdown
-      state: >
-        {% set e1 = states('input_text.event_log_1') | from_json(default={}) %}
-        {{ e1.get('msg', 'Brak zdarzeń')[:50] }}
+      state: "event_log"
       attributes:
         friendly_name: "Event Log (Markdown)"
-        markdown: >
-          {% macro format_event(slot) %}
-          {% set raw = states('input_text.event_log_' ~ slot) %}
-          {% if raw and raw not in ['', 'unknown', 'unavailable'] %}
-          {% set e = raw | from_json(default={}) %}
-          {% if e.get('msg') %}
-          {% set icons = {'ERROR': '🚨', 'WARNING': '⚠️', 'INFO': 'ℹ️', 'DEBUG': '🔧'} %}
-          {{ icons.get(e.get('lvl', 'INFO'), 'ℹ️') }} **{{ e.get('ts', '')[:16] | replace('T', ' ') }}** [{{ e.get('cat', '') }}] {{ e.get('msg', '') }}
-          {% endif %}
-          {% endif %}
-          {% endmacro %}
-          {{ format_event(1) }}
-          {{ format_event(2) }}
-          {{ format_event(3) }}
-          {{ format_event(4) }}
-          {{ format_event(5) }}
+        slot_1: "{{ states('input_text.event_log_1') }}"
+        slot_2: "{{ states('input_text.event_log_2') }}"
+        slot_3: "{{ states('input_text.event_log_3') }}"
+        slot_4: "{{ states('input_text.event_log_4') }}"
+        slot_5: "{{ states('input_text.event_log_5') }}"
         icon: mdi:format-list-bulleted
