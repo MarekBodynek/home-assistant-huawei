@@ -134,7 +134,11 @@ def execute_strategy():
     try:
         log_decision(data, balance, strategy, result)
     except Exception as e:
-        pass  # Ignoruj błędy logowania - algorytm ma działać
+        # Loguj błąd do input_text żeby zobaczyć co jest nie tak
+        hass.services.call('input_text', 'set_value', {
+            'entity_id': 'input_text.event_log_1',
+            'value': '{"ts":"","lvl":"ERROR","cat":"DEBUG","msg":"log_decision error: ' + str(e)[:100].replace('"', "'") + '"}'
+        })
     return result
 
 
