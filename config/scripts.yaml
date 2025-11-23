@@ -77,8 +77,8 @@ send_notification:
           WARNING: 2
           ERROR: 3
           CRITICAL: 4
-        current_priority: "{{ priority_levels[priority | default('INFO')] | default(1) }}"
-        min_level: "{{ priority_levels[states('input_select.telegram_notification_level')] | default(1) }}"
+        current_priority: "{{ priority_levels[priority | default('INFO')] | default(1) | int }}"
+        min_level: "{{ priority_levels[states('input_select.telegram_notification_level')] | default(1) | int }}"
 
     # Telegram - jeśli włączony i priorytet wystarczający
     - if:
@@ -86,7 +86,7 @@ send_notification:
           entity_id: input_boolean.telegram_notifications_enabled
           state: "on"
         - condition: template
-          value_template: "{{ current_priority >= min_level }}"
+          value_template: "{{ current_priority | int >= min_level | int }}"
       then:
         - service: notify.telegram
           data:
