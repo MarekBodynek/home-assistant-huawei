@@ -1208,8 +1208,8 @@ def log_decision(data, balance, strategy, result):
     - SAFETY: Alarm bezpieczeństwa
     - ERROR: Błąd systemu
     """
-    import json
-    from datetime import datetime
+    # UWAGA: W python_scripts HA nie można używać import!
+    # Używamy wbudowanych funkcji
 
     # Określ poziom i kategorię na podstawie wyniku
     reason = result.get('reason', '') if result else ''
@@ -1240,18 +1240,15 @@ def log_decision(data, balance, strategy, result):
     else:
         category = 'DECISION'
 
-    # Skróć wiadomość do 180 znaków (żeby zmieścić się w JSON w 255 znakach)
-    msg = reason[:180] if reason else f"Mode: {mode}"
+    # Skróć wiadomość do 150 znaków (żeby zmieścić się w JSON w 255 znakach)
+    msg = reason[:150] if reason else f"Mode: {mode}"
+    # Escapuj cudzysłowy w wiadomości
+    msg = msg.replace('"', "'")
 
-    # Utwórz event JSON
-    timestamp = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-    event = {
-        'ts': timestamp,
-        'lvl': level,
-        'cat': category,
-        'msg': msg
-    }
-    event_json = json.dumps(event, ensure_ascii=False)
+    # Utwórz event JSON ręcznie (bez import json)
+    # datetime jest dostępny globalnie w python_scripts
+    timestamp = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+    event_json = '{"ts":"' + timestamp + '","lvl":"' + level + '","cat":"' + category + '","msg":"' + msg + '"}'
 
     # Rotacja: przesuń wszystkie sloty (5 -> usuń, 4->5, 3->4, 2->3, 1->2, new->1)
     # Odczytaj obecne wartości
