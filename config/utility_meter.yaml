@@ -29,3 +29,38 @@ monthly_consumption:
   name: "Zuzycie miesieczne"
   source: sensor.pomiar_mocy_zuzycie
   cycle: monthly
+
+# ============================================
+# DANE GODZINOWE DLA MACHINE LEARNING
+# ============================================
+# Resetują się co godzinę - użyj automatyzacji do zapisywania przed resetem
+
+# Zużycie godzinowe
+hourly_consumption:
+  name: "Zuzycie godzinowe"
+  source: sensor.pomiar_mocy_zuzycie
+  cycle: hourly
+
+# Produkcja PV godzinowa
+hourly_pv_production:
+  name: "Produkcja PV godzinowa"
+  source: sensor.inwerter_calkowita_produkcja_energii
+  cycle: hourly
+
+# Eksport do sieci godzinowy
+hourly_grid_export:
+  name: "Eksport godzinowy"
+  source: sensor.pomiar_mocy_eksport
+  cycle: hourly
+
+# Ładowanie baterii godzinowe
+hourly_battery_charge:
+  name: "Ladowanie baterii godzinowe"
+  source: sensor.akumulatory_ladowania_dzienne
+  cycle: hourly
+
+# Rozładowanie baterii godzinowe
+hourly_battery_discharge:
+  name: "Rozladowanie baterii godzinowe"
+  source: sensor.akumulatory_rozladowanie_dzienne
+  cycle: hourly

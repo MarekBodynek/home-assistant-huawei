@@ -716,6 +716,42 @@
   mode: single
 
 # ============================================
+# ZBIERANIE DANYCH GODZINOWYCH DLA ML
+# ============================================
+
+# Inicjalizacja pliku CSV przy starcie HA
+- id: ml_data_init_csv
+  alias: "[ML] Inicjalizuj plik CSV przy starcie"
+  trigger:
+    - platform: homeassistant
+      event: start
+  action:
+    - service: shell_command.init_hourly_csv
+  mode: single
+
+# Zbieranie danych godzinowych - 1 min przed pełną godziną (przed resetem utility_meter)
+- id: ml_data_hourly_collection
+  alias: "[ML] Zbierz dane godzinowe"
+  description: "Zapisuje dane energetyczne co godzinę do CSV dla Machine Learning"
+  trigger:
+    - platform: time_pattern
+      hours: "*"
+      minutes: "59"
+  action:
+    - service: shell_command.save_hourly_data
+      data:
+        timestamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+        consumption: "{{ states('sensor.zuzycie_godzinowe') | float(0) | round(3) }}"
+        pv_production: "{{ states('sensor.produkcja_pv_godzinowa') | float(0) | round(3) }}"
+        grid_export: "{{ states('sensor.eksport_godzinowy') | float(0) | round(3) }}"
+        battery_charge: "{{ states('sensor.ladowanie_baterii_godzinowe') | float(0) | round(3) }}"
+        battery_discharge: "{{ states('sensor.rozladowanie_baterii_godzinowe') | float(0) | round(3) }}"
+        soc: "{{ states('sensor.akumulatory_stan_pojemnosci') | float(0) | round(1) }}"
+        tariff: "{{ states('sensor.strefa_taryfowa') }}"
+        temperature: "{{ states('sensor.bateria_temperatura_maksymalna') | float(0) | round(1) }}"
+  mode: single
+
+# ============================================
 # ZDALNY GIT PULL
 # ============================================
 
