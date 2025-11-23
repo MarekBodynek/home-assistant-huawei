@@ -130,7 +130,8 @@ def execute_strategy():
     strategy = decide_strategy(data, balance)
     result = apply_battery_mode(strategy)
 
-    log_decision(data, balance, strategy, result)
+    # Tymczasowo wyłączone - debug
+    # log_decision(data, balance, strategy, result)
     return result
 
 
