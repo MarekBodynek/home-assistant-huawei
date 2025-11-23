@@ -671,7 +671,7 @@
       target:
         entity_id: input_number.night_consumption_last
       data:
-        value: "{{ states('sensor.night_consumption') | float(0) | round(1) }}"
+        value: "{{ states('sensor.zuzycie_nocne_od_22_00') | float(0) | round(1) }}"
     # 2. Zaktualizuj EMA (waga 0.3 dla nowej wartosci)
     # EMA = alpha * new + (1-alpha) * old
     - service: input_number.set_value
@@ -680,7 +680,7 @@
       data:
         value: >
           {% set alpha = 0.3 %}
-          {% set new_val = states('sensor.night_consumption') | float(0) %}
+          {% set new_val = states('sensor.zuzycie_nocne_od_22_00') | float(0) %}
           {% set old_avg = states('input_number.night_consumption_avg') | float(16) %}
           {{ (alpha * new_val + (1 - alpha) * old_avg) | round(1) }}
   mode: single
