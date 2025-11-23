@@ -489,3 +489,148 @@
         forecast_solar: "{{ 'OK' if states('sensor.prognoza_pv_jutro') not in ['unavailable', 'unknown'] else 'BŁĄD' }}"
         icon: mdi:lan-connect
       device_class: connectivity
+
+# ============================================
+# EVENT LOG - Historia zdarzeń systemowych
+# ============================================
+
+- sensor:
+    # ===== PARSOWANY EVENT LOG - OSTATNIE ZDARZENIE =====
+    - name: "Event Log - Ostatnie Zdarzenie"
+      unique_id: event_log_latest
+      state: >
+        {% set raw = states('input_text.event_log_1') %}
+        {% if raw and raw != 'unknown' and raw != '' %}
+          {% set event = raw | from_json %}
+          {{ event.get('msg', 'Brak danych')[:50] }}
+        {% else %}
+          Brak zdarzeń
+        {% endif %}
+      attributes:
+        friendly_name: "Ostatnie zdarzenie"
+        timestamp: >
+          {% set raw = states('input_text.event_log_1') %}
+          {% if raw and raw != 'unknown' %}
+            {% set event = raw | from_json %}
+            {{ event.get('ts', '') }}
+          {% else %}
+            -
+          {% endif %}
+        level: >
+          {% set raw = states('input_text.event_log_1') %}
+          {% if raw and raw != 'unknown' %}
+            {% set event = raw | from_json %}
+            {{ event.get('lvl', 'INFO') }}
+          {% else %}
+            INFO
+          {% endif %}
+        category: >
+          {% set raw = states('input_text.event_log_1') %}
+          {% if raw and raw != 'unknown' %}
+            {% set event = raw | from_json %}
+            {{ event.get('cat', '') }}
+          {% else %}
+            -
+          {% endif %}
+        full_message: >
+          {% set raw = states('input_text.event_log_1') %}
+          {% if raw and raw != 'unknown' %}
+            {% set event = raw | from_json %}
+            {{ event.get('msg', '') }}
+          {% else %}
+            -
+          {% endif %}
+        icon: >
+          {% set raw = states('input_text.event_log_1') %}
+          {% if raw and raw != 'unknown' %}
+            {% set event = raw | from_json %}
+            {% set lvl = event.get('lvl', 'INFO') %}
+            {% if lvl == 'ERROR' %}mdi:alert-circle
+            {% elif lvl == 'WARNING' %}mdi:alert
+            {% elif lvl == 'DEBUG' %}mdi:bug
+            {% else %}mdi:information
+            {% endif %}
+          {% else %}
+            mdi:information
+          {% endif %}
+
+    # ===== HISTORIA ZDARZEŃ - 5 OSTATNICH =====
+    - name: "Event Log - Historia"
+      unique_id: event_log_history
+      state: >
+        {% set slots = [
+          states('input_text.event_log_1'),
+          states('input_text.event_log_2'),
+          states('input_text.event_log_3'),
+          states('input_text.event_log_4'),
+          states('input_text.event_log_5')
+        ] %}
+        {% set valid = slots | select('ne', '') | select('ne', 'unknown') | list %}
+        {% set count = 0 %}
+        {% for s in valid %}
+          {% set event = s | from_json %}
+          {% if event.get('msg', '') != '' %}
+            {% set count = count + 1 %}
+          {% endif %}
+        {% endfor %}
+        {{ count }} zdarzeń
+      attributes:
+        friendly_name: "Historia zdarzeń (5 ostatnich)"
+        event_1: "{{ states('input_text.event_log_1') }}"
+        event_2: "{{ states('input_text.event_log_2') }}"
+        event_3: "{{ states('input_text.event_log_3') }}"
+        event_4: "{{ states('input_text.event_log_4') }}"
+        event_5: "{{ states('input_text.event_log_5') }}"
+        # Statystyki per poziom (z ostatnich 5)
+        errors_count: >
+          {% set count = 0 %}
+          {% for i in range(1, 6) %}
+            {% set raw = states('input_text.event_log_' ~ i) %}
+            {% if raw and raw not in ['', 'unknown'] %}
+              {% set event = raw | from_json %}
+              {% if event.get('lvl') == 'ERROR' %}
+                {% set count = count + 1 %}
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+          {{ count }}
+        warnings_count: >
+          {% set count = 0 %}
+          {% for i in range(1, 6) %}
+            {% set raw = states('input_text.event_log_' ~ i) %}
+            {% if raw and raw not in ['', 'unknown'] %}
+              {% set event = raw | from_json %}
+              {% if event.get('lvl') == 'WARNING' %}
+                {% set count = count + 1 %}
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+          {{ count }}
+        icon: mdi:history
+
+    # ===== FORMATOWANA LISTA ZDARZEŃ (dla Markdown card) =====
+    - name: "Event Log - Markdown"
+      unique_id: event_log_markdown
+      state: "event_log"
+      attributes:
+        friendly_name: "Event Log (Markdown)"
+        markdown: >
+          {% set icons = {'ERROR': '🚨', 'WARNING': '⚠️', 'INFO': 'ℹ️', 'DEBUG': '🔧'} %}
+          {% set output = [] %}
+          {% for i in range(1, 6) %}
+            {% set raw = states('input_text.event_log_' ~ i) %}
+            {% if raw and raw not in ['', 'unknown'] %}
+              {% set event = raw | from_json %}
+              {% if event.get('msg', '') != '' %}
+                {% set ts = event.get('ts', '')[:16] | replace('T', ' ') %}
+                {% set lvl = event.get('lvl', 'INFO') %}
+                {% set cat = event.get('cat', '') %}
+                {% set msg = event.get('msg', '') %}
+                {% set icon = icons.get(lvl, 'ℹ️') %}
+                {% set line = icon ~ ' **' ~ ts ~ '** [' ~ cat ~ '] ' ~ msg %}
+                {% set output = output + [line] %}
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+          {{ output | join('\n\n') if output | length > 0 else 'Brak zdarzeń' }}
+        icon: mdi:format-list-bulleted

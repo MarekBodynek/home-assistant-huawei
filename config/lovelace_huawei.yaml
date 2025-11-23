@@ -164,6 +164,22 @@ views:
                 name: 📊 Min. poziom Telegram
                 icon: mdi:filter
 
+          # Event Log - Historia zdarzeń
+          - type: markdown
+            title: 📋 Event Log
+            content: |
+              {{ state_attr('sensor.event_log_markdown', 'markdown') }}
+
+          # Event Log - Statystyki
+          - type: entities
+            title: 📊 Event Log - Status
+            icon: mdi:history
+            entities:
+              - entity: sensor.event_log_latest
+                name: Ostatnie zdarzenie
+              - entity: sensor.event_log_history
+                name: Historia (5 ostatnich)
+
   - title: Statystyki
     icon: mdi:chart-bar
     cards:

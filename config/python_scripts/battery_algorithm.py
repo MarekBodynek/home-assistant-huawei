@@ -1194,9 +1194,110 @@ def get_fallback_strategy(data):
 
 
 def log_decision(data, balance, strategy, result):
-    """Loguje decyzję"""
-    # Logging disabled in python_script
-    pass
+    """
+    Loguje decyzję do Event Log (rotacja 5 slotów)
+
+    Format JSON: {"ts":"ISO8601","lvl":"INFO/WARNING/ERROR","cat":"CATEGORY","msg":"..."}
+
+    Kategorie:
+    - DECISION: Główna decyzja algorytmu
+    - CHARGE: Start/stop ładowania
+    - DISCHARGE: Start/stop rozładowania
+    - MODE: Zmiana trybu pracy
+    - PRICE: Alert cenowy
+    - SAFETY: Alarm bezpieczeństwa
+    - ERROR: Błąd systemu
+    """
+    import json
+    from datetime import datetime
+
+    # Określ poziom i kategorię na podstawie wyniku
+    reason = result.get('reason', '') if result else ''
+    mode = result.get('mode', 'unknown') if result else 'unknown'
+    priority = result.get('priority', 'normal') if result else 'normal'
+
+    # Określ level
+    if 'BŁĄD' in reason or 'ERROR' in reason or '🚨' in reason:
+        level = 'ERROR'
+    elif 'ZATRZYMANO' in reason or priority == 'critical':
+        level = 'ERROR'
+    elif 'OSTRZEŻENIE' in reason or priority == 'high':
+        level = 'WARNING'
+    else:
+        level = 'INFO'
+
+    # Określ kategorię
+    if 'temperatura' in reason.lower() or 'temp' in reason.lower():
+        category = 'SAFETY'
+    elif mode in ['charge_from_grid', 'charge_from_pv']:
+        category = 'CHARGE'
+    elif mode == 'discharge_to_grid':
+        category = 'DISCHARGE'
+    elif 'cena' in reason.lower() or 'RCE' in reason:
+        category = 'PRICE'
+    elif 'BŁĄD' in reason or 'ERROR' in reason:
+        category = 'ERROR'
+    else:
+        category = 'DECISION'
+
+    # Skróć wiadomość do 180 znaków (żeby zmieścić się w JSON w 255 znakach)
+    msg = reason[:180] if reason else f"Mode: {mode}"
+
+    # Utwórz event JSON
+    timestamp = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+    event = {
+        'ts': timestamp,
+        'lvl': level,
+        'cat': category,
+        'msg': msg
+    }
+    event_json = json.dumps(event, ensure_ascii=False)
+
+    # Rotacja: przesuń wszystkie sloty (5 -> usuń, 4->5, 3->4, 2->3, 1->2, new->1)
+    # Odczytaj obecne wartości
+    slots = []
+    for i in range(1, 6):
+        state = hass.states.get(f'input_text.event_log_{i}')
+        slots.append(state.state if state else '')
+
+    # Przesuń (slot 5 wypada, nowy wchodzi na slot 1)
+    # slots[0] = event_log_1 (najnowszy)
+    # slots[4] = event_log_5 (najstarszy)
+
+    # Zapisz do slotów (od najstarszego do najnowszego)
+    # slot 5 <- slot 4
+    hass.services.call('input_text', 'set_value', {
+        'entity_id': 'input_text.event_log_5',
+        'value': slots[3]  # stary slot 4
+    })
+    # slot 4 <- slot 3
+    hass.services.call('input_text', 'set_value', {
+        'entity_id': 'input_text.event_log_4',
+        'value': slots[2]  # stary slot 3
+    })
+    # slot 3 <- slot 2
+    hass.services.call('input_text', 'set_value', {
+        'entity_id': 'input_text.event_log_3',
+        'value': slots[1]  # stary slot 2
+    })
+    # slot 2 <- slot 1
+    hass.services.call('input_text', 'set_value', {
+        'entity_id': 'input_text.event_log_2',
+        'value': slots[0]  # stary slot 1
+    })
+    # slot 1 <- nowy event
+    hass.services.call('input_text', 'set_value', {
+        'entity_id': 'input_text.event_log_1',
+        'value': event_json
+    })
+
+    # Dodatkowo loguj ERROR/WARNING do system_log
+    if level in ['ERROR', 'WARNING']:
+        hass.services.call('system_log', 'write', {
+            'message': f'[{category}] {msg}',
+            'level': level.lower(),
+            'logger': 'homeassistant.components.battery_algorithm'
+        })
 
 
 # ============================================

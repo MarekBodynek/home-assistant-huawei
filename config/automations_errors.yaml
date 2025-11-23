@@ -126,3 +126,166 @@
           - Temperatura: {{ states('sensor.bateria_temperatura_maksymalna') }}°C
           - Bezpieczeństwo: {{ 'OK' if states('binary_sensor.bateria_bezpieczna_temperatura') == 'on' else 'ALARM' }}
         notification_id: "daily_error_report"
+
+# ============================================
+# EVENT LOG - System logowania zdarzeń
+# ============================================
+
+# ===== EVENT LOG: Telegram alert dla ERROR =====
+- alias: "[EVENT LOG] Telegram alert - błąd"
+  id: event_log_telegram_error
+  description: "Wyślij powiadomienie Telegram gdy Event Log zawiera ERROR"
+  trigger:
+    - platform: state
+      entity_id: input_text.event_log_1
+  condition:
+    - condition: template
+      value_template: >
+        {% set raw = states('input_text.event_log_1') %}
+        {% if raw and raw not in ['', 'unknown'] %}
+          {% set event = raw | from_json %}
+          {{ event.get('lvl') == 'ERROR' }}
+        {% else %}
+          false
+        {% endif %}
+    - condition: state
+      entity_id: input_boolean.telegram_notifications_enabled
+      state: "on"
+  action:
+    - service: notify.telegram
+      data:
+        title: "🚨 BŁĄD SYSTEMU"
+        message: >
+          {% set raw = states('input_text.event_log_1') %}
+          {% set event = raw | from_json %}
+          **[{{ event.get('cat', 'ERROR') }}]** {{ event.get('msg', 'Błąd') }}
+
+          🕐 {{ event.get('ts', '')[:16] | replace('T', ' ') }}
+          🔋 SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%
+
+# ===== EVENT LOG: Telegram alert dla WARNING =====
+- alias: "[EVENT LOG] Telegram alert - ostrzeżenie"
+  id: event_log_telegram_warning
+  description: "Wyślij powiadomienie Telegram gdy Event Log zawiera WARNING"
+  trigger:
+    - platform: state
+      entity_id: input_text.event_log_1
+  condition:
+    - condition: template
+      value_template: >
+        {% set raw = states('input_text.event_log_1') %}
+        {% if raw and raw not in ['', 'unknown'] %}
+          {% set event = raw | from_json %}
+          {{ event.get('lvl') == 'WARNING' }}
+        {% else %}
+          false
+        {% endif %}
+    - condition: state
+      entity_id: input_boolean.telegram_notifications_enabled
+      state: "on"
+    - condition: template
+      value_template: >
+        {{ states('input_select.telegram_notification_level') in ['DEBUG', 'INFO', 'WARNING'] }}
+  action:
+    - service: notify.telegram
+      data:
+        title: "⚠️ OSTRZEŻENIE"
+        message: >
+          {% set raw = states('input_text.event_log_1') %}
+          {% set event = raw | from_json %}
+          **[{{ event.get('cat', 'WARNING') }}]** {{ event.get('msg', 'Ostrzeżenie') }}
+
+          🕐 {{ event.get('ts', '')[:16] | replace('T', ' ') }}
+
+# ===== EVENT LOG: Loguj ważne zdarzenia do pliku =====
+- alias: "[EVENT LOG] System log - ważne zdarzenia"
+  id: event_log_system_log
+  description: "Loguj ERROR i WARNING do system_log"
+  trigger:
+    - platform: state
+      entity_id: input_text.event_log_1
+  condition:
+    - condition: template
+      value_template: >
+        {% set raw = states('input_text.event_log_1') %}
+        {% if raw and raw not in ['', 'unknown'] %}
+          {% set event = raw | from_json %}
+          {{ event.get('lvl') in ['ERROR', 'WARNING'] }}
+        {% else %}
+          false
+        {% endif %}
+  action:
+    - service: system_log.write
+      data:
+        message: >
+          {% set raw = states('input_text.event_log_1') %}
+          {% set event = raw | from_json %}
+          [EVENT LOG][{{ event.get('lvl') }}][{{ event.get('cat') }}] {{ event.get('msg') }}
+        level: >
+          {% set raw = states('input_text.event_log_1') %}
+          {% set event = raw | from_json %}
+          {{ event.get('lvl', 'info') | lower }}
+        logger: homeassistant.components.event_log
+
+# ===== EVENT LOG: Reset slotów o północy (opcjonalnie) =====
+- alias: "[EVENT LOG] Reset dzienny"
+  id: event_log_daily_reset
+  description: "Reset Event Log o północy (zachowuje ostatnie zdarzenie)"
+  trigger:
+    - platform: time
+      at: "00:00:00"
+  action:
+    # Zachowaj slot 1 jako "ostatnie zdarzenie z poprzedniego dnia"
+    # Reset slotów 2-5
+    - service: input_text.set_value
+      target:
+        entity_id: input_text.event_log_2
+      data:
+        value: '{"ts":"","lvl":"","cat":"","msg":""}'
+    - service: input_text.set_value
+      target:
+        entity_id: input_text.event_log_3
+      data:
+        value: '{"ts":"","lvl":"","cat":"","msg":""}'
+    - service: input_text.set_value
+      target:
+        entity_id: input_text.event_log_4
+      data:
+        value: '{"ts":"","lvl":"","cat":"","msg":""}'
+    - service: input_text.set_value
+      target:
+        entity_id: input_text.event_log_5
+      data:
+        value: '{"ts":"","lvl":"","cat":"","msg":""}'
+
+# ===== EVENT LOG: Manualny wpis (do testowania) =====
+- alias: "[EVENT LOG] Manualny wpis testowy"
+  id: event_log_manual_test
+  description: "Skrypt do manualnego dodania wpisu testowego (uruchom przez Developer Tools)"
+  trigger: []
+  action:
+    - service: input_text.set_value
+      target:
+        entity_id: input_text.event_log_5
+      data:
+        value: "{{ states('input_text.event_log_4') }}"
+    - service: input_text.set_value
+      target:
+        entity_id: input_text.event_log_4
+      data:
+        value: "{{ states('input_text.event_log_3') }}"
+    - service: input_text.set_value
+      target:
+        entity_id: input_text.event_log_3
+      data:
+        value: "{{ states('input_text.event_log_2') }}"
+    - service: input_text.set_value
+      target:
+        entity_id: input_text.event_log_2
+      data:
+        value: "{{ states('input_text.event_log_1') }}"
+    - service: input_text.set_value
+      target:
+        entity_id: input_text.event_log_1
+      data:
+        value: '{"ts":"{{ now().strftime("%Y-%m-%dT%H:%M:%S") }}","lvl":"INFO","cat":"TEST","msg":"Testowy wpis Event Log"}'
