@@ -1304,4 +1304,25 @@ def log_decision(data, balance, strategy, result):
 # URUCHOMIENIE
 # ============================================
 
-execute_strategy()
+try:
+    execute_strategy()
+except Exception as e:
+    # ZAWSZE aktualizuj decision_reason - nawet przy błędzie!
+    # To zapobiega alertom watchdoga gdy algorytm się wysypie
+    error_msg = f"🚨 BŁĄD ALGORYTMU: {str(e)[:200]}"
+    try:
+        hass.services.call('input_text', 'set_value', {
+            'entity_id': 'input_text.battery_decision_reason',
+            'value': error_msg
+        })
+        # Ustaw tryb awaryjny - bezpieczny fallback
+        hass.services.call('select', 'select_option', {
+            'entity_id': 'select.akumulatory_tryb_pracy',
+            'option': 'maximise_self_consumption'
+        })
+        # Wyłącz ładowanie z sieci (bezpieczeństwo)
+        hass.services.call('switch', 'turn_off', {
+            'entity_id': 'switch.akumulatory_ladowanie_z_sieci'
+        })
+    except:
+        pass  # Jeśli nawet to nie działa, nie możemy nic zrobić
