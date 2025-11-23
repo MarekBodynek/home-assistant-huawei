@@ -168,7 +168,21 @@ views:
           - type: markdown
             title: 📋 Event Log
             content: |
-              {{ state_attr('sensor.event_log_markdown', 'markdown') }}
+              {% set s1 = state_attr('sensor.event_log_markdown', 'slot_1') %}
+              {% set s2 = state_attr('sensor.event_log_markdown', 'slot_2') %}
+              {% set s3 = state_attr('sensor.event_log_markdown', 'slot_3') %}
+              {% if s1 and s1 not in ['', 'unknown'] %}
+              {% set e = s1 | from_json %}
+              {% if e.msg %}ℹ️ **{{ e.ts[:16] | replace('T', ' ') }}** [{{ e.cat }}] {{ e.msg }}{% endif %}
+              {% endif %}
+              {% if s2 and s2 not in ['', 'unknown'] %}
+              {% set e = s2 | from_json %}
+              {% if e.msg %}ℹ️ **{{ e.ts[:16] | replace('T', ' ') }}** [{{ e.cat }}] {{ e.msg }}{% endif %}
+              {% endif %}
+              {% if s3 and s3 not in ['', 'unknown'] %}
+              {% set e = s3 | from_json %}
+              {% if e.msg %}ℹ️ **{{ e.ts[:16] | replace('T', ' ') }}** [{{ e.cat }}] {{ e.msg }}{% endif %}
+              {% endif %}
 
           # Event Log - Statystyki
           - type: entities
