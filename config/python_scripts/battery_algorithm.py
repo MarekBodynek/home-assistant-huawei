@@ -130,8 +130,11 @@ def execute_strategy():
     strategy = decide_strategy(data, balance)
     result = apply_battery_mode(strategy)
 
-    # Tymczasowo wyłączone - debug
-    # log_decision(data, balance, strategy, result)
+    # Event Log - logowanie decyzji
+    try:
+        log_decision(data, balance, strategy, result)
+    except Exception as e:
+        pass  # Ignoruj błędy logowania - algorytm ma działać
     return result
 
 
@@ -1213,9 +1216,10 @@ def log_decision(data, balance, strategy, result):
     # Używamy wbudowanych funkcji
 
     # Określ poziom i kategorię na podstawie wyniku
-    reason = result.get('reason', '') if result else ''
-    mode = result.get('mode', 'unknown') if result else 'unknown'
-    priority = result.get('priority', 'normal') if result else 'normal'
+    # Zabezpieczenia przed None
+    reason = str(result.get('reason', '') or '') if result else ''
+    mode = str(result.get('mode', 'unknown') or 'unknown') if result else 'unknown'
+    priority = str(result.get('priority', 'normal') or 'normal') if result else 'normal'
 
     # Określ level
     if 'BŁĄD' in reason or 'ERROR' in reason or '🚨' in reason:
