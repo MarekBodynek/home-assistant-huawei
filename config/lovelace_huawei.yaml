@@ -175,9 +175,9 @@ views:
             title: 📊 Event Log - Status
             icon: mdi:history
             entities:
-              - entity: sensor.event_log_ostatnie_zdarzenie
+              - entity: sensor.event_log_latest
                 name: Ostatnie zdarzenie
-              - entity: sensor.event_log_historia
+              - entity: sensor.event_log_history
                 name: Historia (5 ostatnich)
 
   - title: Statystyki

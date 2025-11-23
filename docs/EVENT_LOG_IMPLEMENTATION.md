@@ -59,8 +59,8 @@ System Event Log umożliwia strukturalne logowanie zdarzeń w Home Assistant z z
 
 | Sensor | Opis |
 |--------|------|
-| `sensor.event_log_ostatnie_zdarzenie` | Parsuje i wyświetla ostatnie zdarzenie |
-| `sensor.event_log_historia` | Statystyki (liczba zdarzeń, błędów, ostrzeżeń) |
+| `sensor.event_log_latest` | Parsuje i wyświetla ostatnie zdarzenie |
+| `sensor.event_log_history` | Statystyki (liczba zdarzeń, błędów, ostrzeżeń) |
 | `sensor.event_log_markdown` | Formatowana lista dla Markdown card |
 
 ### 3. Funkcja `log_decision()` (`battery_algorithm.py`)
@@ -116,8 +116,8 @@ Developer Tools → States → Szukaj: event_log
 
 Powinny być widoczne:
 - `input_text.event_log_1` ... `input_text.event_log_5`
-- `sensor.event_log_ostatnie_zdarzenie`
-- `sensor.event_log_historia`
+- `sensor.event_log_latest`
+- `sensor.event_log_history`
 - `sensor.event_log_markdown`
 
 ### Krok 3: Test manualny
