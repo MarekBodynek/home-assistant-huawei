@@ -212,8 +212,8 @@ Po dodaniu integracji, Home Assistant wykryje:
 3. Wypełnij formularz:
 
 ```
-✅ Latitude: 52.2297
-✅ Longitude: 21.0122
+✅ Latitude: 54.163651
+✅ Longitude: 16.106855
 ✅ Declination (nachylenie paneli): 35
 ✅ Azimuth (azymut - kierunek): 180
    (0=północ, 90=wschód, 180=południe, 270=zachód)

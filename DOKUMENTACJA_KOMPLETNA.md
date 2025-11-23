@@ -1,7 +1,7 @@
 # 📚 Home Assistant + Huawei Solar - Kompletna Dokumentacja
 
-**Wersja:** 3.1
-**Data aktualizacji:** 2025-11-18
+**Wersja:** 3.2
+**Data aktualizacji:** 2025-11-23
 **Autor:** Marek Bodynek + Claude Code (Anthropic AI)
 
 ---
@@ -212,8 +212,8 @@ Po dodaniu integracji, Home Assistant wykryje:
 3. Wypełnij formularz:
 
 ```
-✅ Latitude: 52.2297
-✅ Longitude: 21.0122
+✅ Latitude: 54.163651
+✅ Longitude: 16.106855
 ✅ Declination (nachylenie paneli): 35
 ✅ Azimuth (azymut - kierunek): 180
    (0=północ, 90=wschód, 180=południe, 270=zachód)
@@ -2156,6 +2156,142 @@ Fallback został usunięty w następnym commicie.
 - Dashboard z wykresami błędów
 - Export błędów do Google Sheets (analiza trendów)
 - Integracja z Telegram/Pushover (powiadomienia push)
+
+---
+
+## 11.5 Event Log System + Telegram Fix (2025-11-23)
+
+**Status:** ✅ Wdrożone
+**Czas wdrożenia:** ~30 minut
+
+### Podsumowanie zmian
+
+#### 1. Event Log System (📋 Historia zdarzeń)
+
+**Problem:** Brak historii zdarzeń algorytmu baterii
+
+**Rozwiązanie:** Wdrożono system Event Log z 5 slotami:
+
+##### Nowe encje:
+- `input_text.event_log_1` do `input_text.event_log_5` - Sloty na zdarzenia (JSON)
+- `sensor.event_log_ostatnie_zdarzenie` - Parsowane ostatnie zdarzenie
+- `sensor.event_log_historia` - Statystyki historii (liczba zdarzeń, błędów, ostrzeżeń)
+
+##### Format zdarzenia (JSON):
+```json
+{
+  "ts": "2025-11-23T18:30:00",
+  "lvl": "INFO|WARNING|ERROR",
+  "cat": "BATTERY|ALGORITHM|SYSTEM",
+  "msg": "Opis zdarzenia"
+}
+```
+
+##### Automatyzacje Event Log:
+- `[EVENT LOG] Telegram alert - błąd` - Wysyła Telegram przy ERROR
+- `[EVENT LOG] Telegram alert - ostrzeżenie` - Wysyła Telegram przy WARNING
+- `[EVENT LOG] System log - ważne zdarzenia` - Loguje ERROR/WARNING do system_log
+- `[EVENT LOG] Reset dzienny` - Reset slotów o północy
+
+#### 2. Telegram dla błędów krytycznych (📱 Powiadomienia)
+
+**Problem:** Automatyzacja `[BŁĄD] Krytyczny błąd systemu` używała tylko `persistent_notification` - nie wysyłała na Telegram
+
+**Rozwiązanie:** Dodano `notify.telegram` do automatyzacji:
+
+##### Zmodyfikowane automatyzacje:
+- `[BŁĄD] Krytyczny błąd systemu` - Teraz wysyła Telegram + persistent_notification
+- `[OSTRZEŻENIE] Integracja offline` - Teraz wysyła Telegram + persistent_notification
+
+##### Przykład powiadomienia Telegram:
+```
+🚨 BŁĄD KRYTYCZNY SYSTEMU
+
+**Wykryto błąd krytyczny!**
+
+L2 ładowanie - SOC 48% < 80%
+
+**Czas:** 2025-11-23 19:30:00
+**SOC:** 48%
+**Temp:** 13.7°C
+```
+
+#### 3. Fix algorytmu baterii (🔧 Python scripts)
+
+**Problem:** Algorytm crashował z błędami:
+- "Not allowed to import json"
+- "'NoneType' object is not callable" (datetime, range, isinstance)
+
+**Rozwiązanie:** Dostosowano kod do ograniczeń `python_scripts` w HA:
+- Usunięto `import json` - tworzenie JSON ręcznie przez konkatenację stringów
+- Usunięto `datetime.datetime.now()` - użycie `sensor.time` i `sensor.date`
+- Usunięto `range()` - hardcoded odczyt slotów
+- Usunięto `isinstance()` - użycie try/except
+
+### Pliki zmodyfikowane
+
+| Plik | Zmiany |
+|------|--------|
+| `config/automations_errors.yaml` | Dodano Telegram do błędów krytycznych i integracji offline |
+| `config/python_scripts/battery_algorithm.py` | Fix dla python_scripts limitations + Event Log integration |
+| `config/template_sensors.yaml` | Dodano sensory Event Log |
+| `config/input_text.yaml` | Dodano sloty event_log_1 do event_log_5 |
+| `config/lovelace_huawei.yaml` | Dodano kartę Event Log na dashboard |
+
+### Weryfikacja
+
+```bash
+# Sprawdź Event Log
+curl -s -H "Authorization: Bearer TOKEN" \
+  https://ha.bodino.us.kg/api/states/sensor.event_log_ostatnie_zdarzenie
+
+# Sprawdź automatyzację błędów
+curl -s -H "Authorization: Bearer TOKEN" \
+  https://ha.bodino.us.kg/api/states/automation.blad_krytyczny_blad_systemu
+
+# Test Telegram
+curl -s -X POST https://ha.bodino.us.kg/api/services/notify/telegram \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Test OK"}'
+```
+
+### Bezpieczeństwo
+
+- ✅ Telegram wysyłany przy błędach krytycznych
+- ✅ Event Log przechowuje 5 ostatnich zdarzeń
+- ✅ Reset dzienny zapobiega przepełnieniu
+- ✅ Algorytm baterii działa poprawnie z Event Log
+
+---
+
+## 11.6 Konfiguracja narzędzi deweloperskich (2025-11-23)
+
+### Whisper Assistant (VSCode)
+
+**Rozszerzenie:** `martinopensky.whisper-assistant`
+
+**Konfiguracja (VSCode settings.json):**
+```json
+{
+  "whisper-assistant.apiProvider": "openai",
+  "whisper-assistant.apiKey": "sk-proj-...",
+  "whisper-assistant.language": "pl"
+}
+```
+
+**Uwaga:** Język hardcoded w rozszerzeniu - zmieniono z `'en'` na `'pl'` w pliku:
+`~/.vscode/extensions/martinopensky.whisper-assistant-1.2.4/out/speech-transcription.js`
+
+### Klucze API
+
+Klucze przechowywane w `.claude/settings.local.json`:
+
+| Klucz | Użycie |
+|-------|--------|
+| `HA_TOKEN` | Home Assistant Long-Lived Access Token |
+| `TELEGRAM_BOT_TOKEN` | Bot Telegram (@huawei_battery_bot) |
+| `OPENAI_API_KEY` | OpenAI API (Whisper, GPT) |
 
 ---
 
