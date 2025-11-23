@@ -5,12 +5,27 @@
 
 # ===== BŁĄD KRYTYCZNY - NATYCHMIASTOWE POWIADOMIENIE =====
 - alias: "[BŁĄD] Krytyczny błąd systemu"
+  id: critical_error_notification
   description: "Powiadomienie o błędzie krytycznym algorytmu lub systemu"
   trigger:
     - platform: state
       entity_id: binary_sensor.system_blad_krytyczny
       to: "on"
   action:
+    # Telegram - zawsze przy błędzie krytycznym
+    - service: notify.telegram
+      data:
+        title: "🚨 BŁĄD KRYTYCZNY SYSTEMU"
+        message: |
+          **Wykryto błąd krytyczny!**
+
+          {{ states('input_text.battery_decision_reason') }}
+
+          **Czas:** {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
+          **SOC:** {{ states('sensor.akumulatory_stan_pojemnosci') }}%
+          **Temp:** {{ states('sensor.bateria_temperatura_maksymalna') }}°C
+
+    # Persistent notification - też
     - service: persistent_notification.create
       data:
         title: "🚨 BŁĄD KRYTYCZNY SYSTEMU"
@@ -29,6 +44,7 @@
 
 # ===== INTEGRACJA OFFLINE - OSTRZEŻENIE =====
 - alias: "[OSTRZEŻENIE] Integracja offline"
+  id: integration_offline_warning
   description: "Powiadomienie gdy integracja (Huawei/RCE PSE/Forecast) przestaje działać"
   trigger:
     - platform: state
@@ -36,7 +52,23 @@
       to: "off"
       for:
         minutes: 5
+  condition:
+    - condition: state
+      entity_id: input_boolean.telegram_notifications_enabled
+      state: "on"
   action:
+    # Telegram - jeśli włączony
+    - service: notify.telegram
+      data:
+        title: "⚠️ Integracja offline"
+        message: |
+          Jedna lub więcej integracji nie działa!
+
+          Huawei: {{ state_attr('binary_sensor.integracje_status', 'huawei_solar') }}
+          RCE PSE: {{ state_attr('binary_sensor.integracje_status', 'rce_pse') }}
+          Forecast: {{ state_attr('binary_sensor.integracje_status', 'forecast_solar') }}
+
+    # Persistent notification
     - service: persistent_notification.create
       data:
         title: "⚠️ OSTRZEŻENIE: Integracja offline"
