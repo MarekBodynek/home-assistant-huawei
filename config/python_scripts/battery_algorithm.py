@@ -351,24 +351,90 @@ def decide_strategy(data, balance):
                 'reason': f'L1 droga taryfa (1.11 zł) - rozładowuj baterię (SOC {soc:.0f}%)'
             }
 
-    # L2 NOC (22-06h) - główne ładowanie do Target SOC (zawsze z sieci, bo brak PV)
-    if tariff == 'L2' and hour in [22, 23, 0, 1, 2, 3, 4, 5] and soc < target_soc:
-        if forecast_tomorrow < 15:
-            priority = 'critical'
-            reason = f'Noc L2 + pochmurno jutro ({forecast_tomorrow:.1f} kWh) - ładuj do {target_soc}%!'
-        elif forecast_tomorrow < 25:
-            priority = 'high'
-            reason = f'Noc L2 + średnio jutro - ładuj do {target_soc}%'
-        else:
-            priority = 'medium'
-            reason = f'Noc L2 + słonecznie jutro - ładuj do {target_soc}%'
+    # L2 NOC (22-06h) - inteligentne ładowanie z uwzględnieniem prognozy PV
+    # O północy forecast_today = prognoza na NOWY dzień (np. poniedziałek)
+    heating_mode = data['heating_mode']
 
-        return {
-            'mode': 'charge_from_grid',
-            'target_soc': target_soc,
-            'priority': priority,
-            'reason': reason
-        }
+    if tariff == 'L2' and hour in [22, 23, 0, 1, 2, 3, 4, 5]:
+        # Określ prognozę na nadchodzący dzień
+        # Przed północą (22-23h): patrzymy na jutro
+        # Po północy (0-5h): patrzymy na dzisiaj (bo już jest nowy dzień)
+        if hour >= 22:
+            pv_forecast = forecast_tomorrow
+            forecast_label = "jutro"
+        else:
+            pv_forecast = forecast_today
+            forecast_label = "dziś"
+
+        # === SEZON GRZEWCZY: ZAWSZE ŁADUJ ===
+        # PC CO potrzebuje energii rano, a zimowe PV jest słabe
+        if heating_mode == 'heating_season' and soc < target_soc:
+            if pv_forecast < 15:
+                priority = 'critical'
+                reason = f'Noc L2 + sezon grzewczy + pochmurno {forecast_label} ({pv_forecast:.1f} kWh) - ładuj do {target_soc}%!'
+            else:
+                priority = 'high'
+                reason = f'Noc L2 + sezon grzewczy - ładuj do {target_soc}% (PC potrzebuje energii rano)'
+            return {
+                'mode': 'charge_from_grid',
+                'target_soc': target_soc,
+                'priority': priority,
+                'reason': reason
+            }
+
+        # === POZA SEZONEM GRZEWCZYM: INTELIGENTNE ŁADOWANIE ===
+        # Jeśli prognoza PV dobra - pozwól słońcu naładować baterię za darmo!
+
+        # BEZPIECZEŃSTWO: SOC < 30% - zawsze ładuj (rezerwa)
+        if soc < 30:
+            return {
+                'mode': 'charge_from_grid',
+                'target_soc': target_soc,
+                'priority': 'high',
+                'reason': f'Noc L2 + SOC {soc:.0f}% < 30% (rezerwa) - ładuj do {target_soc}%'
+            }
+
+        # Doskonała prognoza (>25 kWh) + SOC >= 30% → NIE ŁADUJ
+        if pv_forecast >= 25 and soc >= 30:
+            return {
+                'mode': 'grid_to_home',
+                'priority': 'low',
+                'reason': f'Noc L2 + słonecznie {forecast_label} ({pv_forecast:.1f} kWh) - PV naładuje baterię za darmo! (SOC {soc:.0f}%)'
+            }
+
+        # Bardzo dobra prognoza (>20 kWh) + SOC >= 40% → NIE ŁADUJ
+        if pv_forecast >= 20 and soc >= 40:
+            return {
+                'mode': 'grid_to_home',
+                'priority': 'low',
+                'reason': f'Noc L2 + dobra prognoza {forecast_label} ({pv_forecast:.1f} kWh) - PV wystarczy! (SOC {soc:.0f}%)'
+            }
+
+        # Dobra prognoza (>15 kWh) + SOC >= 50% → NIE ŁADUJ
+        if pv_forecast >= 15 and soc >= 50:
+            return {
+                'mode': 'grid_to_home',
+                'priority': 'low',
+                'reason': f'Noc L2 + prognoza {forecast_label} {pv_forecast:.1f} kWh - PV powinno wystarczyć (SOC {soc:.0f}%)'
+            }
+
+        # Słaba prognoza lub niski SOC → ŁADUJ
+        if soc < target_soc:
+            if pv_forecast < 10:
+                priority = 'critical'
+                reason = f'Noc L2 + bardzo pochmurno {forecast_label} ({pv_forecast:.1f} kWh) - ładuj do {target_soc}%!'
+            elif pv_forecast < 15:
+                priority = 'high'
+                reason = f'Noc L2 + pochmurno {forecast_label} ({pv_forecast:.1f} kWh) - ładuj do {target_soc}%'
+            else:
+                priority = 'medium'
+                reason = f'Noc L2 + SOC {soc:.0f}% < próg - ładuj do {target_soc}%'
+            return {
+                'mode': 'charge_from_grid',
+                'target_soc': target_soc,
+                'priority': priority,
+                'reason': reason
+            }
 
     # L2 POŁUDNIE (13-15h) - INTELIGENTNE ZARZĄDZANIE: PV vs SIEĆ
     if tariff == 'L2' and hour in [13, 14] and soc < 80:
