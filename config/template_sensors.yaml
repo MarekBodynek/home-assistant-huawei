@@ -26,6 +26,59 @@
         description: "L1 (droga) lub L2 (tania) - weekendy i święta CAŁY DZIEŃ L2!"
 
 # ============================================
+# DZIEŃ ROBOCZY (wykrywanie weekendów i świąt)
+# ============================================
+
+- binary_sensor:
+    - name: "Dzień roboczy"
+      unique_id: workday_sensor
+      state: >
+        {% set dominated_days = [0, 1, 2, 3, 4] %}
+        {% set today = now().weekday() %}
+        {% set month = now().month %}
+        {% set day = now().day %}
+
+        {# Lista polskich świąt stałych (MM-DD) #}
+        {% set holidays = [
+          '01-01',
+          '01-06',
+          '05-01',
+          '05-03',
+          '08-15',
+          '11-01',
+          '11-11',
+          '12-25',
+          '12-26'
+        ] %}
+
+        {# Święta ruchome 2024-2026 (Wielkanoc, Poniedziałek Wielkanocny, Boże Ciało) #}
+        {% set movable_holidays = [
+          '2024-03-31', '2024-04-01', '2024-05-30',
+          '2025-04-20', '2025-04-21', '2025-06-19',
+          '2026-04-05', '2026-04-06', '2026-06-04'
+        ] %}
+
+        {% set today_str = now().strftime('%m-%d') %}
+        {% set today_full = now().strftime('%Y-%m-%d') %}
+
+        {% set is_weekend = today not in dominated_days %}
+        {% set is_holiday = today_str in holidays or today_full in movable_holidays %}
+
+        {{ not is_weekend and not is_holiday }}
+      icon: >
+        {% if is_state('binary_sensor.dzien_roboczy', 'on') %}
+          mdi:briefcase
+        {% else %}
+          mdi:home
+        {% endif %}
+      attributes:
+        friendly_name: "Dzień roboczy"
+        description: "ON = Pn-Pt (bez świąt), OFF = weekend lub święto"
+        today_weekday: "{{ ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela'][now().weekday()] }}"
+        is_weekend: "{{ now().weekday() >= 5 }}"
+        note: "Uwzględnia polskie święta stałe + ruchome (2024-2026)"
+
+# ============================================
 # SEZON GRZEWCZY I TEMPERATURA
 # ============================================
 
@@ -440,25 +493,32 @@
         icon: mdi:alert-circle
 
     # ===== OSTATNI BŁĄD SYSTEMU =====
+    # POPRAWIONE: Pokazuje tylko PRAWDZIWE błędy, nie normalne decyzje algorytmu
     - name: "System - Ostatni Błąd"
       unique_id: system_last_error
       state: >
-        {% set errors = [
-          states('input_text.battery_decision_reason'),
-          'Huawei Solar: ' + state_attr('binary_sensor.huawei_connection_status', 'last_error') | string if state_attr('binary_sensor.huawei_connection_status', 'last_error') else '',
-          'RCE PSE: unavailable' if states('sensor.rce_pse_cena') in ['unavailable', 'unknown'] else ''
-        ] %}
-        {% set errors_list = errors | reject('eq', '') | list %}
-        {{ errors_list[0] if errors_list | length > 0 else 'Brak błędów' }}
+        {% set decision = states('input_text.battery_decision_reason') %}
+        {% set is_algorithm_error = 'BŁĄD' in decision or 'błąd' in decision or 'ERROR' in decision or '🚨' in decision %}
+        {% set huawei_error = state_attr('binary_sensor.huawei_connection_status', 'last_error') %}
+        {% set rce_unavailable = states('sensor.rce_pse_cena') in ['unavailable', 'unknown'] %}
+
+        {% if is_algorithm_error %}
+          {{ decision[:200] }}
+        {% elif huawei_error %}
+          Huawei Solar: {{ huawei_error }}
+        {% elif rce_unavailable %}
+          RCE PSE: niedostępny
+        {% else %}
+          Brak błędów
+        {% endif %}
       attributes:
         friendly_name: "Ostatni błąd systemu"
-        all_errors: >
-          {% set errors = [] %}
+        last_decision: "{{ states('input_text.battery_decision_reason') }}"
+        has_error: >
           {% set decision = states('input_text.battery_decision_reason') %}
-          {% if 'BŁĄD' in decision or 'błąd' in decision %}
-            {% set errors = errors + ['Algorytm: ' + decision] %}
-          {% endif %}
-          {{ errors | join(', ') if errors | length > 0 else 'Brak błędów' }}
+          {{ 'BŁĄD' in decision or 'błąd' in decision or 'ERROR' in decision or '🚨' in decision }}
+        huawei_status: "{{ 'OK' if states('sensor.akumulatory_stan_pojemnosci') not in ['unavailable', 'unknown'] else 'BŁĄD' }}"
+        rce_status: "{{ 'OK' if states('sensor.rce_pse_cena') not in ['unavailable', 'unknown'] else 'BŁĄD' }}"
         icon: mdi:alert-octagon
 
 - binary_sensor:
