@@ -33,6 +33,19 @@ System zarządzania baterią Huawei LUNA 2000 z optymalizacją kosztów energii.
 - HA config path: `/Users/marekbodynek/home-assistant-huawei/config`
 - Docker: `/Applications/Docker.app/Contents/Resources/bin/docker`
 
+## Dokumentacja
+
+**WAŻNE:** Przy każdej zmianie dokumentacji aktualizuj OBA pliki:
+- `DOKUMENTACJA_KOMPLETNA.md` - pełna wersja (z danymi osobowymi)
+- `DOKUMENTACJA_KOMPLETNA_PUBLIC.md` - zanonimizowana wersja (do udostępnienia)
+
+Zanonimizowane dane w wersji PUBLIC:
+- `Marek Bodynek` → `[Autor]`
+- `marek.bodynek@gmail.com` → `your.email@example.com`
+- `marekbodynek` → `username`
+- `bodino.us.kg` → `example.com`
+- `192.168.0.106` → `192.168.x.x`
+
 ## Commit conventions
 
 Używaj emoji na początku commit message:
@@ -42,3 +55,4 @@ Używaj emoji na początku commit message:
 - `🌡️` - Temperatura
 - `🔢` - Formatowanie/liczby
 - `🔄` - Zmiana integracji
+- `📚` - Dokumentacja
