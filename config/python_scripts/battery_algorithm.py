@@ -1220,10 +1220,11 @@ def log_decision(data, balance, strategy, result):
     # Używamy wbudowanych funkcji
 
     # Określ poziom i kategorię na podstawie wyniku
+    # UWAGA: result to True/False, strategy to słownik!
     # Zabezpieczenia przed None
-    reason = str(result.get('reason', '') or '') if result else ''
-    mode = str(result.get('mode', 'unknown') or 'unknown') if result else 'unknown'
-    priority = str(result.get('priority', 'normal') or 'normal') if result else 'normal'
+    reason = str(strategy.get('reason', '') or '') if strategy and isinstance(strategy, dict) else ''
+    mode = str(strategy.get('mode', 'unknown') or 'unknown') if strategy and isinstance(strategy, dict) else 'unknown'
+    priority = str(strategy.get('priority', 'normal') or 'normal') if strategy and isinstance(strategy, dict) else 'normal'
 
     # Określ level
     if 'BŁĄD' in reason or 'ERROR' in reason or '🚨' in reason:
