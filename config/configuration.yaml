@@ -66,6 +66,9 @@ input_boolean: !include input_boolean.yaml
 # Input select
 input_select: !include input_select.yaml
 
+# Utility Meter - pomiar zużycia
+utility_meter: !include utility_meter.yaml
+
 # Telegram Bot
 telegram_bot:
   - platform: polling

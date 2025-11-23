@@ -673,3 +673,159 @@
         title: "🔄 Git Pull"
         message: "Wykonano git pull o {{ now().strftime('%H:%M:%S') }}"
   mode: single
+
+# ============================================
+# PLANOWANIE NOCNEGO ŁADOWANIA - ZBIERANIE DANYCH
+# ============================================
+
+- id: night_consumption_capture_22
+  alias: "[Nocne] Zapisz zużycie o 22:00 (start nocy)"
+  description: "Zapisuje wartość licznika na początku okresu nocnego"
+  trigger:
+    - platform: time
+      at: "22:00:00"
+  action:
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.night_consumption_start
+      data:
+        value: "{{ states('sensor.pomiar_mocy_zuzycie') | float(0) }}"
+  mode: single
+
+- id: night_consumption_capture_midnight
+  alias: "[Nocne] Zapisz zużycie o 00:00 (północ)"
+  description: "Zapisuje wartość licznika o północy dla korekty planowania"
+  trigger:
+    - platform: time
+      at: "00:00:00"
+  action:
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.night_consumption_midnight
+      data:
+        value: "{{ states('sensor.pomiar_mocy_zuzycie') | float(0) }}"
+  mode: single
+
+- id: night_consumption_capture_06
+  alias: "[Nocne] Zapisz zużycie o 06:00 (koniec nocy)"
+  description: "Zapisuje wartość licznika na końcu okresu nocnego i oblicza średnią"
+  trigger:
+    - platform: time
+      at: "06:00:00"
+  action:
+    # Zapisz wartość końcową
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.night_consumption_end
+      data:
+        value: "{{ states('sensor.pomiar_mocy_zuzycie') | float(0) }}"
+    # Oblicz zużycie nocne i zaktualizuj średnią (EMA - Exponential Moving Average)
+    - delay:
+        seconds: 2
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.night_consumption_avg
+      data:
+        value: >
+          {% set start = states('input_number.night_consumption_start') | float(0) %}
+          {% set end = states('input_number.night_consumption_end') | float(0) %}
+          {% set current_avg = states('input_number.night_consumption_avg') | float(16) %}
+          {% if start > 0 and end > 0 and end > start %}
+            {% set night_kwh = end - start %}
+            {# EMA: 80% stara średnia + 20% nowa wartość - wygładzanie #}
+            {{ (0.8 * current_avg + 0.2 * night_kwh) | round(1) }}
+          {% else %}
+            {{ current_avg }}
+          {% endif %}
+  mode: single
+
+# ============================================
+# PLANOWANIE NOCNEGO ŁADOWANIA - DECYZJE
+# ============================================
+
+- id: night_charging_planning_21
+  alias: "[Nocne] Planowanie ładowania o 21:00"
+  description: "Analizuje czy potrzebne jest ładowanie nocne i aktualizuje PV start hour"
+  trigger:
+    - platform: time
+      at: "21:00:00"
+  action:
+    # Aktualizuj prognozę PV
+    - service: homeassistant.update_entity
+      target:
+        entity_id:
+          - sensor.pv_wschod_prognoza_dzis
+          - sensor.pv_wschod_prognoza_jutro
+          - sensor.pv_poludnie_prognoza_dzis
+          - sensor.pv_poludnie_prognoza_jutro
+          - sensor.pv_zachod_prognoza_dzis
+          - sensor.pv_zachod_prognoza_jutro
+    - delay:
+        seconds: 5
+    # Loguj plan na noc
+    - service: persistent_notification.create
+      data:
+        title: "🌙 Plan nocnego ładowania (21:00)"
+        message: |
+          **Analiza przed L2 (22:00-06:00):**
+
+          📊 **Stan baterii:**
+          - SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%
+          - Dostępna energia: {{ ((states('sensor.akumulatory_stan_pojemnosci') | float / 100) * 10) | round(1) }} kWh
+
+          ⚡ **Prognoza zużycia:**
+          - Średnie zużycie nocne: {{ states('input_number.night_consumption_avg') }} kWh
+          - PV start jutro: ~{{ states('sensor.pv_godzina_startu') }}:00
+
+          ☀️ **Prognoza PV jutro:**
+          - Całkowita: {{ states('sensor.prognoza_pv_jutro') }} kWh
+
+          🔋 **DECYZJA:** {{ states('sensor.plan_nocnego_ladowania') }}
+          {{ state_attr('sensor.plan_nocnego_ladowania', 'decision_reason') }}
+        notification_id: night_charging_plan
+  mode: single
+
+- id: night_charging_correction_2350
+  alias: "[Nocne] Korekta planu o 23:50"
+  description: "Korekta planu ładowania przed północą (weryfikacja pierwszej części nocy)"
+  trigger:
+    - platform: time
+      at: "23:50:00"
+  condition:
+    # Tylko jeśli plan mówi ŁADUJ ale bateria jest już wysoko
+    - condition: template
+      value_template: >
+        {% set soc = states('sensor.akumulatory_stan_pojemnosci') | float(50) %}
+        {% set target = states('input_number.battery_target_soc') | float(80) %}
+        {{ soc >= target }}
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "🔄 Korekta planu (23:50)"
+        message: |
+          SOC {{ states('sensor.akumulatory_stan_pojemnosci') }}% osiągnął target {{ states('input_number.battery_target_soc') }}%.
+          Zużycie 22:00-23:50: {{ (states('sensor.pomiar_mocy_zuzycie') | float - states('input_number.night_consumption_start') | float) | round(2) }} kWh
+          Ładowanie może zostać zatrzymane.
+        notification_id: night_charging_correction
+  mode: single
+
+- id: night_charging_correction_0350
+  alias: "[Nocne] Korekta planu o 03:50"
+  description: "Korekta planu ładowania przed końcem nocy (weryfikacja czy bateria starczy do PV)"
+  trigger:
+    - platform: time
+      at: "03:50:00"
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "🔄 Korekta planu (03:50)"
+        message: |
+          **Status przed końcem L2:**
+          - SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%
+          - Zużycie 00:00-03:50: {{ (states('sensor.pomiar_mocy_zuzycie') | float - states('input_number.night_consumption_midnight') | float) | round(2) }} kWh
+          - PV start: ~{{ states('sensor.pv_godzina_startu') }}:00
+
+          **Pozostałe godziny do PV:** ~{{ states('sensor.pv_godzina_startu') | int - 4 }}h
+          **Plan:** {{ states('sensor.plan_nocnego_ladowania') }}
+        notification_id: night_charging_correction_morning
+  mode: single
