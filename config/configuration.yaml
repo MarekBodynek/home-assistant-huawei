@@ -111,7 +111,7 @@ sensor:
 # Forecast Solar - REST API dla 3 płaszczyzn
 # scan_interval: 7200s (2h) = optymalizacja zapytań (-50% vs 1h)
 rest:
-  - resource: https://api.forecast.solar/estimate/watts/54.163651/16.106855/30/90/8.1
+  - resource: https://api.forecast.solar/estimate/54.163651/16.106855/30/90/8.1
     scan_interval: 7200
     sensor:
       - name: "PV Wschód - Prognoza dziś"
@@ -133,7 +133,7 @@ rest:
           {{ data[tomorrow] | float(0) / 1000 | round(1) }}
         unit_of_measurement: "kWh"
 
-  - resource: https://api.forecast.solar/estimate/watts/54.163651/16.106855/30/180/4.05
+  - resource: https://api.forecast.solar/estimate/54.163651/16.106855/30/180/4.05
     scan_interval: 7200
     sensor:
       - name: "PV Południe - Prognoza dziś"
@@ -155,7 +155,7 @@ rest:
           {{ data[tomorrow] | float(0) / 1000 | round(1) }}
         unit_of_measurement: "kWh"
 
-  - resource: https://api.forecast.solar/estimate/watts/54.163651/16.106855/30/270/4.05
+  - resource: https://api.forecast.solar/estimate/54.163651/16.106855/30/270/4.05
     scan_interval: 7200
     sensor:
       - name: "PV Zachód - Prognoza dziś"

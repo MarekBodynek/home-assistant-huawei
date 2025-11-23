@@ -207,22 +207,32 @@
       unique_id: forecast_pv_today
       unit_of_measurement: "kWh"
       state: >
-        {{ states('sensor.energy_production_today') | float(0) | round(1) }}
+        {% set wschod = states('sensor.pv_wschod_prognoza_dzis') | float(0) %}
+        {% set poludnie = states('sensor.pv_poludnie_prognoza_dzis') | float(0) %}
+        {% set zachod = states('sensor.pv_zachod_prognoza_dzis') | float(0) %}
+        {{ (wschod + poludnie + zachod) | round(1) }}
       icon: mdi:solar-power
       attributes:
         friendly_name: "Prognoza produkcji PV dziś"
-        source: "sensor.energy_production_today"
+        wschod: "{{ states('sensor.pv_wschod_prognoza_dzis') }}"
+        poludnie: "{{ states('sensor.pv_poludnie_prognoza_dzis') }}"
+        zachod: "{{ states('sensor.pv_zachod_prognoza_dzis') }}"
 
 - sensor:
     - name: "Prognoza PV jutro"
       unique_id: forecast_pv_tomorrow
       unit_of_measurement: "kWh"
       state: >
-        {{ states('sensor.energy_production_tomorrow') | float(0) | round(1) }}
+        {% set wschod = states('sensor.pv_wschod_prognoza_jutro') | float(0) %}
+        {% set poludnie = states('sensor.pv_poludnie_prognoza_jutro') | float(0) %}
+        {% set zachod = states('sensor.pv_zachod_prognoza_jutro') | float(0) %}
+        {{ (wschod + poludnie + zachod) | round(1) }}
       icon: mdi:solar-power
       attributes:
         friendly_name: "Prognoza produkcji PV jutro"
-        source: "sensor.energy_production_tomorrow"
+        wschod: "{{ states('sensor.pv_wschod_prognoza_jutro') }}"
+        poludnie: "{{ states('sensor.pv_poludnie_prognoza_jutro') }}"
+        zachod: "{{ states('sensor.pv_zachod_prognoza_jutro') }}"
 
 - sensor:
     - name: "Prognoza PV 6h"
@@ -230,15 +240,16 @@
       unit_of_measurement: "kWh"
       state: >
         {% set hour = now().hour %}
-        {% set wschod_hours = state_attr('sensor.energy_production_today_pv_wschod', 'wh_hours') or {} %}
-        {% set poludnie_hours = state_attr('sensor.energy_production_today_pv_poludnie', 'wh_hours') or {} %}
-        {% set zachod_hours = state_attr('sensor.energy_production_today_pv_zachod', 'wh_hours') or {} %}
+        {% set wschod_wh = state_attr('sensor.pv_wschod_prognoza_dzis', 'watt_hours') or {} %}
+        {% set poludnie_wh = state_attr('sensor.pv_poludnie_prognoza_dzis', 'watt_hours') or {} %}
+        {% set zachod_wh = state_attr('sensor.pv_zachod_prognoza_dzis', 'watt_hours') or {} %}
         {% set suma = 0 %}
-        {% for i in range(1, 6) %}
+        {% for i in range(1, 7) %}
           {% set h = hour + i %}
-          {% set w = wschod_hours[h] | default(0) | float / 1000 %}
-          {% set p = poludnie_hours[h] | default(0) | float / 1000 %}
-          {% set z = zachod_hours[h] | default(0) | float / 1000 %}
+          {% set time_key = now().strftime('%Y-%m-%d') ~ ' ' ~ '%02d:00:00' | format(h) %}
+          {% set w = wschod_wh.get(time_key, 0) | float / 1000 %}
+          {% set p = poludnie_wh.get(time_key, 0) | float / 1000 %}
+          {% set z = zachod_wh.get(time_key, 0) | float / 1000 %}
           {% set suma = suma + w + p + z %}
         {% endfor %}
         {{ suma | round(1) }}
