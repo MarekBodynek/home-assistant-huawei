@@ -296,24 +296,27 @@ def decide_strategy(data, balance):
                 'reason': 'SOC 80% w L1 - rozładowuj do domu (oszczędzaj drogi L1)'
             }
 
-    # W L2 (tania taryfa weekend/święta) - oszczędzaj baterię na L1!
+    # W L2 (tania taryfa weekend/święta) - oszczędzaj baterię
+    # O północy dzień zmieni się na roboczy i algorytm automatycznie zacznie ładować
     tariff = data['tariff_zone']
-    # WAŻNE: Ten warunek dotyczy TYLKO weekendów/świąt (L2 przez całą dobę 24h)
-    # NIE dni powszednich 22-06h (tam ładujemy do Target SOC!)
+    hour = data['hour']
+    target_soc = data['target_soc']
+
+    # Sprawdź czy dziś jest dzień roboczy
     workday_state = hass.states.get('binary_sensor.dzien_roboczy')
     is_workday = workday_state and workday_state.state == 'on'
 
-    if tariff == 'L2' and soc >= 40 and not is_workday:
+    # Weekend/święto: oszczędzaj baterię jeśli SOC >= 20%
+    # O północy binary_sensor.dzien_roboczy zmieni się na ON i algorytm zacznie ładować
+    if tariff == 'L2' and soc >= 20 and not is_workday:
         return {
             'mode': 'grid_to_home',
             'priority': 'normal',
-            'reason': f'L2 niedziela/święto (tania 0.72 zł) - pobieraj z sieci, oszczędzaj baterię na poniedziałek (droga 1.11 zł)'
+            'reason': f'L2 weekend/święto (tania 0.72 zł) - oszczędzaj baterię na L1 (SOC {soc:.0f}%)'
         }
 
     # ŁADOWANIE W L2 - INTELIGENTNE ZARZĄDZANIE PV vs SIEĆ
     # PRIORYTET: PV (darmowe) > Sieć L2 (tanie 0.72 zł) > Sieć L1 (drogie 1.11 zł)
-    hour = data['hour']
-    target_soc = data['target_soc']
     forecast_today = data['forecast_today']
     forecast_tomorrow = data['forecast_tomorrow']
     pv_surplus = balance['surplus']
