@@ -1246,8 +1246,11 @@ def log_decision(data, balance, strategy, result):
     msg = msg.replace('"', "'")
 
     # Utwórz event JSON ręcznie (bez import json)
-    # datetime jest dostępny globalnie w python_scripts
-    timestamp = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+    # W python_scripts datetime jest dostępny bezpośrednio jako datetime (nie datetime.datetime)
+    try:
+        timestamp = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+    except:
+        timestamp = '2025-01-01T00:00:00'  # fallback
     event_json = '{"ts":"' + timestamp + '","lvl":"' + level + '","cat":"' + category + '","msg":"' + msg + '"}'
 
     # Rotacja: przesuń wszystkie sloty (5 -> usuń, 4->5, 3->4, 2->3, 1->2, new->1)
