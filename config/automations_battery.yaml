@@ -655,6 +655,67 @@
   mode: single
 
 # ============================================
+# ZBIERANIE DANYCH O ZUZYCIU NOCNYM
+# ============================================
+
+# O 06:00 - koniec nocy, zapisz zuzycie i zaktualizuj EMA
+- id: night_consumption_capture
+  alias: "[Dane] Zapisz zuzycie nocne o 06:00"
+  description: "Zbiera dane o zuzyciu nocnym do planowania ladowania"
+  trigger:
+    - platform: time
+      at: "06:00:00"
+  action:
+    # 1. Zapisz ostatnie zuzycie nocne z utility_meter
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.night_consumption_last
+      data:
+        value: "{{ states('sensor.night_consumption') | float(0) | round(1) }}"
+    # 2. Zaktualizuj EMA (waga 0.3 dla nowej wartosci)
+    # EMA = alpha * new + (1-alpha) * old
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.night_consumption_avg
+      data:
+        value: >
+          {% set alpha = 0.3 %}
+          {% set new_val = states('sensor.night_consumption') | float(0) %}
+          {% set old_avg = states('input_number.night_consumption_avg') | float(16) %}
+          {{ (alpha * new_val + (1 - alpha) * old_avg) | round(1) }}
+  mode: single
+
+# O 21:00 - oblicz PV start hour na jutro
+- id: pv_start_hour_calculate
+  alias: "[Dane] Oblicz PV start hour o 21:00"
+  description: "Znajduje pierwsza godzine z produkcja PV >500W"
+  trigger:
+    - platform: time
+      at: "21:00:00"
+  action:
+    # Oblicz PV start hour z prognozy godzinowej
+    # Atrybut 'watts' zawiera dict {datetime: watts}
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.pv_start_hour
+      data:
+        value: >
+          {% set tomorrow = (now().date() + timedelta(days=1)) | string %}
+          {% set watts_e = state_attr('sensor.pv_wschod_prognoza_dzis', 'watts') or {} %}
+          {% set watts_s = state_attr('sensor.pv_poludnie_prognoza_dzis', 'watts') or {} %}
+          {% set watts_w = state_attr('sensor.pv_zachod_prognoza_dzis', 'watts') or {} %}
+          {% set ns = namespace(start_hour=8) %}
+          {% for hour in range(5, 12) %}
+            {% set ts = tomorrow ~ ' ' ~ '%02d' % hour ~ ':00:00' %}
+            {% set total = (watts_e.get(ts, 0) | float) + (watts_s.get(ts, 0) | float) + (watts_w.get(ts, 0) | float) %}
+            {% if total > 500 and ns.start_hour == 8 %}
+              {% set ns.start_hour = hour %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.start_hour }}
+  mode: single
+
+# ============================================
 # ZDALNY GIT PULL
 # ============================================
 

@@ -8,3 +8,36 @@ battery_target_soc:
   initial: 80  # ✅ Domyślnie max dla bezpieczeństwa
   unit_of_measurement: "%"
   icon: mdi:battery-charging-80
+
+# === ZUZYCIE NOCNE - dane do planowania ===
+
+# Srednie zuzycie nocne (EMA - Exponential Moving Average)
+# Aktualizowane codziennie o 06:00
+night_consumption_avg:
+  name: "Srednie zuzycie nocne (EMA)"
+  min: 0
+  max: 50
+  step: 0.1
+  initial: 16  # Domyslna wartosc z pierwszej analizy
+  unit_of_measurement: "kWh"
+  icon: mdi:moon-waning-crescent
+
+# Ostatnie zmierzone zuzycie nocne (22:00-06:00)
+night_consumption_last:
+  name: "Ostatnie zuzycie nocne"
+  min: 0
+  max: 50
+  step: 0.1
+  initial: 0
+  unit_of_measurement: "kWh"
+  icon: mdi:weather-night
+
+# Godzina startu PV (pierwsza godzina z produkcja >500W)
+pv_start_hour:
+  name: "Godzina startu PV"
+  min: 5
+  max: 12
+  step: 1
+  initial: 8
+  unit_of_measurement: "h"
+  icon: mdi:weather-sunny

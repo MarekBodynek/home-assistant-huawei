@@ -1,0 +1,31 @@
+# ============================================
+# UTILITY METER - Pomiary zuzycia energii
+# ============================================
+# Mierniki do zbierania danych o zuzyciu nocnym
+# Reset o 22:00 - poczatek L2 (tania taryfa)
+
+# Zuzycie nocne (22:00-06:00) - resetuje sie codziennie o 22:00
+night_consumption:
+  name: "Zuzycie nocne (od 22:00)"
+  source: sensor.pomiar_mocy_zuzycie
+  cycle: daily
+  offset:
+    hours: 22  # Reset o 22:00
+
+# Zuzycie dzienne - standardowy reset o polnocy
+daily_consumption:
+  name: "Zuzycie dzienne"
+  source: sensor.pomiar_mocy_zuzycie
+  cycle: daily
+
+# Zuzycie tygodniowe
+weekly_consumption:
+  name: "Zuzycie tygodniowe"
+  source: sensor.pomiar_mocy_zuzycie
+  cycle: weekly
+
+# Zuzycie miesieczne
+monthly_consumption:
+  name: "Zuzycie miesieczne"
+  source: sensor.pomiar_mocy_zuzycie
+  cycle: monthly
