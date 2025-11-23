@@ -616,7 +616,7 @@
         friendly_name: "Event Log (Markdown)"
         markdown: >
           {% set icons = {'ERROR': '🚨', 'WARNING': '⚠️', 'INFO': 'ℹ️', 'DEBUG': '🔧'} %}
-          {% set output = [] %}
+          {% set ns = namespace(output=[]) %}
           {% for i in range(1, 6) %}
             {% set raw = states('input_text.event_log_' ~ i) %}
             {% if raw and raw not in ['', 'unknown'] %}
@@ -628,9 +628,9 @@
                 {% set msg = event.get('msg', '') %}
                 {% set icon = icons.get(lvl, 'ℹ️') %}
                 {% set line = icon ~ ' **' ~ ts ~ '** [' ~ cat ~ '] ' ~ msg %}
-                {% set output = output + [line] %}
+                {% set ns.output = ns.output + [line] %}
               {% endif %}
             {% endif %}
           {% endfor %}
-          {{ output | join('\n\n') if output | length > 0 else 'Brak zdarzeń' }}
+          {{ ns.output | join('\n\n') if ns.output | length > 0 else 'Brak zdarzeń' }}
         icon: mdi:format-list-bulleted
