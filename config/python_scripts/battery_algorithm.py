@@ -1265,11 +1265,17 @@ def log_decision(data, balance, strategy, result):
     event_json = '{"ts":"' + timestamp + '","lvl":"' + level + '","cat":"' + category + '","msg":"' + msg + '"}'
 
     # Rotacja: przesuń wszystkie sloty (5 -> usuń, 4->5, 3->4, 2->3, 1->2, new->1)
-    # Odczytaj obecne wartości
-    slots = []
-    for i in range(1, 6):
-        state = hass.states.get(f'input_text.event_log_{i}')
-        slots.append(state.state if state else '')
+    # Odczytaj obecne wartości - bez range() bo może nie być dostępne
+    slot1 = hass.states.get('input_text.event_log_1')
+    slot2 = hass.states.get('input_text.event_log_2')
+    slot3 = hass.states.get('input_text.event_log_3')
+    slot4 = hass.states.get('input_text.event_log_4')
+    slots = [
+        slot1.state if slot1 else '',
+        slot2.state if slot2 else '',
+        slot3.state if slot3 else '',
+        slot4.state if slot4 else ''
+    ]
 
     # Przesuń (slot 5 wypada, nowy wchodzi na slot 1)
     # slots[0] = event_log_1 (najnowszy)
