@@ -749,6 +749,7 @@
         soc: "{{ states('sensor.akumulatory_stan_pojemnosci') | float(0) | round(1) }}"
         tariff: "{{ states('sensor.strefa_taryfowa') }}"
         temperature: "{{ states('sensor.bateria_temperatura_maksymalna') | float(0) | round(1) }}"
+        rce_price: "{{ states('sensor.rce_pse_cena') | float(0) | round(2) }}"
   mode: single
 
 # ============================================

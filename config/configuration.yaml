@@ -103,8 +103,8 @@ shell_command:
   git_status: 'cd /config && git status > /config/git_status.log 2>&1'
   copy_logs_to_www: 'mkdir -p /config/www && cp /config/git_pull.log /config/www/git_pull.log 2>/dev/null; cp /config/git_status.log /config/www/git_status.log 2>/dev/null; head -50 /config/lovelace_huawei.yaml > /config/www/lovelace_check.txt 2>&1'
   # ML Data Collection - zapisuje dane godzinowe do CSV
-  save_hourly_data: 'mkdir -p /config/data && echo "{{ timestamp }},{{ consumption }},{{ pv_production }},{{ grid_export }},{{ battery_charge }},{{ battery_discharge }},{{ soc }},{{ tariff }},{{ temperature }}" >> /config/data/hourly_energy.csv'
-  init_hourly_csv: 'mkdir -p /config/data && [ ! -f /config/data/hourly_energy.csv ] && echo "timestamp,consumption_kwh,pv_production_kwh,grid_export_kwh,battery_charge_kwh,battery_discharge_kwh,soc_percent,tariff_zone,temperature_c" > /config/data/hourly_energy.csv || true'
+  save_hourly_data: 'mkdir -p /config/data && echo "{{ timestamp }},{{ consumption }},{{ pv_production }},{{ grid_export }},{{ battery_charge }},{{ battery_discharge }},{{ soc }},{{ tariff }},{{ temperature }},{{ rce_price }}" >> /config/data/hourly_energy.csv'
+  init_hourly_csv: 'mkdir -p /config/data && [ ! -f /config/data/hourly_energy.csv ] && echo "timestamp,consumption_kwh,pv_production_kwh,grid_export_kwh,battery_charge_kwh,battery_discharge_kwh,soc_percent,tariff_zone,temperature_c,rce_price_pln_mwh" > /config/data/hourly_energy.csv || true'
 
 # Time & Date sensors
 sensor:
