@@ -1174,10 +1174,42 @@ def set_huawei_mode(working_mode, **kwargs):
 
         # Teraz można bezpiecznie włączyć ładowanie z sieci (harmonogram już ustawiony)
         if 'charge_from_grid' in kwargs:
-            service = 'turn_on' if kwargs['charge_from_grid'] else 'turn_off'
-            hass.services.call('switch', service, {
-                'entity_id': 'switch.akumulatory_ladowanie_z_sieci'
-            })
+            if kwargs['charge_from_grid']:
+                # Włącz ładowanie z sieci
+                hass.services.call('switch', 'turn_on', {
+                    'entity_id': 'switch.akumulatory_ladowanie_z_sieci'
+                })
+            else:
+                # WYŁĄCZ ładowanie z sieci
+                hass.services.call('switch', 'turn_off', {
+                    'entity_id': 'switch.akumulatory_ladowanie_z_sieci'
+                })
+
+                # =====================================================
+                # FIX: Wyczyść harmonogram TOU żeby inwerter nie kontynuował ładowania!
+                # Problem: Huawei inwerter może ładować według zapisanego harmonogramu
+                # nawet po wyłączeniu switcha. Trzeba zresetować harmonogram.
+                # =====================================================
+                try:
+                    # 1. Ustaw pusty harmonogram (brak ładowania) - tylko rozładowanie dozwolone
+                    # Format: "HH:MM-HH:MM/DAYS/-" gdzie "-" oznacza discharge only (brak ładowania)
+                    empty_tou = "00:00-23:59/1234567/-"  # Cały tydzień, tylko rozładowanie
+                    hass.services.call('huawei_solar', 'set_tou_periods', {
+                        'device_id': device_id,
+                        'periods': empty_tou
+                    })
+                except Exception as tou_clear_err:
+                    # Loguj błąd ale nie przerywaj - główne wyłączenie już wykonane
+                    pass
+
+                # 2. Zatrzymaj forcible_charge jeśli było aktywne (dodatkowe zabezpieczenie)
+                try:
+                    hass.services.call('huawei_solar', 'stop_forcible_charge', {
+                        'device_id': device_id
+                    })
+                except Exception:
+                    # Jeśli forcible_charge nie było aktywne, to OK - ignoruj błąd
+                    pass
 
         # Ustaw limit SOC ładowania
         if 'charge_soc_limit' in kwargs:
