@@ -229,6 +229,45 @@
 
           🕐 {{ event.get('ts', '')[:16] | replace('T', ' ') }}
 
+# ===== EVENT LOG: Telegram alert dla DECISION (tylko przy zmianie taryfy) =====
+- alias: "[EVENT LOG] Telegram alert - decyzja (zmiana taryfy)"
+  id: event_log_telegram_decision
+  description: "Wyślij powiadomienie Telegram o decyzji tylko przy zmianie taryfy (13:00, 15:00, 22:00)"
+  trigger:
+    - platform: state
+      entity_id: input_text.event_log_1
+  condition:
+    - condition: template
+      value_template: >
+        {% set raw = states('input_text.event_log_1') %}
+        {% if raw and raw not in ['', 'unknown'] %}
+          {% set event = raw | from_json %}
+          {{ event.get('cat') == 'DECISION' and event.get('lvl') == 'INFO' }}
+        {% else %}
+          false
+        {% endif %}
+    - condition: state
+      entity_id: input_boolean.telegram_notifications_enabled
+      state: "on"
+    # Tylko przy zmianie taryfy: 13:00, 15:00, 22:00 (nie 06:00)
+    - condition: template
+      value_template: >
+        {% set hour = now().hour %}
+        {% set minute = now().minute %}
+        {{ hour in [13, 15, 22] and minute < 5 }}
+  action:
+    - service: notify.telegram
+      data:
+        title: "🔋 DECYZJA BATERII"
+        message: >
+          {% set raw = states('input_text.event_log_1') %}
+          {% set event = raw | from_json %}
+          {{ event.get('msg', 'Decyzja') }}
+
+          🕐 {{ event.get('ts', '')[:16] | replace('T', ' ') }}
+          🔋 SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%
+          💰 Strefa: {{ states('sensor.strefa_taryfowa') }}
+
 # ===== EVENT LOG: Loguj ważne zdarzenia do pliku =====
 - alias: "[EVENT LOG] System log - ważne zdarzenia"
   id: event_log_system_log
@@ -321,3 +360,80 @@
         entity_id: input_text.event_log_1
       data:
         value: '{"ts":"{{ now().strftime("%Y-%m-%dT%H:%M:%S") }}","lvl":"INFO","cat":"TEST","msg":"Testowy wpis Event Log"}'
+
+# ============================================
+# AWARIA SIECI - BACKUP MODE
+# ============================================
+
+# ===== AWARIA SIECI - NATYCHMIASTOWE POWIADOMIENIE =====
+- alias: "[KRYTYCZNE] Awaria sieci - backup mode"
+  id: grid_outage_notification
+  description: "Powiadomienie gdy wykryto brak napięcia w sieci"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.awaria_sieci
+      to: "on"
+  action:
+    # Natychmiast uruchom algorytm baterii (przejmie kontrolę)
+    - service: python_script.battery_algorithm
+
+    # Telegram
+    - service: notify.telegram
+      data:
+        title: "🚨 AWARIA SIECI!"
+        message: |
+          **Brak napięcia w sieci!**
+
+          Bateria przejęła zasilanie domu.
+
+          **SOC:** {{ states('sensor.akumulatory_stan_pojemnosci') }}%
+          **Status:** {{ states('sensor.inwerter_stan') }}
+          **Czas:** {{ now().strftime('%H:%M:%S') }}
+
+          Bateria 15kWh przy zużyciu 2kW wystarczy na ~7h.
+
+    # Powiadomienie na iPhone
+    - service: notify.mobile_app_marek_iphone_15_pro
+      data:
+        title: "⚡ AWARIA SIECI"
+        message: "Bateria zasila dom (SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%)"
+        data:
+          push:
+            sound:
+              critical: 1
+              volume: 1.0
+  mode: single
+
+# ===== SIEĆ PRZYWRÓCONA - POWIADOMIENIE =====
+- alias: "[INFO] Sieć przywrócona"
+  id: grid_restored_notification
+  description: "Powiadomienie gdy sieć wróciła"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.awaria_sieci
+      from: "on"
+      to: "off"
+  action:
+    # Telegram
+    - service: notify.telegram
+      data:
+        title: "✅ Sieć przywrócona"
+        message: |
+          **Napięcie w sieci wróciło!**
+
+          **SOC po awarii:** {{ states('sensor.akumulatory_stan_pojemnosci') }}%
+          **Czas awarii:** od {{ trigger.from_state.last_changed.strftime('%H:%M') }} do {{ now().strftime('%H:%M') }}
+
+          Algorytm przywraca normalne działanie.
+
+    # Uruchom algorytm żeby przywrócić normalny tryb
+    - delay:
+        seconds: 10
+    - service: python_script.battery_algorithm
+
+    # Powiadomienie na iPhone
+    - service: notify.mobile_app_marek_iphone_15_pro
+      data:
+        title: "✅ Sieć OK"
+        message: "Napięcie przywrócone. SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%"
+  mode: single

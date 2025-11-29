@@ -63,24 +63,42 @@ views:
         cards:
           # Ceny energii
           - type: entities
-            title: Ceny energii
+            title: Ceny energii RCE
             icon: mdi:cash-multiple
             entities:
               - entity: sensor.strefa_taryfowa
                 name: Strefa taryfowa G12w
                 icon: mdi:clock-time-four-outline
               - entity: sensor.cena_zakupu_energii
-                name: Cena zakupu (z sieci)
-                icon: mdi:cash-minus
-              - entity: sensor.cena_sprzedazy_energii
-                name: Cena sprzedaży (do sieci)
-                icon: mdi:cash-plus
+                name: Cena obecna RCE
+                icon: mdi:cash
               - entity: sensor.rce_srednia_wieczorna
-                name: RCE średnia wieczorna (19-22h)
+                name: RCE średnia wieczorna (zachód→22h)
                 icon: mdi:chart-timeline
               - entity: input_text.battery_cheapest_hours
                 name: RCE najtańsze godziny
                 icon: mdi:currency-usd
+              - type: attribute
+                entity: sensor.rce_progi_cenowe
+                attribute: legend
+                name: Progi cenowe
+                icon: mdi:palette
+
+          # Ceny godzinowe RCE (DZIŚ i JUTRO)
+          - type: markdown
+            title: Ceny RCE godzinowe
+            content: |
+              **Dziś** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **Jutro**
+              | Godz | Cena | &nbsp;&nbsp; | Godz | Cena | &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | Godz | Cena | &nbsp;&nbsp; | Godz | Cena |
+              |------|------|------|------|------|:------------:|------|------|------|------|------|
+              | 06 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h06') }} | | 14 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h14') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 06 | {{ state_attr('sensor.rce_ceny_godzinowe', 't06') }} | | 14 | {{ state_attr('sensor.rce_ceny_godzinowe', 't14') }} |
+              | 07 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h07') }} | | 15 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h15') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 07 | {{ state_attr('sensor.rce_ceny_godzinowe', 't07') }} | | 15 | {{ state_attr('sensor.rce_ceny_godzinowe', 't15') }} |
+              | 08 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h08') }} | | 16 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h16') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 08 | {{ state_attr('sensor.rce_ceny_godzinowe', 't08') }} | | 16 | {{ state_attr('sensor.rce_ceny_godzinowe', 't16') }} |
+              | 09 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h09') }} | | 17 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h17') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 09 | {{ state_attr('sensor.rce_ceny_godzinowe', 't09') }} | | 17 | {{ state_attr('sensor.rce_ceny_godzinowe', 't17') }} |
+              | 10 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h10') }} | | 18 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h18') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 10 | {{ state_attr('sensor.rce_ceny_godzinowe', 't10') }} | | 18 | {{ state_attr('sensor.rce_ceny_godzinowe', 't18') }} |
+              | 11 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h11') }} | | 19 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h19') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 11 | {{ state_attr('sensor.rce_ceny_godzinowe', 't11') }} | | 19 | {{ state_attr('sensor.rce_ceny_godzinowe', 't19') }} |
+              | 12 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h12') }} | | 20 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h20') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 12 | {{ state_attr('sensor.rce_ceny_godzinowe', 't12') }} | | 20 | {{ state_attr('sensor.rce_ceny_godzinowe', 't20') }} |
+              | 13 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h13') }} | | 21 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h21') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 13 | {{ state_attr('sensor.rce_ceny_godzinowe', 't13') }} | | 21 | {{ state_attr('sensor.rce_ceny_godzinowe', 't21') }} |
 
           # Prognoza PV i bilans mocy
           - type: entities
@@ -127,12 +145,15 @@ views:
             title: Produkcja energii
             icon: mdi:chart-line
             entities:
-              - entity: sensor.inwerter_dzienna_produkcja
-                name: Dzienna produkcja
-                icon: mdi:weather-sunny
-              - entity: sensor.inwerter_godzinowy_uzysk
-                name: Uzysk w ostatniej godzinie
+              - entity: sensor.inwerter_moc_wejsciowa
+                name: Aktualna produkcja PV
+                icon: mdi:solar-power
+              - entity: sensor.produkcja_pv_godzinowa_dc
+                name: Produkcja PV w tej godzinie
                 icon: mdi:clock-outline
+              - entity: sensor.produkcja_pv_dzienna_rzeczywista
+                name: Dzienna produkcja PV
+                icon: mdi:weather-sunny
 
           # Sezon grzewczy
           - type: entities

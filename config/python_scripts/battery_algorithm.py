@@ -509,27 +509,26 @@ def calculate_cheapest_hours_to_store(data):
         battery_already_charged = energy_to_store <= 0.5
 
         # 2. Ile godzin słonecznych zostało? (użyj rzeczywistych czasów wschodu/zachodu)
-        # Pobierz wschód i zachód słońca z sun.sun
-        sun_state = hass.states.get('sun.sun')
-        if sun_state:
-            # next_rising i next_setting są w formacie ISO: "2025-11-16T07:30:00+01:00"
-            next_rising_str = sun_state.attributes.get('next_rising', '')
-            next_setting_str = sun_state.attributes.get('next_setting', '')
+        # UWAGA: sun.sun zwraca czasy UTC! W Polsce (CET/CEST) trzeba dodać 1-2h
+        # Dla uproszczenia używamy stałych sezonowych dla Polski:
+        # - Listopad-Luty: wschód ~7:00, zachód ~15:30-16:30
+        # - Marzec-Kwiecień: wschód ~6:00, zachód ~18:00-19:00
+        # - Maj-Sierpień: wschód ~5:00, zachód ~20:00-21:00
+        # - Wrzesień-Październik: wschód ~6:30, zachód ~17:00-18:00
+        month = data.get('month', 11)
 
-            # Parse godziny (ekstrahuj "HH" z "YYYY-MM-DDTHH:MM:SS")
-            if 'T' in next_rising_str:
-                sunrise_hour = int(next_rising_str.split('T')[1].split(':')[0])
-            else:
-                sunrise_hour = 6  # fallback
-
-            if 'T' in next_setting_str:
-                sunset_hour = int(next_setting_str.split('T')[1].split(':')[0])
-            else:
-                sunset_hour = 18  # fallback
-        else:
-            # Fallback jeśli sun.sun nie istnieje
+        if month in [11, 12, 1, 2]:  # Zima
+            sunrise_hour = 7
+            sunset_hour = 16  # bezpieczny margines (faktycznie 15:30-16:30)
+        elif month in [3, 4]:  # Wiosna
             sunrise_hour = 6
             sunset_hour = 18
+        elif month in [5, 6, 7, 8]:  # Lato
+            sunrise_hour = 5
+            sunset_hour = 20
+        else:  # month in [9, 10] - Jesień
+            sunrise_hour = 6
+            sunset_hour = 17
 
         # Oblicz ile godzin słonecznych zostało
         if hour < sunrise_hour:
@@ -586,28 +585,38 @@ def calculate_cheapest_hours_to_store(data):
         # Pobierz dzisiejszą datę z sensora
         date_state = hass.states.get('sensor.date')
         today_str = date_state.state if date_state else "2025-11-16"
-        sun_prices = []
+
+        # POPRAWKA: RCE PSE zwraca dane co 15 min, więc dla każdej godziny są 4 wpisy
+        # Zbieramy wszystkie ceny per godzina, potem liczymy średnią
+        hourly_prices_sum = {}  # {hour: suma_cen}
+        hourly_prices_count = {}  # {hour: liczba_wpisów}
 
         for price_entry in all_prices:
             try:
-                # RCE PSE format: dtime="2025-11-22 00:15:00", rce_pln=497.22 (PLN/MWh)
-                start_str = price_entry.get('dtime', '') or price_entry.get('start', '') or price_entry.get('datetime', '')
+                # RCE PSE format: dtime="2025-11-29 01:00:00", period="00:45 - 01:00", rce_pln=452.86
+                # UWAGA: dtime to KONIEC okresu! Parsujemy START z pola "period"
                 price_val = price_entry.get('rce_pln') or price_entry.get('price') or price_entry.get('value')
-
-                if not start_str or price_val is None:
+                if price_val is None:
                     continue
 
-                # Parse datetime: "2025-11-22 14:00:00" lub "2025-11-22T14:00:00"
-                if ' ' in start_str:
-                    date_part = start_str.split(' ')[0]
-                    time_part = start_str.split(' ')[1].split(':')[0]
-                    price_hour = int(time_part)
-                elif 'T' in start_str:
-                    date_part = start_str.split('T')[0]
-                    time_part = start_str.split('T')[1].split(':')[0]
-                    price_hour = int(time_part)
+                # Pobierz datę z dtime (format: "2025-11-29 00:15:00")
+                dtime_str = price_entry.get('dtime', '')
+                if ' ' in dtime_str:
+                    date_part = dtime_str.split(' ')[0]
+                elif 'T' in dtime_str:
+                    date_part = dtime_str.split('T')[0]
                 else:
                     continue
+
+                # Pobierz POCZĄTEK okresu z "period" (format: "00:45 - 01:00")
+                period_str = price_entry.get('period', '')
+                if ' - ' in period_str:
+                    start_time = period_str.split(' - ')[0]  # "00:45"
+                    price_hour = int(start_time.split(':')[0])  # 0
+                else:
+                    # Fallback: użyj dtime (może być nieprecyzyjne)
+                    time_part = dtime_str.split(' ')[1].split(':')[0] if ' ' in dtime_str else '0'
+                    price_hour = int(time_part)
 
                 # RCE PSE zwraca ceny w PLN/MWh - przelicz na PLN/kWh
                 price_float = float(price_val)
@@ -616,21 +625,33 @@ def calculate_cheapest_hours_to_store(data):
 
                 # Tylko dzisiaj + godziny słoneczne (sunrise <= hour < sunset)
                 if date_part == today_str and sunrise_hour <= price_hour < sunset_hour:
-                    sun_prices.append({
-                        'hour': price_hour,
-                        'price': price_float
-                    })
+                    # Agreguj ceny per godzina
+                    # UWAGA: RestrictedPython nie pozwala na += dla dict items!
+                    if price_hour not in hourly_prices_sum:
+                        hourly_prices_sum[price_hour] = 0
+                        hourly_prices_count[price_hour] = 0
+                    hourly_prices_sum[price_hour] = hourly_prices_sum[price_hour] + price_float
+                    hourly_prices_count[price_hour] = hourly_prices_count[price_hour] + 1
             except Exception as e:
                 # Błąd parsowania ceny
                 continue
 
+        # Oblicz średnią cenę dla każdej godziny
+        sun_prices = []
+        for h in hourly_prices_sum:
+            avg_price = hourly_prices_sum[h] / hourly_prices_count[h]
+            sun_prices.append({
+                'hour': h,
+                'price': avg_price
+            })
+
         if not sun_prices:
             return None, "Brak cen dla dzisiejszych godzin słonecznych", []
 
-        # 5. Sortuj godziny po cenie (rosnąco - najtańsze pierwsze)
+        # 5. Sortuj godziny po średniej cenie (rosnąco - najtańsze pierwsze)
         sun_prices_sorted = sorted(sun_prices, key=lambda x: x['price'])
 
-        # 6. Wybierz N najtańszych godzin
+        # 6. Wybierz N najtańszych UNIKALNYCH godzin
         cheapest_hours = [p['hour'] for p in sun_prices_sorted[:hours_needed]]
 
         # 7. Czy aktualna godzina jest w najtańszych?
@@ -656,21 +677,38 @@ def calculate_cheapest_hours_to_store(data):
                 reason = f"DROGA godzina ({hour}h vs najtańsza {cheapest_price:.3f} zł) - SPRZEDAJ"
 
         # Zapisz status do input_text dla wyświetlenia na dashboardzie
+        # Sortuj cheapest_hours chronologicznie (nie po cenie!)
+        cheapest_hours_sorted = sorted(cheapest_hours)
         if battery_already_charged:
             # Bateria naładowana - pokaż informację + najtańsze godziny
-            status_msg = f"Bateria OK ({int(soc)}%) | Najtańsze: {cheapest_hours} | Teraz: {hour}h"
+            status_msg = f"Bateria OK ({int(soc)}%) | Najtańsze: {cheapest_hours_sorted} | Teraz: {hour}h"
         else:
             # Normalny tryb - pokazuj potrzebę magazynowania
-            status_msg = f"Potrzeba: {hours_needed}h | Najtańsze: {cheapest_hours} | Teraz: {hour}h"
+            status_msg = f"Potrzeba: {hours_needed}h | Najtańsze: {cheapest_hours_sorted} | Teraz: {hour}h"
 
         hass.services.call('input_text', 'set_value', {
             'entity_id': 'input_text.battery_storage_status',
             'value': status_msg[:255]
         })
 
+        # Formatuj wszystkie godziny słoneczne z kolorowymi kropkami
+        # Progi cenowe: 🟢 < 0.5 | 🟡 0.5-0.66 | 🔴 > 0.66 PLN/kWh
+        hours_display_parts = []
+        for p in sorted(sun_prices, key=lambda x: x['hour']):
+            h = p['hour']
+            price = p['price']
+            if price < 0.5:
+                dot = '🟢'
+            elif price <= 0.66:
+                dot = '🟡'
+            else:
+                dot = '🔴'
+            hours_display_parts.append(str(h) + dot)
+        hours_display = ' '.join(hours_display_parts)
+
         hass.services.call('input_text', 'set_value', {
             'entity_id': 'input_text.battery_cheapest_hours',
-            'value': str(cheapest_hours)[:100]
+            'value': hours_display[:100]
         })
 
         # Jeśli bateria naładowana, nie wykonuj strategii magazynowania
@@ -1083,10 +1121,10 @@ def apply_battery_mode(strategy):
     elif mode == 'charge_from_grid':
         target_soc = strategy.get('target_soc', 80)
         urgent_charge = strategy.get('urgent_charge', False)
-        # WAŻNE: W L2 podczas ładowania BLOKUJ rozładowanie (oszczędzaj baterię na L1!)
         # Tryb time_of_use_luna2000 + harmonogram TOU + grid charging
+        # UWAGA: max_discharge_power=5000 (nie 0!) - żeby backup mode działał
         set_huawei_mode('time_of_use_luna2000', charge_from_grid=True, charge_soc_limit=target_soc,
-                       urgent_charge=urgent_charge, max_discharge_power=0)
+                       urgent_charge=urgent_charge, max_discharge_power=5000)
 
     elif mode == 'discharge_to_home':
         set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
@@ -1100,9 +1138,10 @@ def apply_battery_mode(strategy):
                        charge_from_grid=False)
 
     elif mode == 'grid_to_home':
-        # W L2 - BLOKUJ rozładowywanie baterii! Ustaw max moc rozładowania na 0W
-        # Tryb time_of_use_luna2000 + moc 0W = bateria nie rozładowuje się
-        set_huawei_mode('time_of_use_luna2000', charge_from_grid=False, max_discharge_power=0)
+        # W L2 - tryb TOU kontroluje rozładowanie wg harmonogramu
+        # UWAGA: max_discharge_power=5000 (nie 0!) - żeby backup mode działał
+        # UWAGA: set_tou_periods=True żeby ustawić ochronę weekendową nawet przy restarcie
+        set_huawei_mode('time_of_use_luna2000', charge_from_grid=False, max_discharge_power=5000, set_tou_periods=True)
 
     elif mode == 'idle':
         # ===========================================
@@ -1110,8 +1149,10 @@ def apply_battery_mode(strategy):
         # ===========================================
         tariff_state = hass.states.get('sensor.strefa_taryfowa')
         if tariff_state and tariff_state.state == 'L2':
-            # W L2 - blokuj rozładowanie baterii
-            set_huawei_mode('time_of_use_luna2000', charge_from_grid=False, max_discharge_power=0)
+            # W L2 - tryb TOU kontroluje rozładowanie wg harmonogramu
+            # UWAGA: max_discharge_power=5000 (nie 0!) - żeby backup mode działał
+            # UWAGA: set_tou_periods=True żeby ustawić ochronę weekendową nawet przy restarcie
+            set_huawei_mode('time_of_use_luna2000', charge_from_grid=False, max_discharge_power=5000, set_tou_periods=True)
         else:
             # W L1 - normalne zachowanie
             set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
@@ -1134,27 +1175,30 @@ def set_huawei_mode(working_mode, **kwargs):
 
         # WAŻNE: Ustaw harmonogram TOU PRZED włączeniem switcha ładowania!
         # Tryb time_of_use_luna2000 wymaga harmonogramu NAJPIERW
-        if 'charge_from_grid' in kwargs and kwargs['charge_from_grid']:
+        # Ustawiaj TOU periods gdy:
+        # 1. charge_from_grid=True (ładowanie z sieci)
+        # 2. set_tou_periods=True (ochrona weekendowa dla grid_to_home/idle)
+        should_set_tou = (
+            ('charge_from_grid' in kwargs and kwargs['charge_from_grid']) or
+            kwargs.get('set_tou_periods', False)
+        )
+
+        if should_set_tou:
             try:
                 # SUPER PILNY (SOC < 5%): Ładuj NATYCHMIAST przez całą dobę!
                 if kwargs.get('urgent_charge', False):
                     tou_periods = "00:00-23:59/1234567/+"
-                # NORMALNY/PILNY: Ładuj tylko w godzinach L2
+                # NORMALNY/PILNY: Ładuj w godzinach L2 + chroń baterię w weekend
+                # WAŻNE: NIE ładuj w weekend! Ładowanie tylko od niedzieli 22:00
+                # Dni: 1=Pon, 2=Wt, 3=Śr, 4=Czw, 5=Pt, 6=Sob, 7=Ndz
                 else:
-                    # Sprawdź czy dzisiaj jest dzień roboczy (wykrywa święta + weekendy)
-                    workday_state = hass.states.get('binary_sensor.dzien_roboczy')
-                    is_workday = workday_state and workday_state.state == 'on'
-
-                    if is_workday:
-                        # Dzień powszedni: ładuj w godzinach L2 (22:00-06:00 + 13:00-15:00)
-                        tou_periods = (
-                            "22:00-23:59/12345/+\n"  # Pn-Pt wieczór (22-24h)
-                            "00:00-05:59/12345/+\n"  # Pn-Pt noc (0-6h)
-                            "13:00-14:59/12345/+"    # Pn-Pt południe (13-15h)
-                        )
-                    else:
-                        # Weekend lub ŚWIĘTO: ładuj całą dobę (L2 przez 24h)
-                        tou_periods = "00:00-23:59/67/+"
+                    tou_periods = (
+                        "22:00-23:59/123457/+\n"   # Pon-Pt + Ndz wieczór: ładuj (22-24h)
+                        "00:00-05:59/12345/+\n"    # Pon-Pt noc: ładuj (0-6h) - NIE weekend!
+                        "13:00-14:59/12345/+\n"    # Pon-Pt południe: ładuj (13-15h) - NIE weekend!
+                        "06:00-12:59/67/+\n"       # Weekend: rano - ochrona baterii
+                        "15:00-21:59/67/+"         # Weekend: popołudnie - ochrona baterii
+                    )
 
                 # Wywołaj serwis z poprawnym device_id
                 hass.services.call('huawei_solar', 'set_tou_periods', {

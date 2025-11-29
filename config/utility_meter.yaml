@@ -41,10 +41,10 @@ hourly_consumption:
   source: sensor.pomiar_mocy_zuzycie
   cycle: hourly
 
-# Produkcja PV godzinowa
+# Produkcja PV godzinowa (DC input z paneli)
 hourly_pv_production:
-  name: "Produkcja PV godzinowa"
-  source: sensor.inwerter_calkowita_produkcja_energii
+  name: "Produkcja PV godzinowa (DC)"
+  source: sensor.inwerter_total_dc_input_energy
   cycle: hourly
 
 # Eksport do sieci godzinowy
@@ -52,6 +52,12 @@ hourly_grid_export:
   name: "Eksport godzinowy"
   source: sensor.pomiar_mocy_eksport
   cycle: hourly
+
+# Eksport do sieci dzienny (potrzebny do kalkulacji Real PV)
+daily_grid_export:
+  name: "Eksport dzienny"
+  source: sensor.pomiar_mocy_eksport
+  cycle: daily
 
 # Ładowanie baterii godzinowe
 hourly_battery_charge:
@@ -64,3 +70,24 @@ hourly_battery_discharge:
   name: "Rozladowanie baterii godzinowe"
   source: sensor.akumulatory_rozladowanie_dzienne
   cycle: hourly
+
+# ============================================
+# PRODUKCJA PV - PRAWDZIWA (DC input z paneli)
+# ============================================
+# POPRAWNY SENSOR: sensor.inwerter_total_dc_input_energy
+#   = energia DC wchodząca z paneli PV (skumulowana od instalacji)
+#   = PRAWDZIWA produkcja PV!
+#
+# BŁĘDNY SENSOR: sensor.inwerter_calkowita_produkcja_energii
+#   = AC output inwertera (zawiera rozładowanie baterii!)
+#   = NIE jest to produkcja PV!
+#
+# Weryfikacja (26.11.2025):
+#   DC input o północy: 38152.41 kWh → teraz: 38154.97 kWh
+#   Różnica = 2.56 kWh (potwierdzone wykresem FusionSolar)
+
+# Dzienna produkcja PV (reset o północy) - prawdziwa produkcja DC
+daily_pv_production:
+  name: "Dzienna produkcja PV (DC)"
+  source: sensor.inwerter_total_dc_input_energy
+  cycle: daily

@@ -24,7 +24,8 @@ import csv
 HA_URL = os.environ.get('HA_URL', 'https://ha.bodino.us.kg')
 HA_TOKEN = os.environ.get('HA_TOKEN', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJkNjRkYzVmY2FjYWY0MWQ0OGI5M2EyYjNiZTU4ZGRmMyIsImlhdCI6MTc2MzUwMDcyOCwiZXhwIjoyMDc4ODYwNzI4fQ.4GyI_6NVc477NLWVWjKEDb16faG5bTVyo3FgcN9Aspc')
 MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'consumption_model.pkl')
-HISTORY_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'hourly_energy_history.csv')
+# Używamy ml_training_data.csv (4871 godzin z sezonu grzewczego) zamiast hourly_energy_history.csv
+HISTORY_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'ml_training_data.csv')
 
 # Polskie święta 2024-2027
 POLISH_HOLIDAYS = {
@@ -105,14 +106,14 @@ class ConsumptionPredictor:
             if values:
                 return round(sum(values) / len(values), 2)
 
-        # Default estimates based on typical household patterns
-        # Higher consumption: morning (6-9), evening (17-22)
-        # Lower consumption: night (0-5), midday (10-16)
+        # Default estimates from ML model (GradientBoosting, MAE=0.35 kWh)
+        # WYGENEROWANY 2025-11-28: ~4900 godzin danych treningowych
+        # Suma dzienna: ~28 kWh
         default_pattern = {
-            0: 1.5, 1: 1.2, 2: 1.0, 3: 1.0, 4: 1.2, 5: 1.5,
-            6: 2.5, 7: 3.0, 8: 2.5, 9: 2.0, 10: 1.8, 11: 2.0,
-            12: 2.5, 13: 2.5, 14: 2.0, 15: 1.8, 16: 2.0, 17: 2.5,
-            18: 3.0, 19: 3.5, 20: 3.0, 21: 2.5, 22: 2.0, 23: 1.8
+            0: 1.18, 1: 1.05, 2: 0.85, 3: 1.01, 4: 1.07, 5: 1.03,
+            6: 1.39, 7: 1.11, 8: 0.93, 9: 0.81, 10: 0.61, 11: 0.70,
+            12: 0.94, 13: 1.50, 14: 1.49, 15: 1.10, 16: 1.18, 17: 1.35,
+            18: 1.10, 19: 1.24, 20: 1.48, 21: 1.44, 22: 1.58, 23: 1.70
         }
 
         base = default_pattern.get(hour, 2.0)

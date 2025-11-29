@@ -79,6 +79,24 @@
         note: "Uwzględnia polskie święta stałe + ruchome (2024-2026)"
 
 # ============================================
+# STREFA CZASOWA (CET/CEST)
+# ============================================
+
+- sensor:
+    - name: "Timezone Offset"
+      unique_id: timezone_offset_hours
+      state: >
+        {{ (now().utcoffset().total_seconds() / 3600) | int }}
+      unit_of_measurement: "h"
+      icon: mdi:clock-time-eight-outline
+      attributes:
+        friendly_name: "Offset strefy czasowej UTC"
+        timezone_name: >
+          {% set offset = (now().utcoffset().total_seconds() / 3600) | int %}
+          {% if offset == 1 %}CET (zima){% elif offset == 2 %}CEST (lato){% else %}UTC+{{ offset }}{% endif %}
+        description: "CET = UTC+1 (zima), CEST = UTC+2 (lato)"
+
+# ============================================
 # SEZON GRZEWCZY I TEMPERATURA
 # ============================================
 
@@ -168,7 +186,7 @@
         note: "Cena RCE = cena hurtowa"
 
 # ============================================
-# ŚREDNIA CENA RCE WIECZORNA (19-22h) - RCE PSE
+# ŚREDNIA CENA RCE WIECZORNA (zachód słońca → 22:00)
 # ============================================
 
 - sensor:
@@ -177,16 +195,18 @@
       unit_of_measurement: "PLN/kWh"
       state: >
         {% set prices = state_attr('sensor.rce_pse_cena', 'prices') %}
+        {% set sunset_hour = as_timestamp(state_attr('sun.sun', 'next_setting')) | timestamp_custom('%H') | int %}
+        {% set start_hour = sunset_hour + 1 %}
         {% if prices %}
-          {% set evening_prices = [] %}
+          {% set ns = namespace(evening_prices=[]) %}
           {% for p in prices %}
             {% set hour = p.dtime.split(' ')[1].split(':')[0] | int %}
-            {% if hour in [19, 20, 21] %}
-              {% set evening_prices = evening_prices + [p.rce_pln / 1000] %}
+            {% if hour >= start_hour and hour < 22 %}
+              {% set ns.evening_prices = ns.evening_prices + [p.rce_pln / 1000] %}
             {% endif %}
           {% endfor %}
-          {% if evening_prices | length > 0 %}
-            {{ (evening_prices | sum / evening_prices | length) | round(2) }}
+          {% if ns.evening_prices | length > 0 %}
+            {{ (ns.evening_prices | sum / ns.evening_prices | length) | round(2) }}
           {% else %}
             {{ ((states('sensor.rce_pse_cena') | float(650)) / 1000) | round(2) }}
           {% endif %}
@@ -195,8 +215,188 @@
         {% endif %}
       icon: mdi:chart-line
       attributes:
-        friendly_name: "RCE średnia wieczorna (19-22h)"
-        source: "RCE PSE (PSE API)"
+        friendly_name: "RCE średnia wieczorna (zachód→22h)"
+        sunset_hour: "{{ as_timestamp(state_attr('sun.sun', 'next_setting')) | timestamp_custom('%H:%M') }}"
+        start_hour: "{{ (as_timestamp(state_attr('sun.sun', 'next_setting')) | timestamp_custom('%H') | int + 1) }}:00"
+        end_hour: "22:00"
+        source: "RCE PSE (zachód słońca → 22:00)"
+
+# ============================================
+# RCE - PROGI CENOWE DLA KOLORÓW (DYNAMICZNE)
+# ============================================
+# Progi obliczane z rozkładu cen w danym dniu:
+# Zielony: dolne 33% (najtańsze godziny)
+# Żółty: środkowe 33-66%
+# Czerwony: górne 66-100% (najdroższe godziny)
+
+- sensor:
+    - name: "RCE progi cenowe"
+      unique_id: rce_price_thresholds
+      state: >
+        {% set today = now().strftime('%Y-%m-%d') %}
+        {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+        {% set ns = namespace(today_prices=[]) %}
+        {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}
+          {% set ns.today_prices = ns.today_prices + [p.rce_pln / 1000] %}
+        {% endfor %}
+        {% if ns.today_prices | length > 0 %}
+          {% set sorted_prices = ns.today_prices | sort %}
+          {% set p33_idx = ((sorted_prices | length) * 0.33) | int %}
+          {% set p66_idx = ((sorted_prices | length) * 0.66) | int %}
+          {{ sorted_prices[p33_idx] | round(2) }}-{{ sorted_prices[p66_idx] | round(2) }}
+        {% else %}
+          0.40-0.60
+        {% endif %}
+      icon: mdi:palette
+      attributes:
+        friendly_name: "Progi cenowe RCE (dynamiczne)"
+        # Oblicz percentyle z dzisiejszych cen (6:00-21:00) - używa namespace dla poprawnego działania
+        p33: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set ns = namespace(today_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}
+            {% set ns.today_prices = ns.today_prices + [p.rce_pln / 1000] %}
+          {% endfor %}
+          {% if ns.today_prices | length > 0 %}
+            {% set sorted_prices = ns.today_prices | sort %}
+            {% set idx = ((sorted_prices | length) * 0.33) | int %}
+            {{ sorted_prices[idx] | round(2) }}
+          {% else %}0.40{% endif %}
+        p66: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set ns = namespace(today_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}
+            {% set ns.today_prices = ns.today_prices + [p.rce_pln / 1000] %}
+          {% endfor %}
+          {% if ns.today_prices | length > 0 %}
+            {% set sorted_prices = ns.today_prices | sort %}
+            {% set idx = ((sorted_prices | length) * 0.66) | int %}
+            {{ sorted_prices[idx] | round(2) }}
+          {% else %}0.60{% endif %}
+        min_price: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set ns = namespace(today_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}
+            {% set ns.today_prices = ns.today_prices + [p.rce_pln / 1000] %}
+          {% endfor %}
+          {{ (ns.today_prices | min | round(2)) if ns.today_prices else 0.30 }}
+        max_price: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set ns = namespace(today_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}
+            {% set ns.today_prices = ns.today_prices + [p.rce_pln / 1000] %}
+          {% endfor %}
+          {{ (ns.today_prices | max | round(2)) if ns.today_prices else 0.80 }}
+        legend: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set ns = namespace(today_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}
+            {% set ns.today_prices = ns.today_prices + [p.rce_pln / 1000] %}
+          {% endfor %}
+          {% if ns.today_prices | length > 0 %}
+            {% set sorted_prices = ns.today_prices | sort %}
+            {% set p33 = sorted_prices[((sorted_prices | length) * 0.33) | int] | round(2) %}
+            {% set p66 = sorted_prices[((sorted_prices | length) * 0.66) | int] | round(2) %}
+            🟢 < {{ p33 }}  🟡 {{ p33 }}-{{ p66 }}  🔴 > {{ p66 }} PLN/kWh
+          {% else %}
+            🟢 < 0,40  🟡 0,40-0,60  🔴 > 0,60 PLN/kWh
+          {% endif %}
+
+# ============================================
+# RCE - CENY GODZINOWE (DZIŚ i JUTRO)
+# ============================================
+# Wyświetla ŚREDNIE ceny RCE dla każdej godziny z kolorowym znacznikiem
+# WAŻNE: Średnia z 4 wartości kwartalnych (XX:00, XX:15, XX:30, XX:45)
+#        aby być spójnym z algorytmem battery_algorithm.py
+# Kolory oparte na percentylach: 🟢🟢 <0.20, 🟢 <p33, 🟡 <p66, 🔴 >=p66
+# h06-h21 = dziś, t06-t21 = jutro
+
+- sensor:
+    - name: "RCE ceny godzinowe"
+      unique_id: rce_hourly_prices
+      state: >
+        {{ ((states('sensor.rce_pse_cena') | float(650)) / 1000) | round(2) }} PLN/kWh
+      icon: mdi:clock-time-four-outline
+      attributes:
+        friendly_name: "Ceny RCE godzinowe (dziś/jutro)"
+        today: "{{ now().strftime('%Y-%m-%d') }}"
+        tomorrow: "{{ (as_timestamp(now()) + 86400) | timestamp_custom('%Y-%m-%d') }}"
+        # DZIŚ - ceny na godzinę (h06-h21) - ŚREDNIA z 4 wartości kwartalnych
+        # Źródło: sensor.rce_pse_cena (dziś)
+        # ZAOKRĄGLENIE do 2 miejsc PRZED porównaniem z progami (spójność kolory vs wartości)
+        h06: >
+          {% set today = now().strftime('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}{% set p33_gr = (state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.4) * 100) | int %}{% set p66_gr = (state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.6) * 100) | int %}{% set ns = namespace(hour_prices=[]) %}{% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '06' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% set pr_gr = (pr * 100) | int %}{% if pr_gr < 20 %}🟢🟢{% elif pr_gr < p33_gr %}🟢{% elif pr_gr < p66_gr %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% endif %}
+        h07: >
+          {% set today = now().strftime('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}{% set p33_gr = (state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.4) * 100) | int %}{% set p66_gr = (state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.6) * 100) | int %}{% set ns = namespace(hour_prices=[]) %}{% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '07' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% set pr_gr = (pr * 100) | int %}{% if pr_gr < 20 %}🟢🟢{% elif pr_gr < p33_gr %}🟢{% elif pr_gr < p66_gr %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% endif %}
+        h08: >
+          {% set today = now().strftime('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}{% set p33_gr = (state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.4) * 100) | int %}{% set p66_gr = (state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.6) * 100) | int %}{% set ns = namespace(hour_prices=[]) %}{% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '08' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% set pr_gr = (pr * 100) | int %}{% if pr_gr < 20 %}🟢🟢{% elif pr_gr < p33_gr %}🟢{% elif pr_gr < p66_gr %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% endif %}
+        h09: >
+          {% set today = now().strftime('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}{% set p33_gr = (state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.4) * 100) | int %}{% set p66_gr = (state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.6) * 100) | int %}{% set ns = namespace(hour_prices=[]) %}{% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '09' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% set pr_gr = (pr * 100) | int %}{% if pr_gr < 20 %}🟢🟢{% elif pr_gr < p33_gr %}🟢{% elif pr_gr < p66_gr %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% endif %}
+        h10: >
+          {% set today = now().strftime('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}{% set p33_gr = (state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.4) * 100) | int %}{% set p66_gr = (state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.6) * 100) | int %}{% set ns = namespace(hour_prices=[]) %}{% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '10' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% set pr_gr = (pr * 100) | int %}{% if pr_gr < 20 %}🟢🟢{% elif pr_gr < p33_gr %}🟢{% elif pr_gr < p66_gr %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% endif %}
+        h11: >
+          {% set today = now().strftime('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}{% set p33_gr = (state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.4) * 100) | int %}{% set p66_gr = (state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.6) * 100) | int %}{% set ns = namespace(hour_prices=[]) %}{% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '11' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% set pr_gr = (pr * 100) | int %}{% if pr_gr < 20 %}🟢🟢{% elif pr_gr < p33_gr %}🟢{% elif pr_gr < p66_gr %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% endif %}
+        h12: >
+          {% set today = now().strftime('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}{% set p33_gr = (state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.4) * 100) | int %}{% set p66_gr = (state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.6) * 100) | int %}{% set ns = namespace(hour_prices=[]) %}{% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '12' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% set pr_gr = (pr * 100) | int %}{% if pr_gr < 20 %}🟢🟢{% elif pr_gr < p33_gr %}🟢{% elif pr_gr < p66_gr %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% endif %}
+        h13: >
+          {% set today = now().strftime('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}{% set p33_gr = (state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.4) * 100) | int %}{% set p66_gr = (state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.6) * 100) | int %}{% set ns = namespace(hour_prices=[]) %}{% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '13' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% set pr_gr = (pr * 100) | int %}{% if pr_gr < 20 %}🟢🟢{% elif pr_gr < p33_gr %}🟢{% elif pr_gr < p66_gr %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% endif %}
+        h14: >
+          {% set today = now().strftime('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}{% set p33_gr = (state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.4) * 100) | int %}{% set p66_gr = (state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.6) * 100) | int %}{% set ns = namespace(hour_prices=[]) %}{% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '14' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% set pr_gr = (pr * 100) | int %}{% if pr_gr < 20 %}🟢🟢{% elif pr_gr < p33_gr %}🟢{% elif pr_gr < p66_gr %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% endif %}
+        h15: >
+          {% set today = now().strftime('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}{% set p33_gr = (state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.4) * 100) | int %}{% set p66_gr = (state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.6) * 100) | int %}{% set ns = namespace(hour_prices=[]) %}{% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '15' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% set pr_gr = (pr * 100) | int %}{% if pr_gr < 20 %}🟢🟢{% elif pr_gr < p33_gr %}🟢{% elif pr_gr < p66_gr %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% endif %}
+        h16: >
+          {% set today = now().strftime('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}{% set p33_gr = (state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.4) * 100) | int %}{% set p66_gr = (state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.6) * 100) | int %}{% set ns = namespace(hour_prices=[]) %}{% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '16' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% set pr_gr = (pr * 100) | int %}{% if pr_gr < 20 %}🟢🟢{% elif pr_gr < p33_gr %}🟢{% elif pr_gr < p66_gr %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% endif %}
+        h17: >
+          {% set today = now().strftime('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}{% set p33_gr = (state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.4) * 100) | int %}{% set p66_gr = (state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.6) * 100) | int %}{% set ns = namespace(hour_prices=[]) %}{% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '17' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% set pr_gr = (pr * 100) | int %}{% if pr_gr < 20 %}🟢🟢{% elif pr_gr < p33_gr %}🟢{% elif pr_gr < p66_gr %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% endif %}
+        h18: >
+          {% set today = now().strftime('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}{% set p33_gr = (state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.4) * 100) | int %}{% set p66_gr = (state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.6) * 100) | int %}{% set ns = namespace(hour_prices=[]) %}{% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '18' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% set pr_gr = (pr * 100) | int %}{% if pr_gr < 20 %}🟢🟢{% elif pr_gr < p33_gr %}🟢{% elif pr_gr < p66_gr %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% endif %}
+        h19: >
+          {% set today = now().strftime('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}{% set p33_gr = (state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.4) * 100) | int %}{% set p66_gr = (state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.6) * 100) | int %}{% set ns = namespace(hour_prices=[]) %}{% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '19' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% set pr_gr = (pr * 100) | int %}{% if pr_gr < 20 %}🟢🟢{% elif pr_gr < p33_gr %}🟢{% elif pr_gr < p66_gr %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% endif %}
+        h20: >
+          {% set today = now().strftime('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}{% set p33_gr = (state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.4) * 100) | int %}{% set p66_gr = (state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.6) * 100) | int %}{% set ns = namespace(hour_prices=[]) %}{% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '20' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% set pr_gr = (pr * 100) | int %}{% if pr_gr < 20 %}🟢🟢{% elif pr_gr < p33_gr %}🟢{% elif pr_gr < p66_gr %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% endif %}
+        h21: >
+          {% set today = now().strftime('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}{% set p33_gr = (state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.4) * 100) | int %}{% set p66_gr = (state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.6) * 100) | int %}{% set ns = namespace(hour_prices=[]) %}{% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '21' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% set pr_gr = (pr * 100) | int %}{% if pr_gr < 20 %}🟢🟢{% elif pr_gr < p33_gr %}🟢{% elif pr_gr < p66_gr %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% endif %}
+        # JUTRO - ceny na godzinę (t06-t21) - ŚREDNIA z 4 wartości kwartalnych
+        # Źródło: sensor.rce_pse_cena_jutro (osobny sensor z danymi na jutro!)
+        # PROGI p33/p66 obliczane Z JUTRZEJSZYCH CEN (nie dzisiejszych!)
+        # ZAOKRĄGLENIE do 2 miejsc PRZED porównaniem z progami (spójność kolory vs wartości)
+        t06: >
+          {% set tmr = (as_timestamp(now()) + 86400) | timestamp_custom('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena_jutro', 'prices') or [] %}{% set ns = namespace(all_prices=[], hour_prices=[]) %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}{% set ns.all_prices = ns.all_prices + [p.rce_pln/1000] %}{% endfor %}{% set sorted_p = ns.all_prices | sort %}{% set p33 = sorted_p[((sorted_p | length) * 0.33) | int] | round(2) if sorted_p | length > 0 else 0.4 %}{% set p66 = sorted_p[((sorted_p | length) * 0.66) | int] | round(2) if sorted_p | length > 0 else 0.6 %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] == '06' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr < p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% else %}-{% endif %}
+        t07: >
+          {% set tmr = (as_timestamp(now()) + 86400) | timestamp_custom('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena_jutro', 'prices') or [] %}{% set ns = namespace(all_prices=[], hour_prices=[]) %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}{% set ns.all_prices = ns.all_prices + [p.rce_pln/1000] %}{% endfor %}{% set sorted_p = ns.all_prices | sort %}{% set p33 = sorted_p[((sorted_p | length) * 0.33) | int] | round(2) if sorted_p | length > 0 else 0.4 %}{% set p66 = sorted_p[((sorted_p | length) * 0.66) | int] | round(2) if sorted_p | length > 0 else 0.6 %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] == '07' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr < p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% else %}-{% endif %}
+        t08: >
+          {% set tmr = (as_timestamp(now()) + 86400) | timestamp_custom('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena_jutro', 'prices') or [] %}{% set ns = namespace(all_prices=[], hour_prices=[]) %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}{% set ns.all_prices = ns.all_prices + [p.rce_pln/1000] %}{% endfor %}{% set sorted_p = ns.all_prices | sort %}{% set p33 = sorted_p[((sorted_p | length) * 0.33) | int] | round(2) if sorted_p | length > 0 else 0.4 %}{% set p66 = sorted_p[((sorted_p | length) * 0.66) | int] | round(2) if sorted_p | length > 0 else 0.6 %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] == '08' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr < p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% else %}-{% endif %}
+        t09: >
+          {% set tmr = (as_timestamp(now()) + 86400) | timestamp_custom('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena_jutro', 'prices') or [] %}{% set ns = namespace(all_prices=[], hour_prices=[]) %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}{% set ns.all_prices = ns.all_prices + [p.rce_pln/1000] %}{% endfor %}{% set sorted_p = ns.all_prices | sort %}{% set p33 = sorted_p[((sorted_p | length) * 0.33) | int] | round(2) if sorted_p | length > 0 else 0.4 %}{% set p66 = sorted_p[((sorted_p | length) * 0.66) | int] | round(2) if sorted_p | length > 0 else 0.6 %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] == '09' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr < p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% else %}-{% endif %}
+        t10: >
+          {% set tmr = (as_timestamp(now()) + 86400) | timestamp_custom('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena_jutro', 'prices') or [] %}{% set ns = namespace(all_prices=[], hour_prices=[]) %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}{% set ns.all_prices = ns.all_prices + [p.rce_pln/1000] %}{% endfor %}{% set sorted_p = ns.all_prices | sort %}{% set p33 = sorted_p[((sorted_p | length) * 0.33) | int] | round(2) if sorted_p | length > 0 else 0.4 %}{% set p66 = sorted_p[((sorted_p | length) * 0.66) | int] | round(2) if sorted_p | length > 0 else 0.6 %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] == '10' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr < p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% else %}-{% endif %}
+        t11: >
+          {% set tmr = (as_timestamp(now()) + 86400) | timestamp_custom('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena_jutro', 'prices') or [] %}{% set ns = namespace(all_prices=[], hour_prices=[]) %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}{% set ns.all_prices = ns.all_prices + [p.rce_pln/1000] %}{% endfor %}{% set sorted_p = ns.all_prices | sort %}{% set p33 = sorted_p[((sorted_p | length) * 0.33) | int] | round(2) if sorted_p | length > 0 else 0.4 %}{% set p66 = sorted_p[((sorted_p | length) * 0.66) | int] | round(2) if sorted_p | length > 0 else 0.6 %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] == '11' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr < p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% else %}-{% endif %}
+        t12: >
+          {% set tmr = (as_timestamp(now()) + 86400) | timestamp_custom('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena_jutro', 'prices') or [] %}{% set ns = namespace(all_prices=[], hour_prices=[]) %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}{% set ns.all_prices = ns.all_prices + [p.rce_pln/1000] %}{% endfor %}{% set sorted_p = ns.all_prices | sort %}{% set p33 = sorted_p[((sorted_p | length) * 0.33) | int] | round(2) if sorted_p | length > 0 else 0.4 %}{% set p66 = sorted_p[((sorted_p | length) * 0.66) | int] | round(2) if sorted_p | length > 0 else 0.6 %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] == '12' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr < p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% else %}-{% endif %}
+        t13: >
+          {% set tmr = (as_timestamp(now()) + 86400) | timestamp_custom('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena_jutro', 'prices') or [] %}{% set ns = namespace(all_prices=[], hour_prices=[]) %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}{% set ns.all_prices = ns.all_prices + [p.rce_pln/1000] %}{% endfor %}{% set sorted_p = ns.all_prices | sort %}{% set p33 = sorted_p[((sorted_p | length) * 0.33) | int] | round(2) if sorted_p | length > 0 else 0.4 %}{% set p66 = sorted_p[((sorted_p | length) * 0.66) | int] | round(2) if sorted_p | length > 0 else 0.6 %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] == '13' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr < p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% else %}-{% endif %}
+        t14: >
+          {% set tmr = (as_timestamp(now()) + 86400) | timestamp_custom('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena_jutro', 'prices') or [] %}{% set ns = namespace(all_prices=[], hour_prices=[]) %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}{% set ns.all_prices = ns.all_prices + [p.rce_pln/1000] %}{% endfor %}{% set sorted_p = ns.all_prices | sort %}{% set p33 = sorted_p[((sorted_p | length) * 0.33) | int] | round(2) if sorted_p | length > 0 else 0.4 %}{% set p66 = sorted_p[((sorted_p | length) * 0.66) | int] | round(2) if sorted_p | length > 0 else 0.6 %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] == '14' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr < p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% else %}-{% endif %}
+        t15: >
+          {% set tmr = (as_timestamp(now()) + 86400) | timestamp_custom('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena_jutro', 'prices') or [] %}{% set ns = namespace(all_prices=[], hour_prices=[]) %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}{% set ns.all_prices = ns.all_prices + [p.rce_pln/1000] %}{% endfor %}{% set sorted_p = ns.all_prices | sort %}{% set p33 = sorted_p[((sorted_p | length) * 0.33) | int] | round(2) if sorted_p | length > 0 else 0.4 %}{% set p66 = sorted_p[((sorted_p | length) * 0.66) | int] | round(2) if sorted_p | length > 0 else 0.6 %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] == '15' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr < p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% else %}-{% endif %}
+        t16: >
+          {% set tmr = (as_timestamp(now()) + 86400) | timestamp_custom('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena_jutro', 'prices') or [] %}{% set ns = namespace(all_prices=[], hour_prices=[]) %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}{% set ns.all_prices = ns.all_prices + [p.rce_pln/1000] %}{% endfor %}{% set sorted_p = ns.all_prices | sort %}{% set p33 = sorted_p[((sorted_p | length) * 0.33) | int] | round(2) if sorted_p | length > 0 else 0.4 %}{% set p66 = sorted_p[((sorted_p | length) * 0.66) | int] | round(2) if sorted_p | length > 0 else 0.6 %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] == '16' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr < p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% else %}-{% endif %}
+        t17: >
+          {% set tmr = (as_timestamp(now()) + 86400) | timestamp_custom('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena_jutro', 'prices') or [] %}{% set ns = namespace(all_prices=[], hour_prices=[]) %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}{% set ns.all_prices = ns.all_prices + [p.rce_pln/1000] %}{% endfor %}{% set sorted_p = ns.all_prices | sort %}{% set p33 = sorted_p[((sorted_p | length) * 0.33) | int] | round(2) if sorted_p | length > 0 else 0.4 %}{% set p66 = sorted_p[((sorted_p | length) * 0.66) | int] | round(2) if sorted_p | length > 0 else 0.6 %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] == '17' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr < p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% else %}-{% endif %}
+        t18: >
+          {% set tmr = (as_timestamp(now()) + 86400) | timestamp_custom('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena_jutro', 'prices') or [] %}{% set ns = namespace(all_prices=[], hour_prices=[]) %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}{% set ns.all_prices = ns.all_prices + [p.rce_pln/1000] %}{% endfor %}{% set sorted_p = ns.all_prices | sort %}{% set p33 = sorted_p[((sorted_p | length) * 0.33) | int] | round(2) if sorted_p | length > 0 else 0.4 %}{% set p66 = sorted_p[((sorted_p | length) * 0.66) | int] | round(2) if sorted_p | length > 0 else 0.6 %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] == '18' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr < p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% else %}-{% endif %}
+        t19: >
+          {% set tmr = (as_timestamp(now()) + 86400) | timestamp_custom('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena_jutro', 'prices') or [] %}{% set ns = namespace(all_prices=[], hour_prices=[]) %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}{% set ns.all_prices = ns.all_prices + [p.rce_pln/1000] %}{% endfor %}{% set sorted_p = ns.all_prices | sort %}{% set p33 = sorted_p[((sorted_p | length) * 0.33) | int] | round(2) if sorted_p | length > 0 else 0.4 %}{% set p66 = sorted_p[((sorted_p | length) * 0.66) | int] | round(2) if sorted_p | length > 0 else 0.6 %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] == '19' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr < p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% else %}-{% endif %}
+        t20: >
+          {% set tmr = (as_timestamp(now()) + 86400) | timestamp_custom('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena_jutro', 'prices') or [] %}{% set ns = namespace(all_prices=[], hour_prices=[]) %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}{% set ns.all_prices = ns.all_prices + [p.rce_pln/1000] %}{% endfor %}{% set sorted_p = ns.all_prices | sort %}{% set p33 = sorted_p[((sorted_p | length) * 0.33) | int] | round(2) if sorted_p | length > 0 else 0.4 %}{% set p66 = sorted_p[((sorted_p | length) * 0.66) | int] | round(2) if sorted_p | length > 0 else 0.6 %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] == '20' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr < p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% else %}-{% endif %}
+        t21: >
+          {% set tmr = (as_timestamp(now()) + 86400) | timestamp_custom('%Y-%m-%d') %}{% set prices = state_attr('sensor.rce_pse_cena_jutro', 'prices') or [] %}{% set ns = namespace(all_prices=[], hour_prices=[]) %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] | int >= 6 and p.dtime.split(' ')[1][:2] | int <= 21 %}{% set ns.all_prices = ns.all_prices + [p.rce_pln/1000] %}{% endfor %}{% set sorted_p = ns.all_prices | sort %}{% set p33 = sorted_p[((sorted_p | length) * 0.33) | int] | round(2) if sorted_p | length > 0 else 0.4 %}{% set p66 = sorted_p[((sorted_p | length) * 0.66) | int] | round(2) if sorted_p | length > 0 else 0.6 %}{% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] == '21' %}{% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000] %}{% endfor %}{% if ns.hour_prices | length > 0 %}{% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}{% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr < p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}{% else %}-{% endif %}
 
 # ============================================
 # PROGNOZA PV - POMOCNICZE SENSORY
@@ -427,6 +627,35 @@
           {% endif %}
 
 # ============================================
+# PRODUKCJA PV - PRAWDZIWA (DC input z paneli)
+# ============================================
+# WAŻNE: sensor.inwerter_dzienna_produkcja = AC OUTPUT inwertera
+#        = PV + rozładowanie baterii - BŁĘDNE dla produkcji PV!
+#
+# POPRAWNE: sensor.inwerter_total_dc_input_energy = DC input z paneli PV
+#           Utility meter: sensor.dzienna_produkcja_pv_dc mierzy przyrost dzienny
+#
+# Weryfikacja (26.11.2025):
+#   DC input o północy: 38152.41 kWh
+#   DC input teraz: 38154.97 kWh
+#   Różnica = 2.56 kWh (zgadza się z wykresem FusionSolar ~0.3-0.4kW × 5-6h)
+
+- sensor:
+    - name: "Produkcja PV dzienna (rzeczywista)"
+      unique_id: real_pv_daily_production
+      unit_of_measurement: "kWh"
+      device_class: energy
+      state_class: total_increasing
+      state: >
+        {{ states('sensor.dzienna_produkcja_pv_dc') | float(0) | round(2) }}
+      icon: mdi:solar-power
+      attributes:
+        friendly_name: "Rzeczywista produkcja PV (dzienna)"
+        source: "sensor.dzienna_produkcja_pv_dc (utility_meter)"
+        dc_input_sensor: "sensor.inwerter_total_dc_input_energy"
+        note: "Bazuje na DC input z paneli PV, nie AC output inwertera"
+
+# ============================================
 # BILANS MOCY
 # ============================================
 
@@ -457,6 +686,35 @@
         friendly_name: "Deficyt mocy"
 
 # ============================================
+# ZUŻYCIE DOMU (bez ładowania baterii)
+# ============================================
+# Formuła: dom = inwerter_AC + import_z_sieci - ładowanie_baterii
+# Gdzie inwerter_AC = PV + rozładowanie_baterii
+
+- sensor:
+    - name: "Zużycie domu - moc"
+      unique_id: house_consumption_power
+      unit_of_measurement: "W"
+      device_class: power
+      state: >
+        {% set inverter = states('sensor.inwerter_moc_czynna') | float(0) %}
+        {% set grid = states('sensor.pomiar_mocy_moc_czynna') | float(0) %}
+        {% set battery = states('sensor.akumulatory_moc_ladowania_rozladowania') | float(0) %}
+        {% set battery_charge = [battery, 0] | max %}
+        {# Dom = Wyjście inwertera + Import z sieci - Ładowanie baterii #}
+        {# grid > 0 = import, grid < 0 = eksport #}
+        {% set house = inverter + grid - battery_charge %}
+        {{ [house, 0] | max | round(0) }}
+      icon: mdi:home-lightning-bolt
+      attributes:
+        friendly_name: "Zużycie domu (chwilowe)"
+        inverter_ac: "{{ states('sensor.inwerter_moc_czynna') }} W"
+        grid_power: "{{ states('sensor.pomiar_mocy_moc_czynna') }} W (+ import, - eksport)"
+        battery_power: "{{ states('sensor.akumulatory_moc_ladowania_rozladowania') }} W (+ ładowanie, - rozładowanie)"
+        formula: "dom = inwerter_AC + grid - max(battery_charge, 0)"
+        note: "NIE zawiera energii ładującej baterię"
+
+# ============================================
 # LIMITY MOCY BATERII
 # ============================================
 
@@ -482,6 +740,56 @@
         friendly_name: "Maksymalna moc rozładowania baterii"
         max_spec: "5000W (Luna 2000 15kWh)"
         note: "0W = blokada rozładowania (tryb L2)"
+
+# ============================================
+# WYKRYWANIE AWARII SIECI (BACKUP MODE)
+# ============================================
+
+- binary_sensor:
+    - name: "Awaria sieci"
+      unique_id: grid_power_outage
+      device_class: problem
+      state: >
+        {# Wykrywanie braku napięcia w sieci #}
+        {# Metody detekcji: #}
+        {# 1. Sensor pomiar_mocy jest unavailable #}
+        {# 2. Inwerter w trybie off-grid/backup #}
+        {# 3. Napięcie sieci < 180V (jeśli sensor istnieje) #}
+
+        {% set grid_sensor = states('sensor.pomiar_mocy_moc_czynna') %}
+        {% set inverter_state = states('sensor.inwerter_stan') %}
+
+        {# Sprawdź czy sensor sieci jest niedostępny #}
+        {% set grid_unavailable = grid_sensor in ['unavailable', 'unknown'] %}
+
+        {# Sprawdź stan inwertera (Huawei pokazuje różne stany) #}
+        {% set backup_states = ['off-grid', 'backup', 'standby', 'fault', 'shutdown'] %}
+        {% set inverter_backup = inverter_state | lower in backup_states %}
+
+        {# Sprawdź napięcie sieci (jeśli sensor istnieje) #}
+        {% set grid_voltage = states('sensor.grid_voltage') | float(-1) %}
+        {% set voltage_low = grid_voltage > 0 and grid_voltage < 180 %}
+
+        {{ grid_unavailable or inverter_backup or voltage_low }}
+      icon: >
+        {% if is_state('binary_sensor.awaria_sieci', 'on') %}
+          mdi:transmission-tower-off
+        {% else %}
+          mdi:transmission-tower
+        {% endif %}
+      attributes:
+        friendly_name: "Awaria zasilania sieci"
+        grid_sensor_state: "{{ states('sensor.pomiar_mocy_moc_czynna') }}"
+        inverter_state: "{{ states('sensor.inwerter_stan') }}"
+        detection_method: >
+          {% set grid_sensor = states('sensor.pomiar_mocy_moc_czynna') %}
+          {% if grid_sensor in ['unavailable', 'unknown'] %}
+            Sensor sieci niedostępny
+          {% elif states('sensor.inwerter_stan') | lower in ['off-grid', 'backup', 'fault'] %}
+            Inwerter w trybie backup
+          {% else %}
+            Sieć OK
+          {% endif %}
 
 # ============================================
 # SYSTEM BŁĘDÓW I MONITORINGU

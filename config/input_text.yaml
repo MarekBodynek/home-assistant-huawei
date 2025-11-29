@@ -62,3 +62,15 @@ event_log_5:
   initial: '{"ts":"","lvl":"","cat":"","msg":""}'
   max: 255
   icon: mdi:text-box-outline
+
+# ============================================
+# OPTYMALIZACJA ŁADOWANIA Z PV
+# ============================================
+# Strategia ładowania baterii z PV vs eksport do sieci
+# na podstawie prognoz cen RCE
+
+pv_charging_strategy:
+  name: "Strategia ładowania PV"
+  initial: '{"strategy":{}}'
+  max: 255
+  icon: mdi:solar-power-variant
