@@ -692,14 +692,28 @@ def calculate_cheapest_hours_to_store(data):
         })
 
         # Formatuj wszystkie godziny słoneczne z kolorowymi kropkami
-        # Progi cenowe: 🟢 < 0.5 | 🟡 0.5-0.66 | 🔴 > 0.66 PLN/kWh
+        # Używaj percentyli z sensor.rce_progi_cenowe (p33/p66)
+        # Pobierz progi z sensora (te same co na dashboard)
+        try:
+            progi_state = hass.states.get('sensor.rce_progi_cenowe')
+            if progi_state and progi_state.attributes:
+                p33 = float(progi_state.attributes.get('p33', 0.5))
+                p66 = float(progi_state.attributes.get('p66', 0.7))
+            else:
+                p33 = 0.5
+                p66 = 0.7
+        except:
+            p33 = 0.5
+            p66 = 0.7
+
         hours_display_parts = []
         for p in sorted(sun_prices, key=lambda x: x['hour']):
             h = p['hour']
             price = p['price']
-            if price < 0.5:
+            # Progi: 🟢 < p33 | 🟡 p33-p66 | 🔴 > p66
+            if price < p33:
                 dot = '🟢'
-            elif price <= 0.66:
+            elif price <= p66:
                 dot = '🟡'
             else:
                 dot = '🔴'
