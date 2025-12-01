@@ -335,8 +335,13 @@ Projekt rozwijany przy wsparciu Claude Code (Anthropic).
 
 ## Changelog
 
+### v3.5 (2025-12-01)
+- **Fix**: Kolory godzin RCE używają percentyli (p33/p66) zamiast sztywnych progów
+- **Fix**: Wybudzanie baterii wcześniej (21:20 zamiast 21:40) - bateria potrzebuje do 45 min na wake-up
+- Dodano: Instrukcja dla nowej instalacji (`docs/INSTRUKCJA_NOWA_INSTALACJA.md`)
+
 ### v3.4 (2025-11-29)
-- **Nowa funkcja**: Kolorowe kropki dla godzin słonecznych (🟢 < 0.5 | 🟡 0.5-0.66 | 🔴 > 0.66 PLN/kWh)
+- **Nowa funkcja**: Kolorowe kropki dla godzin słonecznych (🟢 < p33 | 🟡 p33-p66 | 🔴 > p66)
 - **Nowa funkcja**: Wyświetlanie najtańszych godzin chronologicznie `[7, 8, 9, 10, 11, 12, 13]`
 - **Fix**: RCE PSE zwraca dane co 15 min - agregacja do godzin (avg)
 - **Fix**: Parsowanie pola `period` zamiast `dtime` (koniec vs początek okresu)

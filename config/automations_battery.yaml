@@ -126,11 +126,11 @@
 # ============================================
 
 - id: battery_wake_from_sleep_l2_night
-  alias: "[Bateria] Wybudź ze Sleep o 21:40 (przed L2 noc)"
-  description: "Wymusza ładowanie gdy bateria jest w Sleep mode/Standby - max 5 prób wybudzenia przed L2 22:00"
+  alias: "[Bateria] Wybudź ze Sleep o 21:20 (przed L2 noc)"
+  description: "Wymusza ładowanie gdy bateria jest w Sleep mode/Standby - max 5 prób wybudzenia przed L2 22:00. Start 40 min wcześniej bo bateria może potrzebować do 45 min na wybudzenie!"
   trigger:
     - platform: time
-      at: "21:40:00"
+      at: "21:20:00"
   condition:
     - condition: or
       conditions:
@@ -169,7 +169,7 @@
               # Sukces! Powiadom i zakończ
               - service: persistent_notification.create
                 data:
-                  title: "🔋 Bateria wybudzona (21:40)"
+                  title: "🔋 Bateria wybudzona (21:20)"
                   message: |
                     ✅ Bateria wybudzona po {{ repeat.index }} próbie/próbach.
                     Status: {{ initial_status }} → Running
@@ -285,11 +285,11 @@
 # ============================================
 
 - id: battery_wake_diagnostic_l2_night
-  alias: "[Bateria] 🔍 Diagnostyka - status po próbie wybudzenia o 21:40"
-  description: "Informuje o statusie baterii o 21:41 (gdy wybudzanie pominięte)"
+  alias: "[Bateria] 🔍 Diagnostyka - status po próbie wybudzenia o 21:20"
+  description: "Informuje o statusie baterii o 21:21 (gdy wybudzanie pominięte)"
   trigger:
     - platform: time
-      at: "21:41:00"
+      at: "21:21:00"
   condition:
     # Uruchom tylko jeśli bateria NIE pracuje (czyli wybudzanie nie zadziałało)
     - condition: template
@@ -301,13 +301,13 @@
   action:
     - service: persistent_notification.create
       data:
-        title: "🔍 Status baterii o 21:41 - diagnostyka"
+        title: "🔍 Status baterii o 21:21 - diagnostyka"
         message: |
           **Status baterii:** {{ states('sensor.akumulatory_status') }}
           **SOC:** {{ states('sensor.akumulatory_stan_pojemnosci') }}%
           **Target SOC:** {{ states('input_number.battery_target_soc') }}%
 
-          **Analiza (wybudzanie o 21:40 zostało pominięte):**
+          **Analiza (wybudzanie o 21:20 zostało pominięte):**
           {% set status = states('sensor.akumulatory_status') %}
           {% set soc = states('sensor.akumulatory_stan_pojemnosci') | float(0) %}
           {% set target = states('input_number.battery_target_soc') | float(80) %}
