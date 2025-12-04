@@ -1,6 +1,31 @@
 # Home Assistant - Huawei Solar Battery Management System
 
+[![GitHub](https://img.shields.io/badge/GitHub-Public-green)](https://github.com/MarekBodynek/home-assistant-huawei)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.x-blue)](https://www.home-assistant.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Inteligentny system zarządzania baterią Huawei LUNA 2000 z optymalizacją kosztów energii na podstawie cen RCE PSE i prognoz produkcji PV.
+
+> **📚 Pełna instrukcja instalacji:** [docs/INSTRUKCJA_NOWA_INSTALACJA.md](docs/INSTRUKCJA_NOWA_INSTALACJA.md)
+
+## Quick Start
+
+```bash
+# 1. Sklonuj repozytorium
+git clone https://github.com/MarekBodynek/home-assistant-huawei.git
+cd home-assistant-huawei
+
+# 2. Skopiuj pliki do Home Assistant
+cp -r config/* /path/to/homeassistant/config/
+
+# 3. Zainstaluj wymagane integracje HACS:
+#    - Huawei Solar (wlcrs/huawei_solar)
+#    - Pstryk lub RCE PSE
+
+# 4. Dostosuj parametry w plikach (lokalizacja, moc PV, pojemność baterii)
+
+# 5. Restart Home Assistant
+```
 
 ## Funkcje
 
@@ -174,7 +199,7 @@ rest:
 ### 5. Kopiowanie plików konfiguracji
 ```bash
 # Sklonuj repozytorium
-git clone https://github.com/user/home-assistant-huawei.git
+git clone https://github.com/MarekBodynek/home-assistant-huawei.git
 
 # Skopiuj pliki do katalogu config HA
 cp -r config/* /path/to/homeassistant/config/
@@ -334,6 +359,13 @@ MIT License - możesz używać, modyfikować i dystrybuować.
 Projekt rozwijany przy wsparciu Claude Code (Anthropic).
 
 ## Changelog
+
+### v3.6 (2025-12-04)
+- **Fix**: Korekta mocy PV w Forecast.Solar (E=6.0, S=4.8, W=3.6 kWp)
+- **Nowa funkcja**: Współczynnik korekcji sezonowej dla prognoz PV (0.50 zima → 0.90 lato)
+- **Dashboard**: Usunięty "Max moc rozładowania", przeniesiony kafelek "Powiadomienia"
+- **Dokumentacja**: Kompletna instrukcja instalacji z pełnym kodem wszystkich plików
+- Repozytorium publiczne: https://github.com/MarekBodynek/home-assistant-huawei
 
 ### v3.5 (2025-12-01)
 - **Fix**: Kolory godzin RCE używają percentyli (p33/p66) zamiast sztywnych progów
