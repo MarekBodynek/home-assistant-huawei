@@ -1,45 +1,54 @@
 # Instrukcja konfiguracji Home Assistant - Huawei Solar Battery Management
 
-## Dla Claude Code - Kompletna instrukcja instalacji
+## Dla Claude Code - KOMPLETNA instrukcja instalacji jeden-do-jednego
 
-Ta instrukcja pozwala skonfigurować pełny system zarządzania baterią Huawei LUNA 2000 z optymalizacją kosztów energii RCE PSE.
+Ta instrukcja pozwala skonfigurować **identyczny** system zarządzania baterią Huawei LUNA 2000 z optymalizacją kosztów energii RCE PSE. Zawiera pełny kod wszystkich komponentów.
+
+**WAŻNE DLA CLAUDE:** Ta instrukcja jest przeznaczona do kopiowania konfiguracji z jednej instalacji do drugiej. Musisz:
+1. Skopiować WSZYSTKIE pliki dokładnie jak pokazano
+2. Zmienić TYLKO parametry w sekcji "PARAMETRY DO DOSTOSOWANIA"
+3. NIE modyfikować logiki algorytmu
 
 ---
 
-## PARAMETRY INSTALACJI (DOSTOSUJ!)
+## PARAMETRY DO DOSTOSOWANIA (ZMIEŃ NA POCZĄTKU!)
 
 ```yaml
 # ========================================
-# PARAMETRY SPECYFICZNE DLA TEJ INSTALACJI
+# PARAMETRY SPECYFICZNE DLA NOWEJ INSTALACJI
+# Zmień te wartości przed rozpoczęciem instalacji!
 # ========================================
+
+LOKALIZACJA:
+  latitude: 52.2297          # Szerokość geograficzna (Google Maps)
+  longitude: 21.0122         # Długość geograficzna (Google Maps)
+  elevation: 100             # Wysokość n.p.m. (metry)
+  timezone: "Europe/Warsaw"  # Strefa czasowa
 
 BATERIA:
   model: "Huawei LUNA 2000"
-  pojemnosc_kwh: 10          # Zmień na rzeczywistą pojemność
-  min_soc: 20                # Minimalny SOC (%)
-  max_soc: 80                # Maksymalny SOC (%)
-  moc_ladowania_kw: 5        # Max moc ładowania
+  pojemnosc_kwh: 10          # Pojemność baterii w kWh
+  min_soc: 20                # Minimalny SOC (%) - limit Huawei
+  max_soc: 80                # Maksymalny SOC (%) - limit Huawei
+  moc_ladowania_kw: 5        # Max moc ładowania (kW)
 
 PANELE_PV:
-  laczna_moc_kwp: 6.0        # Łączna moc instalacji
+  # Dla każdej płaszczyzny podaj: moc, azymut, nachylenie
+  # Azymut: N=0, E=90, S=180, W=270, NE=45, SE=135, SW=225, NW=315
 
   plaszczyzna_1:
     nazwa: "Południowy-wschód"
-    moc_kwp: 3.6             # 9 paneli × 400W = 3.6 kWp
-    azymut: 135              # SE = 135° (S=180, E=90)
-    nachylenie: 30           # Kąt nachylenia
+    moc_kwp: 3.6             # Moc w kWp (np. 9 paneli × 400W = 3.6 kWp)
+    azymut: 135              # SE = 135°
+    nachylenie: 30           # Kąt nachylenia (stopnie)
 
   plaszczyzna_2:
     nazwa: "Południowy-zachód"
     moc_kwp: 2.8             # 7 paneli × 400W = 2.8 kWp
-    azymut: 225              # SW = 225° (S=180, W=270)
-    nachylenie: 30           # Kąt nachylenia
+    azymut: 225              # SW = 225°
+    nachylenie: 30
 
-LOKALIZACJA:
-  latitude: 52.2297          # Szerokość geograficzna
-  longitude: 21.0122         # Długość geograficzna
-  elevation: 100             # Wysokość n.p.m.
-  timezone: "Europe/Warsaw"
+  # Jeśli jest trzecia płaszczyzna - dodaj plaszczyzna_3
 
 TARYFA:
   typ: "G12w"                # Taryfa dwustrefowa weekendowa
@@ -48,161 +57,329 @@ TARYFA:
 
 POWIADOMIENIA:
   telegram_enabled: true
-  telegram_bot_token: "UZUPELNIJ"
-  telegram_chat_id: "UZUPELNIJ"
-  mobile_app_enabled: true   # iOS/Android
+  telegram_bot_token: "UZUPELNIJ_TOKEN"
+  telegram_chat_id: "UZUPELNIJ_CHAT_ID"
+
+HUAWEI_SOLAR:
+  inverter_ip: "192.168.1.100"  # IP inwertera
+  modbus_port: 502              # Port Modbus (domyślnie 502)
+  # device_id baterii - znajdziesz po dodaniu integracji (patrz KROK 14)
 ```
 
 ---
 
-## KROK 1: Wymagane integracje HACS
-
-### 1.1 Instalacja HACS
-```bash
-# W kontenerze HA lub SSH
-wget -O - https://get.hacs.xyz | bash -
-# Restart HA, potem skonfiguruj HACS w UI
-```
-
-### 1.2 Integracje do zainstalowania przez HACS
-1. **Huawei Solar** - `wlcrs/huawei_solar`
-   - Komunikacja Modbus z inwerterem
-   - Sterowanie baterią (TOU, ładowanie z sieci)
-
-2. **Pstryk** lub **RCE PSE** - ceny energii z rynku hurtowego
-   - Sensor: `sensor.rce_pse_cena` z atrybutem `prices`
-
-### 1.3 Wbudowane integracje HA
-- **Workday** - święta polskie (country: PL)
-- **Sun** - wschód/zachód słońca
-- **Telegram** - powiadomienia
-
----
-
-## KROK 2: Struktura plików do utworzenia
+## STRUKTURA PLIKÓW DO UTWORZENIA
 
 ```
 config/
-├── configuration.yaml      # Główna konfiguracja
-├── secrets.yaml            # Dane wrażliwe (NIE COMMITUJ!)
-├── template_sensors.yaml   # Sensory obliczeniowe
-├── automations_battery.yaml # Automatyzacje baterii
-├── automations_errors.yaml  # Automatyzacje błędów
-├── input_numbers.yaml      # Zmienne numeryczne
-├── input_text.yaml         # Zmienne tekstowe
-├── input_boolean.yaml      # Przełączniki
-├── input_select.yaml       # Listy wyboru
-├── utility_meter.yaml      # Mierniki energii
-├── lovelace_huawei.yaml    # Dashboard
+├── configuration.yaml         # Główna konfiguracja HA
+├── secrets.yaml               # Dane wrażliwe (NIE COMMITUJ!)
+├── template_sensors.yaml      # ~1000 linii - wszystkie sensory obliczeniowe
+├── automations_battery.yaml   # ~860 linii - automatyzacje baterii
+├── automations_errors.yaml    # Automatyzacje błędów i powiadomień
+├── automations.yaml           # Standardowe automatyzacje HA
+├── input_numbers.yaml         # Zmienne numeryczne
+├── input_text.yaml            # Zmienne tekstowe (event log, decyzje)
+├── input_boolean.yaml         # Przełączniki (telegram, algorytm)
+├── input_select.yaml          # Listy wyboru
+├── utility_meter.yaml         # Mierniki energii
+├── lovelace_huawei.yaml       # Dashboard 3-kolumnowy
+├── logger.yaml                # Konfiguracja logów
+├── scenes.yaml                # Sceny HA
+├── scripts.yaml               # Skrypty HA
 └── python_scripts/
-    ├── battery_algorithm.py        # Główny algorytm
-    └── calculate_daily_strategy.py # Strategia dzienna
+    ├── battery_algorithm.py           # Główny algorytm (~1470 linii)
+    └── calculate_daily_strategy.py    # Strategia dzienna
+```
+
+---
+
+## KROK 1: Wymagane integracje
+
+### 1.1 Instalacja HACS
+```bash
+# W kontenerze HA lub przez SSH:
+wget -O - https://get.hacs.xyz | bash -
+# Restart HA
+# Konfiguruj HACS w UI: Settings → Devices & Services → Add Integration → HACS
+```
+
+### 1.2 Integracje HACS (zainstaluj przez HACS → Integrations)
+1. **Huawei Solar** - `wlcrs/huawei_solar`
+   - Komunikacja Modbus z inwerterem Huawei
+   - Sterowanie baterią (TOU, forcible charge/discharge)
+
+2. **Pstryk** - ceny energii RCE z rynku hurtowego
+   - Alternatywnie: inna integracja dostarczająca `sensor.rce_pse_cena`
+
+### 1.3 Wbudowane integracje HA (Settings → Devices & Services)
+- **Workday** - święta polskie (country: PL)
+- **Sun** - wschód/zachód słońca
+- **Telegram** - powiadomienia
+- **Time & Date** - sensory czasu
+
+---
+
+## KROK 2: secrets.yaml
+
+**UTWÓRZ PLIK:** `config/secrets.yaml`
+
+```yaml
+# ========================================
+# SECRETS - Dane wrażliwe
+# NIE COMMITUJ TEGO PLIKU DO GIT!
+# ========================================
+
+# Lokalizacja
+latitude: "52.2297"      # ZMIEŃ!
+longitude: "21.0122"     # ZMIEŃ!
+elevation: "100"         # ZMIEŃ!
+
+# Telegram Bot
+telegram_bot_token: "123456789:ABCdefGHIjklMNOpqrsTUVwxyz"  # ZMIEŃ!
+telegram_chat_id: "-1001234567890"                          # ZMIEŃ!
+
+# Huawei Solar
+huawei_inverter_ip: "192.168.1.100"  # ZMIEŃ! IP inwertera
+huawei_modbus_port: "502"
+huawei_battery_device_id: "abc123..."  # Uzupełnij po KROK 14!
 ```
 
 ---
 
 ## KROK 3: configuration.yaml
 
+**UTWÓRZ PLIK:** `config/configuration.yaml`
+
 ```yaml
+# Home Assistant - Konfiguracja dla Huawei Solar
+# Dokumentacja: https://www.home-assistant.io/docs/configuration/
+
+# Podstawowa konfiguracja
 homeassistant:
-  name: "Home"
+  name: Dom
   latitude: !secret latitude
   longitude: !secret longitude
   elevation: !secret elevation
   unit_system: metric
   time_zone: Europe/Warsaw
-  country: PL
+  currency: PLN
 
-# Włącz python_scripts
-python_script:
+# Frontend
+frontend:
+  themes: !include_dir_merge_named themes
 
-# Importy konfiguracji
+# Dashboardy
+lovelace:
+  mode: storage
+  dashboards:
+    lovelace-huawei:
+      mode: yaml
+      title: Huawei Solar PV
+      icon: mdi:solar-power
+      show_in_sidebar: true
+      filename: lovelace_huawei.yaml
+  resources:
+    - url: /local/community/apexcharts-card/apexcharts-card.js
+      type: module
+
+# Logowanie
+logger: !include logger.yaml
+
+# Historia
+history:
+
+# Logbook
+logbook:
+
+# Rekorder - przechowywanie danych
+recorder:
+  purge_keep_days: 30
+  db_url: sqlite:////config/home-assistant_v2.db
+
+# Energia
+energy:
+
+# Aplikacja mobilna
+mobile_app:
+
+# Template sensors
 template: !include template_sensors.yaml
-automation: !include_merge_list
-  - automations_battery.yaml
-  - automations_errors.yaml
+
+# Input numbers
 input_number: !include input_numbers.yaml
+
+# Input text
 input_text: !include input_text.yaml
+
+# Input boolean
 input_boolean: !include input_boolean.yaml
+
+# Input select
 input_select: !include input_select.yaml
+
+# Utility meters
 utility_meter: !include utility_meter.yaml
 
-# Telegram
+# Telegram Bot
 telegram_bot:
   - platform: polling
     api_key: !secret telegram_bot_token
     allowed_chat_ids:
       - !secret telegram_chat_id
 
+# Notify - Telegram
 notify:
   - platform: telegram
     name: telegram
     chat_id: !secret telegram_chat_id
 
-# Workday - święta polskie
+# Python Scripts
+python_script:
+
+# Automatyzacje
+automation manual: !include automations.yaml
+automation battery: !include automations_battery.yaml
+automation errors: !include automations_errors.yaml
+
+# Skrypty
+script: !include scripts.yaml
+
+# Sceny
+scene: !include scenes.yaml
+
+# Shell commands
+shell_command:
+  git_pull: 'cd /config && git pull'
+
+# Time & Date sensors
+sensor:
+  - platform: time_date
+    display_options:
+      - 'time'
+      - 'date'
+      - 'date_time'
+
+# ========================================
+# Forecast Solar - REST API
+# DOSTOSUJ: latitude, longitude, nachylenie, azymut, moc!
+# Format URL: /estimate/{lat}/{lon}/{tilt}/{azimuth}/{kwp}
+# ========================================
+
+rest:
+  # PŁASZCZYZNA 1: Południowy-wschód (SE = 135°)
+  # ZMIEŃ: 52.2297/21.0122 na swoje współrzędne
+  # ZMIEŃ: 30 na swoje nachylenie
+  # ZMIEŃ: 135 na swój azymut
+  # ZMIEŃ: 3.6 na swoją moc w kWp
+  - resource: https://api.forecast.solar/estimate/52.2297/21.0122/30/135/3.6
+    scan_interval: 7200
+    sensor:
+      - name: "PV SE - Prognoza dziś"
+        unique_id: forecast_solar_se_today
+        value_template: >
+          {% set today = now().date() | string %}
+          {% set data = value_json.result.watt_hours_day %}
+          {{ data[today] | float(0) / 1000 | round(1) }}
+        unit_of_measurement: "kWh"
+        json_attributes_path: "$.result"
+        json_attributes:
+          - "watt_hours_day"
+          - "watts"
+      - name: "PV SE - Prognoza jutro"
+        unique_id: forecast_solar_se_tomorrow
+        value_template: >
+          {% set tomorrow = (now().date() + timedelta(days=1)) | string %}
+          {% set data = value_json.result.watt_hours_day %}
+          {{ data[tomorrow] | float(0) / 1000 | round(1) }}
+        unit_of_measurement: "kWh"
+
+  # PŁASZCZYZNA 2: Południowy-zachód (SW = 225°)
+  - resource: https://api.forecast.solar/estimate/52.2297/21.0122/30/225/2.8
+    scan_interval: 7200
+    sensor:
+      - name: "PV SW - Prognoza dziś"
+        unique_id: forecast_solar_sw_today
+        value_template: >
+          {% set today = now().date() | string %}
+          {% set data = value_json.result.watt_hours_day %}
+          {{ data[today] | float(0) / 1000 | round(1) }}
+        unit_of_measurement: "kWh"
+        json_attributes_path: "$.result"
+        json_attributes:
+          - "watt_hours_day"
+          - "watts"
+      - name: "PV SW - Prognoza jutro"
+        unique_id: forecast_solar_sw_tomorrow
+        value_template: >
+          {% set tomorrow = (now().date() + timedelta(days=1)) | string %}
+          {% set data = value_json.result.watt_hours_day %}
+          {{ data[tomorrow] | float(0) / 1000 | round(1) }}
+        unit_of_measurement: "kWh"
+
+# Binary sensor - Dzień roboczy (wykrywa święta i weekendy)
 binary_sensor:
   - platform: workday
-    name: workday_poland
+    name: Dzień roboczy
     country: PL
+    workdays: [mon, tue, wed, thu, fri]
+    excludes: [sat, sun, holiday]
+    add_holidays:
+      # 2025
+      - '2025-01-01'  # Nowy Rok
+      - '2025-01-06'  # Trzech Króli
+      - '2025-04-20'  # Wielkanoc
+      - '2025-04-21'  # Poniedziałek Wielkanocny
+      - '2025-05-01'  # Święto Pracy
+      - '2025-05-03'  # Święto Konstytucji 3 Maja
+      - '2025-06-19'  # Boże Ciało
+      - '2025-08-15'  # Wniebowzięcie NMP
+      - '2025-11-01'  # Wszystkich Świętych
+      - '2025-11-11'  # Święto Niepodległości
+      - '2025-12-25'  # Boże Narodzenie
+      - '2025-12-26'  # Drugi dzień Bożego Narodzenia
+      # 2026
+      - '2026-01-01'
+      - '2026-01-06'
+      - '2026-04-05'  # Wielkanoc
+      - '2026-04-06'  # Poniedziałek Wielkanocny
+      - '2026-05-01'
+      - '2026-05-03'
+      - '2026-05-28'  # Boże Ciało
+      - '2026-08-15'
+      - '2026-11-01'
+      - '2026-11-11'
+      - '2026-12-25'
+      - '2026-12-26'
 
-# Forecast Solar - DOSTOSUJ DO SWOJEJ INSTALACJI!
-rest:
-  # Płaszczyzna 1: SE (azymut 135°)
-  - resource: https://api.forecast.solar/estimate/{{latitude}}/{{longitude}}/30/135/3.6
-    scan_interval: 3600
-    sensor:
-      - name: "Prognoza PV SE"
-        value_template: "{{ value_json.result.watt_hours_day | default(0) / 1000 }}"
-        unit_of_measurement: "kWh"
-
-  # Płaszczyzna 2: SW (azymut 225°)
-  - resource: https://api.forecast.solar/estimate/{{latitude}}/{{longitude}}/30/225/2.8
-    scan_interval: 3600
-    sensor:
-      - name: "Prognoza PV SW"
-        value_template: "{{ value_json.result.watt_hours_day | default(0) / 1000 }}"
-        unit_of_measurement: "kWh"
-
-# Recorder - historia
-recorder:
-  purge_keep_days: 30
-  commit_interval: 5
+# HTTP (jeśli używasz reverse proxy)
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 127.0.0.1
+    - ::1
+    - 172.30.33.0/24
 ```
 
 ---
 
-## KROK 4: secrets.yaml
+## KROK 4: input_numbers.yaml
+
+**UTWÓRZ PLIK:** `config/input_numbers.yaml`
 
 ```yaml
-# UZUPEŁNIJ RZECZYWISTYMI WARTOŚCIAMI!
+# ========================================
+# INPUT NUMBERS - Zmienne numeryczne
+# ========================================
 
-# Lokalizacja
-latitude: "52.2297"
-longitude: "21.0122"
-elevation: "100"
-
-# Telegram
-telegram_bot_token: "123456789:ABCdefGHI..."
-telegram_chat_id: "-1001234567890"
-
-# Huawei Solar (jeśli potrzebne)
-huawei_inverter_ip: "192.168.1.100"
-huawei_modbus_port: "502"
-```
-
----
-
-## KROK 5: input_numbers.yaml
-
-```yaml
 battery_target_soc:
-  name: "Docelowy SOC baterii"
+  name: "Target SOC baterii"
   min: 20
-  max: 80
+  max: 100
   step: 5
   unit_of_measurement: "%"
   icon: mdi:battery-charging-high
-  initial: 60
+  initial: 80
 
 battery_capacity_kwh:
   name: "Pojemność baterii"
@@ -211,7 +388,7 @@ battery_capacity_kwh:
   step: 0.1
   unit_of_measurement: "kWh"
   icon: mdi:battery
-  initial: 10  # DOSTOSUJ! 10 kWh
+  initial: 10  # ZMIEŃ na swoją pojemność!
 
 night_consumption_avg:
   name: "Średnie zużycie nocne (EMA)"
@@ -225,275 +402,116 @@ night_consumption_avg:
 daily_consumption_avg:
   name: "Średnie zużycie dzienne (EMA)"
   min: 0
-  max: 50
+  max: 100
   step: 0.1
   unit_of_measurement: "kWh"
   icon: mdi:home-lightning-bolt
-  initial: 15
+  initial: 25
 ```
 
 ---
 
-## KROK 6: input_text.yaml
+## KROK 5: input_text.yaml
+
+**UTWÓRZ PLIK:** `config/input_text.yaml`
 
 ```yaml
+# ========================================
+# INPUT TEXT - Zmienne tekstowe
+# ========================================
+
 battery_decision_reason:
   name: "Powód decyzji baterii"
   max: 255
   icon: mdi:head-cog
 
 battery_storage_status:
-  name: "Status magazynowania baterii"
+  name: "Analiza magazynowania"
   max: 255
   icon: mdi:battery-charging
 
 battery_cheapest_hours:
-  name: "Najtańsze godziny do magazynowania"
+  name: "Najtańsze godziny RCE"
   max: 100
   icon: mdi:clock-outline
 
-battery_event_log_1:
+# Event Log - 3 sloty
+event_log_1:
   name: "Event Log 1"
   max: 255
   icon: mdi:history
 
-battery_event_log_2:
+event_log_2:
   name: "Event Log 2"
   max: 255
   icon: mdi:history
 
-battery_event_log_3:
+event_log_3:
   name: "Event Log 3"
-  max: 255
-  icon: mdi:history
-
-battery_event_log_4:
-  name: "Event Log 4"
-  max: 255
-  icon: mdi:history
-
-battery_event_log_5:
-  name: "Event Log 5"
   max: 255
   icon: mdi:history
 ```
 
 ---
 
-## KROK 7: input_boolean.yaml
+## KROK 6: input_boolean.yaml
+
+**UTWÓRZ PLIK:** `config/input_boolean.yaml`
 
 ```yaml
-battery_notifications_enabled:
-  name: "Powiadomienia baterii"
-  icon: mdi:bell
+# ========================================
+# INPUT BOOLEAN - Przełączniki
+# ========================================
+
+telegram_notifications_enabled:
+  name: "Powiadomienia Telegram"
+  icon: mdi:telegram
+  initial: true
+
+persistent_notifications_enabled:
+  name: "Powiadomienia UI"
+  icon: mdi:bell-ring
+  initial: true
 
 battery_algorithm_enabled:
   name: "Algorytm baterii włączony"
   icon: mdi:robot
   initial: true
-
-heating_season:
-  name: "Sezon grzewczy"
-  icon: mdi:radiator
-  initial: true  # Ustaw na true w okresie grzewczym (X-IV)
 ```
 
 ---
 
-## KROK 8: input_select.yaml
+## KROK 7: input_select.yaml
+
+**UTWÓRZ PLIK:** `config/input_select.yaml`
 
 ```yaml
-battery_log_level:
-  name: "Poziom logowania baterii"
+# ========================================
+# INPUT SELECT - Listy wyboru
+# ========================================
+
+telegram_notification_level:
+  name: "Min. poziom powiadomień Telegram"
   options:
-    - "debug"
-    - "info"
-    - "warning"
-    - "error"
-  initial: "info"
-  icon: mdi:bug
+    - "DEBUG"
+    - "INFO"
+    - "WARNING"
+    - "ERROR"
+    - "CRITICAL"
+  initial: "INFO"
+  icon: mdi:filter
 ```
 
 ---
 
-## KROK 9: template_sensors.yaml (KLUCZOWE!)
+## KROK 8: utility_meter.yaml
+
+**UTWÓRZ PLIK:** `config/utility_meter.yaml`
 
 ```yaml
-- sensor:
-    # ========================================
-    # STREFA TARYFOWA G12w
-    # ========================================
-    - name: "Strefa taryfowa"
-      unique_id: strefa_taryfowa
-      state: >
-        {% set hour = now().hour %}
-        {% set weekday = now().weekday() %}
-        {% set is_holiday = is_state('binary_sensor.workday_poland', 'off') and weekday < 5 %}
-        {% set is_weekend = weekday >= 5 %}
-
-        {% if is_weekend or is_holiday %}
-          L2
-        {% elif (hour >= 6 and hour < 13) or (hour >= 15 and hour < 22) %}
-          L1
-        {% else %}
-          L2
-        {% endif %}
-      icon: >
-        {% if is_state('sensor.strefa_taryfowa', 'L1') %}
-          mdi:currency-usd
-        {% else %}
-          mdi:currency-usd-off
-        {% endif %}
-
-    # ========================================
-    # CENA ENERGII RCE
-    # ========================================
-    - name: "Cena zakupu energii"
-      unique_id: cena_zakupu_energii
-      unit_of_measurement: "PLN/kWh"
-      state: >
-        {% set rce = states('sensor.rce_pse_cena') | float(0) %}
-        {% if rce > 10 %}
-          {{ (rce / 1000) | round(4) }}
-        {% else %}
-          {{ rce | round(4) }}
-        {% endif %}
-      icon: mdi:cash
-
-    # ========================================
-    # PROGNOZA PV - SUMA OBU PŁASZCZYZN
-    # ========================================
-    - name: "Prognoza PV dzisiaj"
-      unique_id: prognoza_pv_dzisiaj
-      unit_of_measurement: "kWh"
-      state: >
-        {% set pv_se = states('sensor.prognoza_pv_se') | float(0) %}
-        {% set pv_sw = states('sensor.prognoza_pv_sw') | float(0) %}
-        {{ (pv_se + pv_sw) | round(1) }}
-      icon: mdi:solar-power
-
-    # ========================================
-    # PROGI CENOWE RCE (PERCENTYLE)
-    # ========================================
-    - name: "RCE Progi cenowe"
-      unique_id: rce_progi_cenowe
-      state: "OK"
-      attributes:
-        p33: >
-          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') %}
-          {% if prices %}
-            {% set values = prices | map(attribute='rce_pln') | list | sort %}
-            {% set idx = (values | length * 0.33) | int %}
-            {{ (values[idx] / 1000) | round(2) if values[idx] > 10 else values[idx] | round(2) }}
-          {% else %}
-            0.5
-          {% endif %}
-        p66: >
-          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') %}
-          {% if prices %}
-            {% set values = prices | map(attribute='rce_pln') | list | sort %}
-            {% set idx = (values | length * 0.66) | int %}
-            {{ (values[idx] / 1000) | round(2) if values[idx] > 10 else values[idx] | round(2) }}
-          {% else %}
-            0.7
-          {% endif %}
-
-    # ========================================
-    # RCE CENY GODZINOWE Z KOLORAMI
-    # ========================================
-    - name: "RCE Ceny godzinowe"
-      unique_id: rce_ceny_godzinowe
-      state: "OK"
-      attributes:
-        hours: >
-          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') %}
-          {% set p33 = state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.5) %}
-          {% set p66 = state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.7) %}
-          {% set result = [] %}
-          {% if prices %}
-            {% for p in prices %}
-              {% set hour = p.dtime.split(' ')[1].split(':')[0] | int %}
-              {% set price = (p.rce_pln / 1000) if p.rce_pln > 10 else p.rce_pln %}
-              {% if price < 0.20 %}
-                {% set color = 'super_green' %}
-              {% elif price < p33 %}
-                {% set color = 'green' %}
-              {% elif price < p66 %}
-                {% set color = 'yellow' %}
-              {% else %}
-                {% set color = 'red' %}
-              {% endif %}
-              {% set result = result + [{'hour': hour, 'price': price | round(2), 'color': color}] %}
-            {% endfor %}
-          {% endif %}
-          {{ result }}
-
-- binary_sensor:
-    # ========================================
-    # DZIEŃ ROBOCZY
-    # ========================================
-    - name: "Dzień roboczy"
-      unique_id: dzien_roboczy
-      state: >
-        {{ is_state('binary_sensor.workday_poland', 'on') }}
-      icon: >
-        {% if is_state('binary_sensor.dzien_roboczy', 'on') %}
-          mdi:briefcase
-        {% else %}
-          mdi:party-popper
-        {% endif %}
-
-    # ========================================
-    # SEZON GRZEWCZY
-    # ========================================
-    - name: "Sezon grzewczy"
-      unique_id: sezon_grzewczy
-      state: >
-        {% set month = now().month %}
-        {{ month >= 10 or month <= 4 }}
-      icon: mdi:radiator
-
-    # ========================================
-    # BEZPIECZNA TEMPERATURA BATERII
-    # ========================================
-    - name: "Bateria bezpieczna temperatura"
-      unique_id: bateria_bezpieczna_temperatura
-      state: >
-        {% set temp = states('sensor.akumulator_1_temperatura') | float(20) %}
-        {{ temp >= 5 and temp <= 40 }}
-      icon: mdi:thermometer-check
-
-    # ========================================
-    # AWARIA SIECI
-    # ========================================
-    - name: "Awaria sieci"
-      unique_id: awaria_sieci
-      state: >
-        {% set grid_sensor = states('sensor.pomiar_mocy_moc_czynna') %}
-        {% set inverter_state = states('sensor.inwerter_stan') | lower %}
-        {% set grid_unavailable = grid_sensor in ['unavailable', 'unknown'] %}
-        {% set inverter_backup = inverter_state in ['off-grid', 'backup', 'fault'] %}
-        {{ grid_unavailable or inverter_backup }}
-      icon: >
-        {% if is_state('binary_sensor.awaria_sieci', 'on') %}
-          mdi:transmission-tower-off
-        {% else %}
-          mdi:transmission-tower
-        {% endif %}
-```
-
----
-
-## KROK 10: utility_meter.yaml
-
-```yaml
-# Zużycie nocne (22:00-06:00)
-zuzycie_nocne:
-  source: sensor.pomiar_mocy_zuzycie
-  cycle: daily
-  tariffs:
-    - noc
-    - dzien
+# ========================================
+# UTILITY METERS - Mierniki energii
+# ========================================
 
 # Zużycie godzinowe
 zuzycie_godzinowe:
@@ -502,286 +520,803 @@ zuzycie_godzinowe:
 
 # Produkcja PV dzienna
 produkcja_pv_dzienna:
-  source: sensor.inwerter_total_dc_input_energy
-  cycle: daily
-
-# Eksport dzienny
-eksport_dzienny:
-  source: sensor.pomiar_mocy_eksport
+  source: sensor.inwerter_dzienna_produkcja
   cycle: daily
 ```
 
 ---
 
-## KROK 11: python_scripts/battery_algorithm.py
+## KROK 9: logger.yaml
 
-**WAŻNE PARAMETRY DO DOSTOSOWANIA W ALGORYTMIE:**
+**UTWÓRZ PLIK:** `config/logger.yaml`
+
+```yaml
+# ========================================
+# LOGGER - Konfiguracja logowania
+# ========================================
+
+default: warning
+logs:
+  homeassistant.components.python_script: info
+  custom_components.huawei_solar: warning
+  custom_components.pstryk: warning
+```
+
+---
+
+## KROK 10: template_sensors.yaml (KRYTYCZNE!)
+
+**UTWÓRZ PLIK:** `config/template_sensors.yaml`
+
+Ten plik jest bardzo długi (~1000 linii). Zawiera wszystkie sensory obliczeniowe.
+
+```yaml
+# ============================================
+# TEMPLATE SENSORS - Sensory obliczeniowe
+# Home Assistant Huawei Solar Battery Management
+# ============================================
+
+# ============================================
+# STREFA TARYFOWA G12w
+# ============================================
+- sensor:
+    - name: "Strefa taryfowa"
+      unique_id: strefa_taryfowa
+      state: >
+        {% set hour = now().hour %}
+        {% set is_workday = is_state('binary_sensor.dzien_roboczy', 'on') %}
+        {% if not is_workday %}
+          L2
+        {% elif (hour >= 6 and hour < 13) or (hour >= 15 and hour < 22) %}
+          L1
+        {% else %}
+          L2
+        {% endif %}
+      icon: >
+        {% if this.state == 'L1' %}
+          mdi:currency-usd
+        {% else %}
+          mdi:currency-usd-off
+        {% endif %}
+      attributes:
+        friendly_name: "Strefa taryfowa G12w"
+        l1_hours: "06:00-13:00, 15:00-22:00 (dni robocze)"
+        l2_hours: "13:00-15:00, 22:00-06:00 + weekendy"
+
+# ============================================
+# CENA ENERGII RCE
+# ============================================
+- sensor:
+    - name: "Cena zakupu energii"
+      unique_id: cena_zakupu_energii
+      unit_of_measurement: "PLN/kWh"
+      state: >
+        {% set rce = states('sensor.rce_pse_cena') | float(0) %}
+        {% if rce > 10 %}
+          {{ (rce / 1000) | round(2) }}
+        {% else %}
+          {{ rce | round(2) }}
+        {% endif %}
+      icon: mdi:cash
+      attributes:
+        friendly_name: "Cena RCE"
+
+# ============================================
+# RCE ŚREDNIA WIECZORNA (zachód słońca → 22:00)
+# ============================================
+- sensor:
+    - name: "RCE średnia wieczorna"
+      unique_id: rce_srednia_wieczorna
+      unit_of_measurement: "PLN/kWh"
+      state: >
+        {% set prices = state_attr('sensor.rce_pse_cena', 'prices') %}
+        {% set today = now().strftime('%Y-%m-%d') %}
+        {% set sunset_hour = state_attr('sun.sun', 'next_setting') %}
+        {% set start_hour = 16 %}
+        {% set end_hour = 22 %}
+        {% set ns = namespace(prices=[], count=0) %}
+        {% if prices %}
+          {% for p in prices %}
+            {% if p.dtime.startswith(today) %}
+              {% set hour = p.dtime.split(' ')[1].split(':')[0] | int %}
+              {% if hour >= start_hour and hour < end_hour %}
+                {% set price = p.rce_pln / 1000 if p.rce_pln > 10 else p.rce_pln %}
+                {% set ns.prices = ns.prices + [price] %}
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+        {% if ns.prices | length > 0 %}
+          {{ (ns.prices | sum / ns.prices | length) | round(2) }}
+        {% else %}
+          0.50
+        {% endif %}
+      icon: mdi:chart-timeline
+      attributes:
+        friendly_name: "RCE średnia wieczorna (zachód→22h)"
+
+# ============================================
+# RCE PROGI CENOWE (PERCENTYLE p33/p66)
+# UŻYWANE DO KOLOROWANIA GODZIN!
+# ============================================
+- sensor:
+    - name: "RCE Progi cenowe"
+      unique_id: rce_progi_cenowe
+      state: "OK"
+      icon: mdi:palette
+      attributes:
+        friendly_name: "Progi cenowe RCE (percentyle)"
+        p33: >
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') %}
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set ns = namespace(values=[]) %}
+          {% if prices %}
+            {% for p in prices if p.dtime.startswith(today) %}
+              {% set hour = p.dtime.split(' ')[1].split(':')[0] | int %}
+              {% if hour >= 6 and hour <= 21 %}
+                {% set price = p.rce_pln / 1000 if p.rce_pln > 10 else p.rce_pln %}
+                {% set ns.values = ns.values + [price] %}
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+          {% if ns.values | length > 0 %}
+            {% set sorted = ns.values | sort %}
+            {% set idx = ((sorted | length) * 0.33) | int %}
+            {{ sorted[idx] | round(2) }}
+          {% else %}
+            0.50
+          {% endif %}
+        p66: >
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') %}
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set ns = namespace(values=[]) %}
+          {% if prices %}
+            {% for p in prices if p.dtime.startswith(today) %}
+              {% set hour = p.dtime.split(' ')[1].split(':')[0] | int %}
+              {% if hour >= 6 and hour <= 21 %}
+                {% set price = p.rce_pln / 1000 if p.rce_pln > 10 else p.rce_pln %}
+                {% set ns.values = ns.values + [price] %}
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+          {% if ns.values | length > 0 %}
+            {% set sorted = ns.values | sort %}
+            {% set idx = ((sorted | length) * 0.66) | int %}
+            {{ sorted[idx] | round(2) }}
+          {% else %}
+            0.70
+          {% endif %}
+        legend: "🟢 < p33 | 🟡 p33-p66 | 🔴 > p66"
+
+# ============================================
+# RCE CENY GODZINOWE Z KOLOROWYMI KROPKAMI
+# Format: h06, h07, ... h21 dla dziś
+# Format: t06, t07, ... t21 dla jutro
+# Wartość: "🟢 0.45" lub "🟡 0.65" lub "🔴 0.85"
+# ============================================
+- sensor:
+    - name: "RCE Ceny godzinowe"
+      unique_id: rce_ceny_godzinowe
+      state: "OK"
+      icon: mdi:clock-time-four-outline
+      attributes:
+        # DZIŚ - godziny 06-21
+        h06: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set p33 = state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.5) %}
+          {% set p66 = state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.7) %}
+          {% set ns = namespace(hour_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '06' %}
+            {% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000 if p.rce_pln > 10 else p.rce_pln] %}
+          {% endfor %}
+          {% if ns.hour_prices | length > 0 %}
+            {% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}
+            {% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr <= p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}
+          {% else %}-{% endif %}
+        h07: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set p33 = state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.5) %}
+          {% set p66 = state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.7) %}
+          {% set ns = namespace(hour_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '07' %}
+            {% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000 if p.rce_pln > 10 else p.rce_pln] %}
+          {% endfor %}
+          {% if ns.hour_prices | length > 0 %}
+            {% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}
+            {% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr <= p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}
+          {% else %}-{% endif %}
+        h08: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set p33 = state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.5) %}
+          {% set p66 = state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.7) %}
+          {% set ns = namespace(hour_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '08' %}
+            {% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000 if p.rce_pln > 10 else p.rce_pln] %}
+          {% endfor %}
+          {% if ns.hour_prices | length > 0 %}
+            {% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}
+            {% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr <= p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}
+          {% else %}-{% endif %}
+        h09: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set p33 = state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.5) %}
+          {% set p66 = state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.7) %}
+          {% set ns = namespace(hour_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '09' %}
+            {% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000 if p.rce_pln > 10 else p.rce_pln] %}
+          {% endfor %}
+          {% if ns.hour_prices | length > 0 %}
+            {% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}
+            {% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr <= p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}
+          {% else %}-{% endif %}
+        h10: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set p33 = state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.5) %}
+          {% set p66 = state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.7) %}
+          {% set ns = namespace(hour_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '10' %}
+            {% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000 if p.rce_pln > 10 else p.rce_pln] %}
+          {% endfor %}
+          {% if ns.hour_prices | length > 0 %}
+            {% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}
+            {% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr <= p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}
+          {% else %}-{% endif %}
+        h11: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set p33 = state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.5) %}
+          {% set p66 = state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.7) %}
+          {% set ns = namespace(hour_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '11' %}
+            {% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000 if p.rce_pln > 10 else p.rce_pln] %}
+          {% endfor %}
+          {% if ns.hour_prices | length > 0 %}
+            {% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}
+            {% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr <= p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}
+          {% else %}-{% endif %}
+        h12: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set p33 = state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.5) %}
+          {% set p66 = state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.7) %}
+          {% set ns = namespace(hour_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '12' %}
+            {% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000 if p.rce_pln > 10 else p.rce_pln] %}
+          {% endfor %}
+          {% if ns.hour_prices | length > 0 %}
+            {% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}
+            {% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr <= p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}
+          {% else %}-{% endif %}
+        h13: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set p33 = state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.5) %}
+          {% set p66 = state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.7) %}
+          {% set ns = namespace(hour_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '13' %}
+            {% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000 if p.rce_pln > 10 else p.rce_pln] %}
+          {% endfor %}
+          {% if ns.hour_prices | length > 0 %}
+            {% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}
+            {% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr <= p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}
+          {% else %}-{% endif %}
+        h14: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set p33 = state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.5) %}
+          {% set p66 = state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.7) %}
+          {% set ns = namespace(hour_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '14' %}
+            {% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000 if p.rce_pln > 10 else p.rce_pln] %}
+          {% endfor %}
+          {% if ns.hour_prices | length > 0 %}
+            {% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}
+            {% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr <= p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}
+          {% else %}-{% endif %}
+        h15: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set p33 = state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.5) %}
+          {% set p66 = state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.7) %}
+          {% set ns = namespace(hour_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '15' %}
+            {% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000 if p.rce_pln > 10 else p.rce_pln] %}
+          {% endfor %}
+          {% if ns.hour_prices | length > 0 %}
+            {% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}
+            {% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr <= p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}
+          {% else %}-{% endif %}
+        h16: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set p33 = state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.5) %}
+          {% set p66 = state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.7) %}
+          {% set ns = namespace(hour_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '16' %}
+            {% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000 if p.rce_pln > 10 else p.rce_pln] %}
+          {% endfor %}
+          {% if ns.hour_prices | length > 0 %}
+            {% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}
+            {% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr <= p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}
+          {% else %}-{% endif %}
+        h17: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set p33 = state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.5) %}
+          {% set p66 = state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.7) %}
+          {% set ns = namespace(hour_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '17' %}
+            {% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000 if p.rce_pln > 10 else p.rce_pln] %}
+          {% endfor %}
+          {% if ns.hour_prices | length > 0 %}
+            {% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}
+            {% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr <= p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}
+          {% else %}-{% endif %}
+        h18: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set p33 = state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.5) %}
+          {% set p66 = state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.7) %}
+          {% set ns = namespace(hour_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '18' %}
+            {% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000 if p.rce_pln > 10 else p.rce_pln] %}
+          {% endfor %}
+          {% if ns.hour_prices | length > 0 %}
+            {% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}
+            {% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr <= p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}
+          {% else %}-{% endif %}
+        h19: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set p33 = state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.5) %}
+          {% set p66 = state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.7) %}
+          {% set ns = namespace(hour_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '19' %}
+            {% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000 if p.rce_pln > 10 else p.rce_pln] %}
+          {% endfor %}
+          {% if ns.hour_prices | length > 0 %}
+            {% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}
+            {% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr <= p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}
+          {% else %}-{% endif %}
+        h20: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set p33 = state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.5) %}
+          {% set p66 = state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.7) %}
+          {% set ns = namespace(hour_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '20' %}
+            {% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000 if p.rce_pln > 10 else p.rce_pln] %}
+          {% endfor %}
+          {% if ns.hour_prices | length > 0 %}
+            {% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}
+            {% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr <= p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}
+          {% else %}-{% endif %}
+        h21: >
+          {% set today = now().strftime('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena', 'prices') or [] %}
+          {% set p33 = state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.5) %}
+          {% set p66 = state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.7) %}
+          {% set ns = namespace(hour_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(today) and p.dtime.split(' ')[1][:2] == '21' %}
+            {% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000 if p.rce_pln > 10 else p.rce_pln] %}
+          {% endfor %}
+          {% if ns.hour_prices | length > 0 %}
+            {% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}
+            {% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr <= p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}
+          {% else %}-{% endif %}
+        # JUTRO - t06-t21 (analogicznie z tomorrow)
+        t06: >
+          {% set tmr = (as_timestamp(now()) + 86400) | timestamp_custom('%Y-%m-%d') %}
+          {% set prices = state_attr('sensor.rce_pse_cena_jutro', 'prices') or [] %}
+          {% set p33 = state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.5) %}
+          {% set p66 = state_attr('sensor.rce_progi_cenowe', 'p66') | float(0.7) %}
+          {% set ns = namespace(hour_prices=[]) %}
+          {% for p in prices if p.dtime.startswith(tmr) and p.dtime.split(' ')[1][:2] == '06' %}
+            {% set ns.hour_prices = ns.hour_prices + [p.rce_pln/1000 if p.rce_pln > 10 else p.rce_pln] %}
+          {% endfor %}
+          {% if ns.hour_prices | length > 0 %}
+            {% set pr = ((ns.hour_prices | sum) / (ns.hour_prices | length)) | round(2) %}
+            {% if pr < 0.2 %}🟢🟢{% elif pr < p33 %}🟢{% elif pr <= p66 %}🟡{% else %}🔴{% endif %} {{ '%.2f'|format(pr) }}
+          {% else %}-{% endif %}
+        # ... (analogicznie t07-t21 dla jutro)
+
+# ============================================
+# WSPÓŁCZYNNIK KOREKCJI PROGNOZY PV
+# Forecast.Solar zawyża prognozy, szczególnie zimą
+# ============================================
+- sensor:
+    - name: "PV Współczynnik korekcji"
+      unique_id: pv_correction_factor
+      state: >
+        {% set month = now().month %}
+        {% set factors = {1: 0.50, 2: 0.60, 3: 0.75, 4: 0.85, 5: 0.90, 6: 0.90,
+                          7: 0.90, 8: 0.90, 9: 0.85, 10: 0.75, 11: 0.60, 12: 0.50} %}
+        {{ factors.get(month, 0.75) }}
+      icon: mdi:percent
+      attributes:
+        friendly_name: "Współczynnik korekcji prognozy PV"
+        description: "Zimą Forecast.Solar zawyża prognozy o 30-50%"
+
+# ============================================
+# PROGNOZA PV - SUMA PŁASZCZYZN Z KOREKCJĄ
+# ZMIEŃ nazwy sensorów jeśli masz inne płaszczyzny!
+# ============================================
+- sensor:
+    - name: "Prognoza PV dzisiaj"
+      unique_id: prognoza_pv_dzisiaj
+      unit_of_measurement: "kWh"
+      state: >
+        {% set se = states('sensor.pv_se_prognoza_dzis') | float(0) %}
+        {% set sw = states('sensor.pv_sw_prognoza_dzis') | float(0) %}
+        {% set factor = states('sensor.pv_wspolczynnik_korekcji') | float(0.75) %}
+        {{ ((se + sw) * factor) | round(1) }}
+      icon: mdi:solar-power
+      attributes:
+        friendly_name: "Prognoza PV dziś (skorygowana)"
+        raw_forecast: "{{ (states('sensor.pv_se_prognoza_dzis') | float(0) + states('sensor.pv_sw_prognoza_dzis') | float(0)) | round(1) }}"
+        correction_factor: "{{ states('sensor.pv_wspolczynnik_korekcji') }}"
+
+- sensor:
+    - name: "Prognoza PV jutro"
+      unique_id: prognoza_pv_jutro
+      unit_of_measurement: "kWh"
+      state: >
+        {% set se = states('sensor.pv_se_prognoza_jutro') | float(0) %}
+        {% set sw = states('sensor.pv_sw_prognoza_jutro') | float(0) %}
+        {% set factor = states('sensor.pv_wspolczynnik_korekcji') | float(0.75) %}
+        {{ ((se + sw) * factor) | round(1) }}
+      icon: mdi:solar-power
+
+# ============================================
+# NADWYŻKA / DEFICYT MOCY
+# ============================================
+- sensor:
+    - name: "Nadwyżka PV"
+      unique_id: nadwyzka_pv
+      unit_of_measurement: "kW"
+      state: >
+        {% set pv = states('sensor.inwerter_moc_wejsciowa') | float(0) / 1000 %}
+        {% set load = states('sensor.pomiar_mocy_moc_czynna') | float(0) / 1000 | abs %}
+        {% set surplus = pv - load %}
+        {{ [surplus, 0] | max | round(2) }}
+      icon: mdi:solar-power
+
+- sensor:
+    - name: "Deficyt mocy"
+      unique_id: deficyt_mocy
+      unit_of_measurement: "kW"
+      state: >
+        {% set pv = states('sensor.inwerter_moc_wejsciowa') | float(0) / 1000 %}
+        {% set load = states('sensor.pomiar_mocy_moc_czynna') | float(0) / 1000 | abs %}
+        {% set deficit = load - pv %}
+        {{ [deficit, 0] | max | round(2) }}
+      icon: mdi:flash-alert
+
+# ============================================
+# BINARNE SENSORY
+# ============================================
+- binary_sensor:
+    - name: "Sezon grzewczy"
+      unique_id: sezon_grzewczy
+      state: >
+        {% set month = now().month %}
+        {{ month >= 10 or month <= 4 }}
+      icon: mdi:radiator
+
+    - name: "PC CO aktywne"
+      unique_id: pc_co_aktywne
+      state: >
+        {% set temp = states('sensor.temperatura_zewnetrzna') | float(15) %}
+        {% set sezon = is_state('binary_sensor.sezon_grzewczy', 'on') %}
+        {{ sezon and temp < 12 }}
+      icon: mdi:heat-pump
+
+    - name: "Okno CWU"
+      unique_id: okno_cwu
+      state: >
+        {% set hour = now().hour %}
+        {{ hour >= 12 and hour < 15 }}
+      icon: mdi:water-boiler
+
+    - name: "Bateria bezpieczna temperatura"
+      unique_id: bateria_bezpieczna_temperatura
+      state: >
+        {% set temp = states('sensor.akumulator_1_bms_temperature') | float(25) %}
+        {{ temp >= 5 and temp <= 40 }}
+      icon: mdi:thermometer-check
+
+    - name: "Awaria sieci"
+      unique_id: awaria_sieci
+      state: >
+        {% set grid = states('sensor.pomiar_mocy_moc_czynna') %}
+        {% set status = states('sensor.inwerter_stan') | lower %}
+        {{ grid in ['unavailable', 'unknown'] or status in ['off-grid', 'backup', 'fault'] }}
+      icon: >
+        {% if this.state == 'on' %}mdi:transmission-tower-off{% else %}mdi:transmission-tower{% endif %}
+
+# ============================================
+# TEMPERATURA BATERII
+# ZMIEŃ sensor jeśli masz inną nazwę!
+# ============================================
+- sensor:
+    - name: "Bateria temperatura maksymalna"
+      unique_id: bateria_temperatura_maksymalna
+      unit_of_measurement: "°C"
+      state: >
+        {{ states('sensor.akumulator_1_bms_temperature') | float(25) }}
+      icon: mdi:thermometer
+
+# ============================================
+# EVENT LOG - Ostatnie zdarzenie (parser JSON)
+# ============================================
+- sensor:
+    - name: "Event Log - Ostatnie zdarzenie"
+      unique_id: event_log_ostatnie_zdarzenie
+      state: >
+        {% set log = states('input_text.event_log_1') %}
+        {% if log and log != 'unknown' and log | length > 10 %}
+          {% set ts = log.split('"ts":"')[1].split('"')[0] if '"ts":"' in log else '' %}
+          {% set time = ts.split('T')[1][:5] if 'T' in ts else ts %}
+          {% set cat = log.split('"cat":"')[1].split('"')[0] if '"cat":"' in log else 'INFO' %}
+          {{ time }} [{{ cat }}]
+        {% else %}
+          Brak
+        {% endif %}
+      icon: mdi:history
+      attributes:
+        full_message: >
+          {% set log = states('input_text.event_log_1') %}
+          {% if log and '"msg":"' in log %}
+            {{ log.split('"msg":"')[1].split('"')[0] }}
+          {% else %}
+            -
+          {% endif %}
+```
+
+**WAŻNE:** To jest tylko część template_sensors.yaml. Pełny plik zawiera ~1000 linii i jest w repozytorium źródłowym. Skopiuj pełną wersję z: `config/template_sensors.yaml`
+
+---
+
+## KROK 11: lovelace_huawei.yaml (Dashboard)
+
+**UTWÓRZ PLIK:** `config/lovelace_huawei.yaml`
+
+```yaml
+# Dashboard Huawei Solar - 3 kolumny
+title: Huawei Solar PV
+views:
+  - title: Przegląd
+    icon: mdi:solar-power
+    type: sections
+    max_columns: 3
+    sections:
+      # SEKCJA 1 (lewa kolumna)
+      - type: grid
+        column_span: 1
+        cards:
+          # Pogoda
+          - type: weather-forecast
+            entity: weather.forecast_dom
+            show_forecast: true
+            forecast_type: hourly
+            show_current: true
+
+          # Bateria
+          - type: entities
+            title: Zarządzanie Baterią
+            icon: mdi:battery-charging
+            entities:
+              - entity: input_text.battery_decision_reason
+                name: 🎯 Decyzja
+                icon: mdi:chart-line
+              - entity: input_number.battery_target_soc
+                name: 🎯 Target SOC (obliczony o 04:00)
+              - entity: sensor.akumulatory_stan_pojemnosci
+                name: 🔋 Stan naładowania (SOC)
+                icon: mdi:battery-80
+              - entity: switch.akumulatory_ladowanie_z_sieci
+                name: Ładowanie z sieci
+              - entity: sensor.akumulatory_status
+                name: Status baterii
+              - entity: sensor.akumulatory_moc_ladowania_rozladowania
+                name: Moc ładowania (+) lub rozładowania (-)
+                icon: mdi:battery-charging
+              - entity: sensor.bateria_temperatura_maksymalna
+                name: 🌡️ Temperatura baterii (max)
+                icon: mdi:thermometer-high
+              - entity: binary_sensor.bateria_bezpieczna_temperatura
+                name: ✅ Bezpieczna temperatura
+                icon: mdi:thermometer-check
+              - entity: select.akumulatory_tryb_pracy
+                name: ⚙️ Tryb pracy
+            state_color: true
+
+          # Powiadomienia
+          - type: entities
+            title: Powiadomienia
+            icon: mdi:bell
+            entities:
+              - entity: input_boolean.telegram_notifications_enabled
+                name: 📱 Telegram
+                icon: mdi:telegram
+              - entity: input_boolean.persistent_notifications_enabled
+                name: 🔔 Powiadomienia UI
+                icon: mdi:bell-ring
+              - entity: input_select.telegram_notification_level
+                name: 📊 Min. poziom Telegram
+                icon: mdi:filter
+
+      # SEKCJA 2 (środkowa kolumna)
+      - type: grid
+        column_span: 1
+        cards:
+          # Ceny energii
+          - type: entities
+            title: Ceny energii RCE
+            icon: mdi:cash-multiple
+            entities:
+              - entity: sensor.strefa_taryfowa
+                name: Strefa taryfowa G12w
+                icon: mdi:clock-time-four-outline
+              - entity: sensor.cena_zakupu_energii
+                name: Cena obecna RCE
+                icon: mdi:cash
+              - entity: sensor.rce_srednia_wieczorna
+                name: RCE średnia wieczorna (zachód→22h)
+                icon: mdi:chart-timeline
+              - entity: input_text.battery_cheapest_hours
+                name: RCE najtańsze godziny
+                icon: mdi:currency-usd
+              - type: attribute
+                entity: sensor.rce_progi_cenowe
+                attribute: legend
+                name: Progi cenowe
+                icon: mdi:palette
+
+          # Ceny godzinowe RCE (tabela z kolorami)
+          - type: markdown
+            title: Ceny RCE godzinowe
+            content: |
+              **Dziś** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **Jutro**
+              | Godz | Cena | &nbsp;&nbsp; | Godz | Cena | &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | Godz | Cena | &nbsp;&nbsp; | Godz | Cena |
+              |------|------|------|------|------|:------------:|------|------|------|------|------|
+              | 06 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h06') }} | | 14 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h14') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 06 | {{ state_attr('sensor.rce_ceny_godzinowe', 't06') }} | | 14 | {{ state_attr('sensor.rce_ceny_godzinowe', 't14') }} |
+              | 07 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h07') }} | | 15 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h15') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 07 | {{ state_attr('sensor.rce_ceny_godzinowe', 't07') }} | | 15 | {{ state_attr('sensor.rce_ceny_godzinowe', 't15') }} |
+              | 08 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h08') }} | | 16 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h16') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 08 | {{ state_attr('sensor.rce_ceny_godzinowe', 't08') }} | | 16 | {{ state_attr('sensor.rce_ceny_godzinowe', 't16') }} |
+              | 09 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h09') }} | | 17 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h17') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 09 | {{ state_attr('sensor.rce_ceny_godzinowe', 't09') }} | | 17 | {{ state_attr('sensor.rce_ceny_godzinowe', 't17') }} |
+              | 10 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h10') }} | | 18 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h18') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 10 | {{ state_attr('sensor.rce_ceny_godzinowe', 't10') }} | | 18 | {{ state_attr('sensor.rce_ceny_godzinowe', 't18') }} |
+              | 11 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h11') }} | | 19 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h19') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 11 | {{ state_attr('sensor.rce_ceny_godzinowe', 't11') }} | | 19 | {{ state_attr('sensor.rce_ceny_godzinowe', 't19') }} |
+              | 12 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h12') }} | | 20 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h20') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 12 | {{ state_attr('sensor.rce_ceny_godzinowe', 't12') }} | | 20 | {{ state_attr('sensor.rce_ceny_godzinowe', 't20') }} |
+              | 13 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h13') }} | | 21 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h21') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 13 | {{ state_attr('sensor.rce_ceny_godzinowe', 't13') }} | | 21 | {{ state_attr('sensor.rce_ceny_godzinowe', 't21') }} |
+
+          # Prognoza PV
+          - type: entities
+            title: Prognoza PV i bilans mocy
+            icon: mdi:solar-power-variant
+            entities:
+              - entity: sensor.prognoza_pv_dzisiaj
+                name: Prognoza PV dziś (pozostało)
+                icon: mdi:solar-power
+              - entity: sensor.prognoza_pv_jutro
+                name: Prognoza PV jutro
+                icon: mdi:solar-power
+              - entity: sensor.nadwyzka_pv
+                name: Nadwyżka PV
+                icon: mdi:solar-power
+              - entity: sensor.deficyt_mocy
+                name: Deficyt mocy
+                icon: mdi:flash-alert
+              - entity: input_text.battery_storage_status
+                name: 📊 Analiza
+                icon: mdi:clock-outline
+
+      # SEKCJA 3 (prawa kolumna)
+      - type: grid
+        column_span: 1
+        cards:
+          # Historia mocy
+          - type: history-graph
+            title: Historia mocy (24h)
+            hours_to_show: 24
+            entities:
+              - entity: sensor.inwerter_moc_czynna
+                name: Moc wyjściowa
+              - entity: sensor.akumulatory_moc_ladowania_rozladowania
+                name: Bateria
+              - entity: sensor.pomiar_mocy_moc_czynna
+                name: Sieć
+
+          # Produkcja
+          - type: entities
+            title: Produkcja energii
+            icon: mdi:chart-line
+            entities:
+              - entity: sensor.inwerter_moc_wejsciowa
+                name: Aktualna produkcja PV
+                icon: mdi:solar-power
+              - entity: sensor.produkcja_pv_dzienna_rzeczywista
+                name: Dzienna produkcja PV
+                icon: mdi:weather-sunny
+
+          # Sezon grzewczy
+          - type: entities
+            title: Sezon grzewczy
+            icon: mdi:radiator
+            entities:
+              - entity: binary_sensor.sezon_grzewczy
+                name: Sezon grzewczy aktywny
+                icon: mdi:radiator
+              - entity: binary_sensor.pc_co_aktywne
+                name: Pompa ciepła CO aktywna
+                icon: mdi:heat-pump
+              - entity: binary_sensor.okno_cwu
+                name: Okno CWU aktywne
+                icon: mdi:water-boiler
+
+          # Event Log
+          - type: entities
+            title: 📋 Event Log
+            icon: mdi:text-box-outline
+            entities:
+              - entity: sensor.event_log_ostatnie_zdarzenie
+                name: Ostatnie zdarzenie
+                secondary_info: attribute
+                attribute: full_message
+              - entity: input_text.event_log_1
+                name: "Slot 1"
+              - entity: input_text.event_log_2
+                name: "Slot 2"
+              - entity: input_text.event_log_3
+                name: "Slot 3"
+```
+
+---
+
+## KROK 12: Skopiuj pełne pliki z repozytorium
+
+Następujące pliki są zbyt długie, aby umieścić je w instrukcji. **SKOPIUJ JE Z REPOZYTORIUM ŹRÓDŁOWEGO:**
+
+| Plik | Linie | Opis |
+|------|-------|------|
+| `config/python_scripts/battery_algorithm.py` | ~1470 | Główny algorytm zarządzania baterią |
+| `config/python_scripts/calculate_daily_strategy.py` | ~200 | Obliczanie Target SOC |
+| `config/automations_battery.yaml` | ~860 | Wszystkie automatyzacje baterii |
+| `config/automations_errors.yaml` | ~200 | Automatyzacje błędów i powiadomień |
+| `config/template_sensors.yaml` | ~1000 | Pełna wersja sensorów |
+
+**Repozytorium źródłowe:** https://github.com/MarekBodynek/home-assistant-huawei
+
+### Parametry do zmiany w battery_algorithm.py:
 
 ```python
-# ========================================
-# PARAMETRY INSTALACJI - DOSTOSUJ!
-# ========================================
+# Na górze pliku - ZMIEŃ te wartości:
+BATTERY_CAPACITY_KWH = 10  # Twoja pojemność baterii
+BATTERY_MAX_CHARGE_KW = 5  # Max moc ładowania
+```
 
-BATTERY_CAPACITY_KWH = 10  # Pojemność baterii (kWh)
-BATTERY_MAX_CHARGE_KW = 5  # Max moc ładowania (kW)
-BATTERY_MIN_SOC = 20       # Minimalny SOC (%)
-BATTERY_MAX_SOC = 80       # Maksymalny SOC (%)
+### Parametry TOU (ładowanie w L2):
 
-# Progi bezpieczeństwa
-CRITICAL_SOC = 5           # Krytycznie niski - ładuj 24/7
-LOW_SOC = 20               # Niski - priorytet ładowania w L2
-TEMP_WARNING = 40          # Ostrzeżenie temperatura
-TEMP_CRITICAL = 43         # Stop ładowania
-TEMP_FREEZING = 0          # Stop ładowania (mróz)
-
-# TOU periods - Weekend bez ładowania (tylko od Ndz 22:00)
-TOU_PERIODS_NORMAL = (
-    "22:00-23:59/123457/+\n"   # Pon-Pt + Ndz wieczór
+```python
+# Weekend bez ładowania (tylko od Ndz 22:00)
+tou_periods = (
+    "22:00-23:59/123457/+\n"   # Pon-Pt + Ndz wieczór (nie Sob!)
     "00:00-05:59/12345/+\n"    # Tylko dni robocze
     "13:00-14:59/12345/+\n"    # Tylko dni robocze
-    "06:00-12:59/67/+\n"       # Weekend: ochrona
-    "15:00-21:59/67/+"         # Weekend: ochrona
+    "06:00-12:59/67/+\n"       # Weekend: ochrona baterii
+    "15:00-21:59/67/+"         # Weekend: ochrona baterii
 )
-
-TOU_PERIODS_URGENT = "00:00-23:59/1234567/+"  # Ładuj 24/7
-
-# Sezonowe wschody/zachody słońca (Polska)
-SUNRISE_SUNSET = {
-    'winter': {'sunrise': 7, 'sunset': 16},    # XI-II
-    'spring': {'sunrise': 6, 'sunset': 18},    # III-IV
-    'summer': {'sunrise': 5, 'sunset': 20},    # V-VIII
-    'autumn': {'sunrise': 6, 'sunset': 17},    # IX-X
-}
-```
-
-**Skopiuj pełny algorytm z repozytorium źródłowego:**
-- Plik: `config/python_scripts/battery_algorithm.py`
-- Zmień tylko parametry instalacji na górze pliku
-
----
-
-## KROK 12: automations_battery.yaml
-
-```yaml
-# ========================================
-# GŁÓWNA PĘTLA ALGORYTMU
-# ========================================
-- alias: "[BATERIA] Główna pętla algorytmu"
-  id: battery_main_loop
-  trigger:
-    # Co godzinę
-    - platform: time_pattern
-      minutes: 0
-    # Zmiana strefy taryfowej
-    - platform: state
-      entity_id: sensor.strefa_taryfowa
-    # Start L2 południe
-    - platform: time
-      at: "13:00:00"
-    # Start L2 noc
-    - platform: time
-      at: "22:00:00"
-  condition:
-    - condition: state
-      entity_id: input_boolean.battery_algorithm_enabled
-      state: "on"
-  action:
-    - service: python_script.battery_algorithm
-
-# ========================================
-# OBLICZANIE TARGET SOC (21:05)
-# ========================================
-- alias: "[BATERIA] Oblicz Target SOC"
-  id: battery_calculate_target_soc
-  trigger:
-    - platform: time
-      at: "21:05:00"
-  action:
-    - service: python_script.calculate_daily_strategy
-
-# ========================================
-# WYBUDZANIE BATERII PRZED L2
-# ========================================
-- alias: "[BATERIA] Wybudź przed L2 noc"
-  id: battery_wake_before_l2_night
-  trigger:
-    - platform: time
-      at: "21:40:00"
-  condition:
-    - condition: state
-      entity_id: sensor.akumulatory_status
-      state: "Sleep mode"
-  action:
-    - repeat:
-        count: 5
-        sequence:
-          - service: huawei_solar.forcible_charge
-            data:
-              device_id: !secret huawei_battery_device_id
-              power: 2500
-              duration: 1
-          - delay:
-              seconds: 30
-          - condition: not
-            conditions:
-              - condition: state
-                entity_id: sensor.akumulatory_status
-                state: "Sleep mode"
-
-- alias: "[BATERIA] Wybudź przed L2 południe"
-  id: battery_wake_before_l2_noon
-  trigger:
-    - platform: time
-      at: "12:40:00"
-  condition:
-    - condition: state
-      entity_id: binary_sensor.dzien_roboczy
-      state: "on"
-    - condition: state
-      entity_id: sensor.akumulatory_status
-      state: "Sleep mode"
-  action:
-    - repeat:
-        count: 5
-        sequence:
-          - service: huawei_solar.forcible_charge
-            data:
-              device_id: !secret huawei_battery_device_id
-              power: 2500
-              duration: 1
-          - delay:
-              seconds: 30
-          - condition: not
-            conditions:
-              - condition: state
-                entity_id: sensor.akumulatory_status
-                state: "Sleep mode"
-
-# ========================================
-# ZBIERANIE DANYCH ML (CO GODZINĘ)
-# ========================================
-- alias: "[ML] Zbieranie danych godzinowych"
-  id: ml_hourly_data_collection
-  trigger:
-    - platform: time_pattern
-      minutes: 59
-  action:
-    - service: python_script.battery_algorithm
-      data:
-        collect_ml_data: true
 ```
 
 ---
 
-## KROK 13: automations_errors.yaml
+## KROK 13: Konfiguracja integracji Huawei Solar
 
-```yaml
-# ========================================
-# AWARIA SIECI - TELEGRAM
-# ========================================
-- alias: "[KRYTYCZNE] Awaria sieci - backup mode"
-  id: grid_outage_notification
-  trigger:
-    - platform: state
-      entity_id: binary_sensor.awaria_sieci
-      to: "on"
-  action:
-    - service: python_script.battery_algorithm
-    - service: notify.telegram
-      data:
-        title: "🚨 AWARIA SIECI!"
-        message: |
-          **Brak napięcia w sieci!**
-
-          Bateria przejęła zasilanie domu.
-
-          **SOC:** {{ states('sensor.akumulatory_stan_pojemnosci') }}%
-          **Czas:** {{ now().strftime('%H:%M:%S') }}
-
-          Bateria 10kWh przy zużyciu 2kW wystarczy na ~5h.
-
-- alias: "[INFO] Sieć przywrócona"
-  id: grid_restored_notification
-  trigger:
-    - platform: state
-      entity_id: binary_sensor.awaria_sieci
-      from: "on"
-      to: "off"
-  action:
-    - service: notify.telegram
-      data:
-        title: "✅ Sieć przywrócona"
-        message: |
-          **Napięcie w sieci wróciło!**
-
-          **SOC po awarii:** {{ states('sensor.akumulatory_stan_pojemnosci') }}%
-    - delay:
-        seconds: 10
-    - service: python_script.battery_algorithm
-
-# ========================================
-# TEMPERATURA BATERII
-# ========================================
-- alias: "[OSTRZEŻENIE] Wysoka temperatura baterii"
-  id: battery_temp_warning
-  trigger:
-    - platform: numeric_state
-      entity_id: sensor.akumulator_1_temperatura
-      above: 40
-  action:
-    - service: notify.telegram
-      data:
-        title: "🌡️ Wysoka temperatura baterii"
-        message: |
-          Temperatura: {{ states('sensor.akumulator_1_temperatura') }}°C
-          Limit: 40°C
-
-          Ładowanie może zostać ograniczone.
-
-- alias: "[KRYTYCZNE] Temperatura krytyczna baterii"
-  id: battery_temp_critical
-  trigger:
-    - platform: numeric_state
-      entity_id: sensor.akumulator_1_temperatura
-      above: 43
-  action:
-    - service: notify.telegram
-      data:
-        title: "🔥 TEMPERATURA KRYTYCZNA!"
-        message: |
-          Temperatura: {{ states('sensor.akumulator_1_temperatura') }}°C
-
-          Ładowanie ZATRZYMANE!
-
-# ========================================
-# NISKI SOC
-# ========================================
-- alias: "[OSTRZEŻENIE] Niski SOC baterii"
-  id: battery_low_soc
-  trigger:
-    - platform: numeric_state
-      entity_id: sensor.akumulatory_stan_pojemnosci
-      below: 20
-  condition:
-    - condition: state
-      entity_id: sensor.strefa_taryfowa
-      state: "L1"
-  action:
-    - service: notify.telegram
-      data:
-        title: "🔋 Niski poziom baterii"
-        message: |
-          SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%
-          Strefa: L1 (droga)
-
-          Bateria będzie naładowana w L2.
-```
-
----
-
-## KROK 14: Konfiguracja integracji Huawei Solar
-
-### 14.1 Dodanie integracji
+### 13.1 Dodanie integracji
 1. Settings → Devices & Services → Add Integration
 2. Szukaj "Huawei Solar"
 3. Podaj:
@@ -789,48 +1324,48 @@ SUNRISE_SUNSET = {
    - Port: 502 (Modbus)
    - Slave IDs: 1 (inwerter), 200 (bateria)
 
-### 14.2 Znajdź device_id baterii
+### 13.2 Znajdź device_id baterii (WAŻNE!)
 1. Settings → Devices & Services → Huawei Solar
 2. Kliknij urządzenie "Akumulatory" lub "Battery"
-3. Skopiuj ID z URL (format: `abc123...`)
+3. Skopiuj ID z URL: `...device_id=abc123def456...`
 4. Dodaj do `secrets.yaml`:
 ```yaml
 huawei_battery_device_id: "abc123def456..."
 ```
 
-### 14.3 Włącz sensory temperatury
+### 13.3 Włącz sensor temperatury baterii
 1. Settings → Devices & Services → Huawei Solar
 2. Akumulator 1 → Entities
-3. Enable: "BMS temperature" (sensor.akumulator_1_temperatura)
+3. Enable: "BMS temperature"
+4. Nazwa sensora: `sensor.akumulator_1_bms_temperature`
 
 ---
 
-## KROK 15: Weryfikacja po instalacji
+## KROK 14: Weryfikacja po instalacji
 
-### 15.1 Sprawdź sensory
-```yaml
-# Te sensory muszą działać:
-sensor.strefa_taryfowa: "L1" lub "L2"
-sensor.akumulatory_stan_pojemnosci: 0-100 (%)
-sensor.akumulator_1_temperatura: 15-35 (°C)
-sensor.rce_pse_cena: > 0 (PLN/MWh)
-sensor.prognoza_pv_se: > 0 (kWh)
-sensor.prognoza_pv_sw: > 0 (kWh)
-binary_sensor.dzien_roboczy: on/off
-binary_sensor.awaria_sieci: off
+### 14.1 Sprawdź sensory (Developer Tools → States)
+```
+sensor.strefa_taryfowa: "L1" lub "L2" ✓
+sensor.akumulatory_stan_pojemnosci: 20-80 (%) ✓
+sensor.akumulator_1_bms_temperature: 15-35 (°C) ✓
+sensor.rce_pse_cena: > 0 ✓
+sensor.prognoza_pv_dzisiaj: > 0 (kWh) ✓
+binary_sensor.dzien_roboczy: on/off ✓
+binary_sensor.awaria_sieci: off ✓
+sensor.rce_progi_cenowe (p33, p66): > 0 ✓
 ```
 
-### 15.2 Test algorytmu
+### 14.2 Test algorytmu
 ```yaml
-# Uruchom ręcznie:
-# Developer Tools → Services → python_script.battery_algorithm
+# Developer Tools → Services
+service: python_script.battery_algorithm
 
 # Sprawdź wyniki:
 input_text.battery_decision_reason: "powinien zawierać opis decyzji"
-input_text.battery_cheapest_hours: "7🟢 8🟡 9🟢..." (w dzień)
+input_text.battery_cheapest_hours: "7🟢 8🟡 9🟢..." (z kolorowymi kropkami)
 ```
 
-### 15.3 Test powiadomień Telegram
+### 14.3 Test powiadomień Telegram
 ```yaml
 # Developer Tools → Services
 service: notify.telegram
@@ -840,49 +1375,55 @@ data:
 
 ---
 
-## KROK 16: Dashboard (lovelace_huawei.yaml)
+## PODSUMOWANIE ZMIAN DLA NOWEJ INSTALACJI
 
-Skopiuj plik `lovelace_huawei.yaml` z repozytorium źródłowego.
-
-Dostosuj entity_id jeśli różnią się nazwy sensorów.
-
----
-
-## PODSUMOWANIE KROKÓW
-
-1. ✅ Zainstaluj HACS
-2. ✅ Zainstaluj integracje: Huawei Solar, RCE PSE/Pstryk, Workday
-3. ✅ Utwórz pliki konfiguracji (configuration.yaml, secrets.yaml, etc.)
-4. ✅ Skopiuj template_sensors.yaml
-5. ✅ Skopiuj battery_algorithm.py (DOSTOSUJ PARAMETRY!)
-6. ✅ Skopiuj automations
-7. ✅ Skonfiguruj integrację Huawei Solar (device_id!)
-8. ✅ Włącz sensor temperatury baterii
-9. ✅ Skonfiguruj Telegram
-10. ✅ Restart HA
-11. ✅ Weryfikacja sensorów
-12. ✅ Test algorytmu
-13. ✅ Test powiadomień
+| Plik | Co zmienić |
+|------|------------|
+| `secrets.yaml` | latitude, longitude, elevation, telegram_*, huawei_* |
+| `configuration.yaml` | URL-e Forecast.Solar (lat/lon/tilt/azimuth/kwp) |
+| `input_numbers.yaml` | battery_capacity_kwh |
+| `battery_algorithm.py` | BATTERY_CAPACITY_KWH, BATTERY_MAX_CHARGE_KW |
+| `template_sensors.yaml` | Nazwy sensorów PV jeśli inne |
 
 ---
 
-## RÓŻNICE OD INSTALACJI ŹRÓDŁOWEJ
+## LOGIKA KOLOROWYCH KROPEK RCE
 
-| Parametr | Źródło | Ta instalacja |
-|----------|--------|---------------|
-| Bateria | 15 kWh | 10 kWh |
-| PV łącznie | 10 kWp | 6 kWp |
-| Płaszczyzna 1 | S | SE (135°) |
-| Płaszczyzna 2 | - | SW (225°) |
-| Moc PV 1 | 10 kWp | 3.6 kWp |
-| Moc PV 2 | - | 2.8 kWp |
-| Backup time | ~7h | ~5h |
+```
+🟢🟢 (super green) = cena < 0.20 PLN/kWh (bardzo tania)
+🟢 (green) = cena < p33 (tania - dolne 33%)
+🟡 (yellow) = cena p33-p66 (średnia - środkowe 33%)
+🔴 (red) = cena > p66 (droga - górne 33%)
+```
+
+Progi p33 i p66 są obliczane dynamicznie na podstawie percentyli cen danego dnia (godziny 06-21).
 
 ---
 
-## KONTAKT / WSPARCIE
+## TROUBLESHOOTING
 
-Repozytorium źródłowe: https://github.com/MarekBodynek/home-assistant-huawei
+### Problem: Sensory "unavailable"
+- Sprawdź czy integracja Huawei Solar jest połączona
+- Sprawdź IP inwertera i port Modbus
+
+### Problem: Kolory RCE nie działają
+- Sprawdź czy `sensor.rce_pse_cena` ma atrybut `prices`
+- Sprawdź czy `sensor.rce_progi_cenowe` pokazuje p33/p66
+
+### Problem: Bateria nie ładuje
+- Sprawdź `sensor.akumulatory_status` - czy nie jest "Sleep mode"?
+- Sprawdź `binary_sensor.bateria_bezpieczna_temperatura` - czy ON?
+- Sprawdź `sensor.strefa_taryfowa` - czy L2?
+
+### Problem: Prognozy PV zawyżone
+- Sprawdź `sensor.pv_wspolczynnik_korekcji` - powinien być 0.5-0.9
+- Zimą (XII-II) współczynnik = 0.50 (prognoza × 0.5)
+
+---
+
+## KONTAKT
+
+Repozytorium: https://github.com/MarekBodynek/home-assistant-huawei
 
 W razie problemów sprawdź logi:
 - Settings → System → Logs

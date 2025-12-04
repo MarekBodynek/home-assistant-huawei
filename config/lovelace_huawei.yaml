@@ -40,11 +40,8 @@ views:
               - entity: sensor.akumulatory_status
                 name: Status baterii
               - entity: sensor.akumulatory_moc_ladowania_rozladowania
-                name: Moc ładowania/rozładowania
+                name: Moc ładowania (+) lub rozładowania (-)
                 icon: mdi:battery-charging
-              - entity: sensor.bateria_max_moc_rozladowania
-                name: ⚡ Max moc rozładowania
-                icon: mdi:battery-minus
               # Temperatura baterii
               - entity: sensor.bateria_temperatura_maksymalna
                 name: 🌡️ Temperatura baterii (max)
@@ -56,6 +53,21 @@ views:
               - entity: select.akumulatory_tryb_pracy
                 name: ⚙️ Tryb pracy
             state_color: true
+
+          # Powiadomienia
+          - type: entities
+            title: Powiadomienia
+            icon: mdi:bell
+            entities:
+              - entity: input_boolean.telegram_notifications_enabled
+                name: 📱 Telegram
+                icon: mdi:telegram
+              - entity: input_boolean.persistent_notifications_enabled
+                name: 🔔 Powiadomienia UI
+                icon: mdi:bell-ring
+              - entity: input_select.telegram_notification_level
+                name: 📊 Min. poziom Telegram
+                icon: mdi:filter
 
       # SEKCJA 2 (środkowa kolumna)
       - type: grid
@@ -169,21 +181,6 @@ views:
               - entity: binary_sensor.okno_cwu
                 name: Okno CWU aktywne
                 icon: mdi:water-boiler
-
-          # Powiadomienia
-          - type: entities
-            title: Powiadomienia
-            icon: mdi:bell
-            entities:
-              - entity: input_boolean.telegram_notifications_enabled
-                name: 📱 Telegram
-                icon: mdi:telegram
-              - entity: input_boolean.persistent_notifications_enabled
-                name: 🔔 Powiadomienia UI
-                icon: mdi:bell-ring
-              - entity: input_select.telegram_notification_level
-                name: 📊 Min. poziom Telegram
-                icon: mdi:filter
 
           # Event Log - Ostatnie zdarzenie
           - type: entities

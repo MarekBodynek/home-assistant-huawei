@@ -402,6 +402,21 @@
 # PROGNOZA PV - POMOCNICZE SENSORY
 # ============================================
 
+# Współczynnik korekcji sezonowej - Forecast.Solar zawyża prognozy
+# Wartości oparte na porównaniu rzeczywistej produkcji z prognozami
+- sensor:
+    - name: "PV Współczynnik korekcji"
+      unique_id: pv_correction_factor
+      state: >
+        {% set month = now().month %}
+        {% set factors = {1: 0.50, 2: 0.60, 3: 0.75, 4: 0.85, 5: 0.90, 6: 0.90,
+                          7: 0.90, 8: 0.90, 9: 0.85, 10: 0.75, 11: 0.60, 12: 0.50} %}
+        {{ factors.get(month, 0.75) }}
+      icon: mdi:percent
+      attributes:
+        friendly_name: "Współczynnik korekcji prognozy PV"
+        description: "Zimą Forecast.Solar zawyża prognozy o 30-50%"
+
 - sensor:
     - name: "Prognoza PV dzisiaj"
       unique_id: forecast_pv_today
@@ -410,13 +425,16 @@
         {% set wschod = states('sensor.pv_wschod_prognoza_dzis') | float(0) %}
         {% set poludnie = states('sensor.pv_poludnie_prognoza_dzis') | float(0) %}
         {% set zachod = states('sensor.pv_zachod_prognoza_dzis') | float(0) %}
-        {{ (wschod + poludnie + zachod) | round(1) }}
+        {% set factor = states('sensor.pv_wspolczynnik_korekcji') | float(0.75) %}
+        {{ ((wschod + poludnie + zachod) * factor) | round(1) }}
       icon: mdi:solar-power
       attributes:
         friendly_name: "Prognoza produkcji PV dziś"
         wschod: "{{ states('sensor.pv_wschod_prognoza_dzis') }}"
         poludnie: "{{ states('sensor.pv_poludnie_prognoza_dzis') }}"
         zachod: "{{ states('sensor.pv_zachod_prognoza_dzis') }}"
+        raw_forecast: "{{ (states('sensor.pv_wschod_prognoza_dzis') | float(0) + states('sensor.pv_poludnie_prognoza_dzis') | float(0) + states('sensor.pv_zachod_prognoza_dzis') | float(0)) | round(1) }}"
+        correction_factor: "{{ states('sensor.pv_wspolczynnik_korekcji') }}"
 
 - sensor:
     - name: "Prognoza PV jutro"
@@ -426,13 +444,16 @@
         {% set wschod = states('sensor.pv_wschod_prognoza_jutro') | float(0) %}
         {% set poludnie = states('sensor.pv_poludnie_prognoza_jutro') | float(0) %}
         {% set zachod = states('sensor.pv_zachod_prognoza_jutro') | float(0) %}
-        {{ (wschod + poludnie + zachod) | round(1) }}
+        {% set factor = states('sensor.pv_wspolczynnik_korekcji') | float(0.75) %}
+        {{ ((wschod + poludnie + zachod) * factor) | round(1) }}
       icon: mdi:solar-power
       attributes:
         friendly_name: "Prognoza produkcji PV jutro"
         wschod: "{{ states('sensor.pv_wschod_prognoza_jutro') }}"
         poludnie: "{{ states('sensor.pv_poludnie_prognoza_jutro') }}"
         zachod: "{{ states('sensor.pv_zachod_prognoza_jutro') }}"
+        raw_forecast: "{{ (states('sensor.pv_wschod_prognoza_jutro') | float(0) + states('sensor.pv_poludnie_prognoza_jutro') | float(0) + states('sensor.pv_zachod_prognoza_jutro') | float(0)) | round(1) }}"
+        correction_factor: "{{ states('sensor.pv_wspolczynnik_korekcji') }}"
 
 - sensor:
     - name: "Prognoza PV 6h"
@@ -443,6 +464,7 @@
         {% set wschod_wh = state_attr('sensor.pv_wschod_prognoza_dzis', 'watt_hours') or {} %}
         {% set poludnie_wh = state_attr('sensor.pv_poludnie_prognoza_dzis', 'watt_hours') or {} %}
         {% set zachod_wh = state_attr('sensor.pv_zachod_prognoza_dzis', 'watt_hours') or {} %}
+        {% set factor = states('sensor.pv_wspolczynnik_korekcji') | float(0.75) %}
         {% set suma = 0 %}
         {% for i in range(1, 7) %}
           {% set h = hour + i %}
@@ -452,7 +474,7 @@
           {% set z = zachod_wh.get(time_key, 0) | float / 1000 %}
           {% set suma = suma + w + p + z %}
         {% endfor %}
-        {{ suma | round(1) }}
+        {{ (suma * factor) | round(1) }}
       icon: mdi:solar-power-variant
       attributes:
         friendly_name: "Prognoza PV następne 6h"
