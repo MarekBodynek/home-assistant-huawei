@@ -360,6 +360,25 @@ Projekt rozwijany przy wsparciu Claude Code (Anthropic).
 
 ## Changelog
 
+### v3.10 (2025-12-08)
+- **Fix**: Po zachodzie słońca kafelek RCE pokazuje dane na JUTRO (nie stare z wczoraj)
+- Dodano label `[Jutro]` gdy wyświetlane dane na następny dzień
+- Komunikat "Brak cen RCE na jutro" gdy dane niedostępne
+
+### v3.9 (2025-12-08)
+- **Zmiana**: Weekend energetyczny używa self-consumption zamiast TOU protection
+- PV produkuje → bateria ładuje, PV nie produkuje → bateria rozładowuje na dom
+- Sieć NIE ładuje baterii w weekend (piątek 22:00 → niedziela 22:00)
+
+### v3.8 (2025-12-08)
+- **Fix**: Kompletna logika weekendu energetycznego (piątek 22:00 → niedziela 22:00)
+- Dodano `is_friday_evening` - piątek 22:00+ = START weekendu
+- Dodano `is_sunday_evening` - niedziela 22:00+ = KONIEC weekendu
+
+### v3.7 (2025-12-08)
+- **Fix**: Niedziela 22:00 - bateria zaczyna ładować (koniec weekendu energetycznego)
+- **Fix**: Spójność kolorów RCE - zaokrąglanie cen przed porównaniem z progami
+
 ### v3.6 (2025-12-04)
 - **Fix**: Korekta mocy PV w Forecast.Solar (E=6.0, S=4.8, W=3.6 kWp)
 - **Nowa funkcja**: Współczynnik korekcji sezonowej dla prognoz PV (0.50 zima → 0.90 lato)
