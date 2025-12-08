@@ -316,12 +316,12 @@ def decide_strategy(data, balance):
     # Weekend energetyczny = (weekend/święto LUB piątek wieczór) ALE NIE niedziela wieczór
     is_energy_weekend = (not is_workday or is_friday_evening) and not is_sunday_evening
 
-    # Weekend energetyczny: oszczędzaj baterię jeśli SOC >= 20%
+    # Weekend energetyczny: self consumption (PV→bateria→dom, bez ładowania z sieci)
     if tariff == 'L2' and soc >= 20 and is_energy_weekend:
         return {
-            'mode': 'grid_to_home',
+            'mode': 'discharge_to_home',
             'priority': 'normal',
-            'reason': f'L2 weekend/święto (tania 0.72 zł) - oszczędzaj baterię na L1 (SOC {soc:.0f}%)'
+            'reason': f'Weekend - self consumption bez sieci (SOC {soc:.0f}%)'
         }
 
     # ŁADOWANIE W L2 - INTELIGENTNE ZARZĄDZANIE PV vs SIEĆ
