@@ -306,9 +306,16 @@ def decide_strategy(data, balance):
     workday_state = hass.states.get('binary_sensor.dzien_roboczy')
     is_workday = workday_state and workday_state.state == 'on'
 
+    # FIX: Niedziela 22:00-23:59 = początek nowej doby roboczej (na poniedziałek)
+    # Weekend energetyczny to tylko: sobota (cały dzień) + niedziela (00:00-21:59)
+    # Od niedzieli 22:00 zaczyna się doba poniedziałkowa - ŁADUJ baterię!
+    import datetime
+    weekday = datetime.datetime.now().weekday()  # 0=Pon, 1=Wt, ..., 6=Ndz
+    is_sunday_evening = (weekday == 6 and hour >= 22)  # Niedziela 22:00+
+
     # Weekend/święto: oszczędzaj baterię jeśli SOC >= 20%
-    # O północy binary_sensor.dzien_roboczy zmieni się na ON i algorytm zacznie ładować
-    if tariff == 'L2' and soc >= 20 and not is_workday:
+    # ALE: niedziela wieczór (22:00+) = początek doby roboczej - nie oszczędzaj!
+    if tariff == 'L2' and soc >= 20 and not is_workday and not is_sunday_evening:
         return {
             'mode': 'grid_to_home',
             'priority': 'normal',
@@ -709,7 +716,8 @@ def calculate_cheapest_hours_to_store(data):
         hours_display_parts = []
         for p in sorted(sun_prices, key=lambda x: x['hour']):
             h = p['hour']
-            price = p['price']
+            # WAŻNE: Zaokrąglij cenę do 2 miejsc, żeby być spójnym z wyświetlaną wartością w tabeli
+            price = round(p['price'], 2)
             # Progi: 🟢 < p33 | 🟡 p33-p66 | 🔴 > p66
             if price < p33:
                 dot = '🟢'
