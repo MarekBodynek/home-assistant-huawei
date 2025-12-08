@@ -590,10 +590,40 @@ def calculate_cheapest_hours_to_store(data):
             })
             return None, "Brak cen godzinowych", []
 
-        # Filtruj tylko dzisiejsze godziny słoneczne (sunrise - sunset)
-        # Pobierz dzisiejszą datę z sensora
+        # Filtruj godziny słoneczne (sunrise - sunset)
+        # Po zachodzie słońca → pokaż dane na JUTRO
         date_state = hass.states.get('sensor.date')
         today_str = date_state.state if date_state else "2025-11-16"
+
+        # Oblicz jutrzejszą datę (YYYY-MM-DD) bez importu datetime
+        # Parsuj ręcznie: "2025-12-08" → rok, miesiąc, dzień
+        year = int(today_str[0:4])
+        month_num = int(today_str[5:7])
+        day_num = int(today_str[8:10])
+
+        # Dodaj 1 dzień (prosta logika bez obsługi wszystkich edge cases)
+        days_in_month = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        # Rok przestępny
+        if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0):
+            days_in_month[2] = 29
+
+        day_num = day_num + 1
+        if day_num > days_in_month[month_num]:
+            day_num = 1
+            month_num = month_num + 1
+            if month_num > 12:
+                month_num = 1
+                year = year + 1
+
+        tomorrow_str = f"{year:04d}-{month_num:02d}-{day_num:02d}"
+
+        # Po zachodzie słońca → używaj danych na jutro
+        if hour >= sunset_hour:
+            target_date = tomorrow_str
+            day_label = "Jutro"
+        else:
+            target_date = today_str
+            day_label = "Dziś"
 
         # POPRAWKA: RCE PSE zwraca dane co 15 min, więc dla każdej godziny są 4 wpisy
         # Zbieramy wszystkie ceny per godzina, potem liczymy średnią
@@ -632,8 +662,8 @@ def calculate_cheapest_hours_to_store(data):
                 if price_float > 10:  # Powyżej 10 = PLN/MWh
                     price_float = price_float / 1000  # Przelicz na PLN/kWh
 
-                # Tylko dzisiaj + godziny słoneczne (sunrise <= hour < sunset)
-                if date_part == today_str and sunrise_hour <= price_hour < sunset_hour:
+                # Tylko target_date (dziś lub jutro) + godziny słoneczne (sunrise <= hour < sunset)
+                if date_part == target_date and sunrise_hour <= price_hour < sunset_hour:
                     # Agreguj ceny per godzina
                     # UWAGA: RestrictedPython nie pozwala na += dla dict items!
                     if price_hour not in hourly_prices_sum:
@@ -655,7 +685,17 @@ def calculate_cheapest_hours_to_store(data):
             })
 
         if not sun_prices:
-            return None, "Brak cen dla dzisiejszych godzin słonecznych", []
+            # Brak danych - zaktualizuj kafelki z informacją
+            no_data_msg = f"Brak cen RCE na {day_label.lower()}"
+            hass.services.call('input_text', 'set_value', {
+                'entity_id': 'input_text.battery_storage_status',
+                'value': f"{no_data_msg} | Teraz: {hour}h"
+            })
+            hass.services.call('input_text', 'set_value', {
+                'entity_id': 'input_text.battery_cheapest_hours',
+                'value': f"[{day_label}] Brak danych"
+            })
+            return None, no_data_msg, []
 
         # 5. Sortuj godziny po średniej cenie (rosnąco - najtańsze pierwsze)
         sun_prices_sorted = sorted(sun_prices, key=lambda x: x['price'])
@@ -690,10 +730,10 @@ def calculate_cheapest_hours_to_store(data):
         cheapest_hours_sorted = sorted(cheapest_hours)
         if battery_already_charged:
             # Bateria naładowana - pokaż informację + najtańsze godziny
-            status_msg = f"Bateria OK ({int(soc)}%) | Najtańsze: {cheapest_hours_sorted} | Teraz: {hour}h"
+            status_msg = f"Bateria OK ({int(soc)}%) | {day_label}: {cheapest_hours_sorted} | Teraz: {hour}h"
         else:
             # Normalny tryb - pokazuj potrzebę magazynowania
-            status_msg = f"Potrzeba: {hours_needed}h | Najtańsze: {cheapest_hours_sorted} | Teraz: {hour}h"
+            status_msg = f"Potrzeba: {hours_needed}h | {day_label}: {cheapest_hours_sorted} | Teraz: {hour}h"
 
         hass.services.call('input_text', 'set_value', {
             'entity_id': 'input_text.battery_storage_status',
@@ -729,6 +769,10 @@ def calculate_cheapest_hours_to_store(data):
                 dot = '🔴'
             hours_display_parts.append(str(h) + dot)
         hours_display = ' '.join(hours_display_parts)
+
+        # Dodaj prefix "Jutro:" gdy pokazujemy dane na jutro
+        if day_label == "Jutro":
+            hours_display = f"[{day_label}] {hours_display}"
 
         hass.services.call('input_text', 'set_value', {
             'entity_id': 'input_text.battery_cheapest_hours',
