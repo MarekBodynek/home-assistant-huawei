@@ -306,16 +306,18 @@ def decide_strategy(data, balance):
     workday_state = hass.states.get('binary_sensor.dzien_roboczy')
     is_workday = workday_state and workday_state.state == 'on'
 
-    # FIX: Niedziela 22:00-23:59 = początek nowej doby roboczej (na poniedziałek)
-    # Weekend energetyczny to tylko: sobota (cały dzień) + niedziela (00:00-21:59)
-    # Od niedzieli 22:00 zaczyna się doba poniedziałkowa - ŁADUJ baterię!
+    # Weekend energetyczny: piątek 22:00 → niedziela 22:00
+    # W tym czasie: NIE ładuj z sieci, czekaj na PV, oszczędzaj baterię
     import datetime
-    weekday = datetime.datetime.now().weekday()  # 0=Pon, 1=Wt, ..., 6=Ndz
-    is_sunday_evening = (weekday == 6 and hour >= 22)  # Niedziela 22:00+
+    weekday = datetime.datetime.now().weekday()  # 0=Pon, 4=Pt, 5=Sob, 6=Ndz
+    is_friday_evening = (weekday == 4 and hour >= 22)   # Piątek 22:00+ = START weekendu
+    is_sunday_evening = (weekday == 6 and hour >= 22)   # Niedziela 22:00+ = KONIEC weekendu
 
-    # Weekend/święto: oszczędzaj baterię jeśli SOC >= 20%
-    # ALE: niedziela wieczór (22:00+) = początek doby roboczej - nie oszczędzaj!
-    if tariff == 'L2' and soc >= 20 and not is_workday and not is_sunday_evening:
+    # Weekend energetyczny = (weekend/święto LUB piątek wieczór) ALE NIE niedziela wieczór
+    is_energy_weekend = (not is_workday or is_friday_evening) and not is_sunday_evening
+
+    # Weekend energetyczny: oszczędzaj baterię jeśli SOC >= 20%
+    if tariff == 'L2' and soc >= 20 and is_energy_weekend:
         return {
             'mode': 'grid_to_home',
             'priority': 'normal',
