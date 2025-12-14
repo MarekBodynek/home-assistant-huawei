@@ -4,6 +4,19 @@
 
 System zarządzania baterią Huawei LUNA 2000 z optymalizacją kosztów energii.
 
+## Zasady pracy Claude Code
+
+  1.	Najpierw przemyśl problem, przeczytaj bazę kodu i znajdź odpowiednie pliki, a następnie zapisz plan działania w pliku tasks/todo.md.
+	2.	Plan powinien zawierać listę zadań, które można odznaczać w miarę ich realizacji.
+	3.	Zanim zaczniesz pracę, skonsultuj plan ze mną — potwierdzę, czy jest poprawny.
+	4.	Następnie rozpocznij realizację zadań, oznaczając je jako ukończone w miarę postępów.
+	5.	Na każdym etapie przedstawiaj mi ogólne, wysokopoziomowe wyjaśnienie, jakie zmiany zostały wprowadzone.
+	6.	Każde zadanie i każda zmiana w kodzie powinny być możliwie najprostsze. Unikaj skomplikowanych lub dużych zmian. Każda zmiana powinna wpływać na jak najmniejszą część kodu. Wszystko ma być maksymalnie uproszczone.
+	7.	Na końcu dodaj sekcję review do pliku todo.md z podsumowaniem wprowadzonych zmian i innymi istotnymi informacjami.
+	8.	NIE BĄDŹ LENIWY. NIGDY NIE BĄDŹ LENIWY. JEŚLI WYSTĘPUJE BŁĄD — ZNAJDŹ PRAWDZIWĄ PRZYCZYNĘ I GO NAPRAW. ŻADNYCH TYMCZASOWYCH ROZWIĄZAŃ. ŻADNYCH ROZWIĄZAŃ NA SKRÓTY JESTEŚ STARSZYM PROGRAMISTĄ (SENIOR DEVELOPER). NIGDY NIE BĄDŹ LENIWY.
+	9.	WSZYSTKIE POPRAWKI I ZMIANY W KODZIE MAJĄ BYĆ TAK PROSTE, JAK TO TYLKO MOŻLIWE. MAJĄ WPŁYWAĆ WYŁĄCZNIE NA KOD ISTOTNY DLA ZADANIA I NIC PONADTO. TWOIM CELEM JEST NIE WPROWADZAĆ NOWYCH BŁĘDÓW. LICZY SIĘ TYLKO PROSTOTA.
+
+
 ## Struktura projektu
 
 - `config/` - Konfiguracja Home Assistant
@@ -28,16 +41,33 @@ System zarządzania baterią Huawei LUNA 2000 z optymalizacją kosztów energii.
 
 ## Dostęp do Mac Mini
 
-- SSH via Cloudflare: `ssh ssh.bodino.us.kg`
-- User: `marekbodynek`
-- HA config path: `/Users/marekbodynek/home-assistant-huawei/config`
+| Parametr | Wartość |
+|----------|---------|
+| User | `marekbodynek` |
+| Hasło | `Keram1qazXSW@3edcV` |
+| IP lokalne | `192.168.0.106` |
+| IP Tailscale | `100.103.147.52` |
+| Hostname Cloudflare | `macmini-ssh.bodino.us.kg` |
+
+### SSH przez Cloudflare (z dowolnego miejsca):
+```bash
+ssh -o ProxyCommand="cloudflared access ssh --hostname macmini-ssh.bodino.us.kg" marekbodynek@macmini-ssh.bodino.us.kg
+```
+
+### SCP przez Cloudflare:
+```bash
+scp -o ProxyCommand="cloudflared access ssh --hostname macmini-ssh.bodino.us.kg" plik.txt marekbodynek@macmini-ssh.bodino.us.kg:~/
+```
+
+### Ścieżki na serwerze:
+- HA config: `/Users/marekbodynek/home-assistant-huawei/config`
 - Docker: `/Applications/Docker.app/Contents/Resources/bin/docker`
 
 ## Dokumentacja
 
 **WAŻNE:** Przy każdej zmianie dokumentacji aktualizuj OBA pliki:
-- `DOKUMENTACJA_KOMPLETNA.md` - pełna wersja (z danymi osobowymi)
-- `DOKUMENTACJA_KOMPLETNA_PUBLIC.md` - zanonimizowana wersja (do udostępnienia)
+- `docs/DOKUMENTACJA_KOMPLETNA.md` - pełna wersja (z danymi osobowymi)
+- `docs/DOKUMENTACJA_KOMPLETNA_PUBLIC.md` - zanonimizowana wersja (do udostępnienia)
 
 Zanonimizowane dane w wersji PUBLIC:
 - `Marek Bodynek` → `[Autor]`

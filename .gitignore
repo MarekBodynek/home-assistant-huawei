@@ -5,6 +5,14 @@
 # Logs
 # Python
 # Sekrety - WAŻNE!
+
+# Dane ML i eksporty (duże pliki, generowane lokalnie)
+data/*.csv
+data/*.pkl
+scripts/*.csv
+
+# Claude Code local settings (zawiera tokeny!)
+.claude/settings.local.json
 *.log
 *.pyc
 .DS_Store

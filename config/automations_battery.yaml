@@ -140,6 +140,9 @@
         - condition: state
           entity_id: sensor.akumulatory_status
           state: "Standby"
+        - condition: state
+          entity_id: sensor.akumulatory_status
+          state: "Offline"
     - condition: template
       value_template: >
         {{ states('sensor.akumulatory_stan_pojemnosci') | float(0) <= states('input_number.battery_target_soc') | float(80) }}
@@ -219,6 +222,9 @@
         - condition: state
           entity_id: sensor.akumulatory_status
           state: "Standby"
+        - condition: state
+          entity_id: sensor.akumulatory_status
+          state: "Offline"
     - condition: template
       value_template: >
         {{ states('sensor.akumulatory_stan_pojemnosci') | float(0) <= states('input_number.battery_target_soc') | float(80) }}

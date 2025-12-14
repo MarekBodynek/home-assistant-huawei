@@ -34,9 +34,9 @@ flowchart TD
     CHECK_TARIFF_HIGH -->|L1 + PV| DISCHARGE_GRID[discharge_to_grid<br/>Sprzedaj<br/>RETURN]
     CHECK_TARIFF_HIGH -->|L1 + brak PV| DISCHARGE_HOME[discharge_to_home<br/>RETURN]
 
-    SOC_HIGH -->|NIE| WEEKEND{L2 + SOC≥40<br/>+ weekend/święto?}
+    SOC_HIGH -->|NIE| WEEKEND{Weekend<br/>energetyczny?}
 
-    WEEKEND -->|TAK| SAVE_BATTERY[grid_to_home<br/>Oszczędzaj na poniedziałek<br/>RETURN]
+    WEEKEND -->|TAK| SAVE_BATTERY[discharge_to_home<br/>Self consumption<br/>NIE ładuj z sieci!<br/>RETURN]
 
     WEEKEND -->|NIE| L2_NIGHT{L2 NOC<br/>22-06h<br/>SOC<Target?}
 
@@ -130,12 +130,13 @@ PV (darmowe) > L2 sieć (0.72 zł) > Bateria > L1 sieć (1.11 zł)
 
 ## Kluczowe Progi:
 
-- **SOC < 5%**: KRYTYCZNE - ładuj 24/7 do 35%
-- **SOC < 20%**: PILNE - ładuj w L2 do 20%
+- **SOC < 5%**: KRYTYCZNE - ładuj 24/7 do Target SOC
+- **SOC < 20%**: PILNE - ładuj w L2 do Target SOC
+- **Weekend energetyczny**: Self consumption - NIE ładuj z sieci (nawet jak SOC spadnie)
 - **SOC ≤ 20% w L1**: CZEKAJ na L2 (NIE ładuj!)
 - **SOC > 20% w L1**: Rozładowuj (oszczędzaj L1)
 - **SOC ≥ 80%**: Pełna - różne strategie zależnie od taryfy
-- **Target SOC**: Cel ładowania (zwykle 70-80%)
+- **Target SOC**: Cel ładowania (zwykle 35-80% zależnie od prognozy PV)
 
 ## Okna Czasowe:
 

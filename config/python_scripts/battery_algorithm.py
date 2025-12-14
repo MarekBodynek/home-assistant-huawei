@@ -29,13 +29,12 @@ FORECAST_BAD = 8
 FORECAST_VERY_BAD = 5
 
 # Progi baterii (%) - LIMITY HUAWEI: 20% min, 80% max
-BATTERY_CRITICAL = 25  # Blisko dolnego limitu 20%
-BATTERY_LOW = 30
-BATTERY_RESERVE_SUMMER = 35
-BATTERY_RESERVE_WINTER = 50
-BATTERY_GOOD = 65
-BATTERY_HIGH = 80  # Limit Huawei: 80%
-BATTERY_MAX = 80  # Limit Huawei: 80%
+BATTERY_CRITICAL = 5   # SOC krytyczne - natychmiastowe ładowanie 24/7
+BATTERY_LOW = 20       # SOC niskie - pilne ładowanie w L2
+BATTERY_RESERVE = 30   # Rezerwa weekendowa (stała, niezależna od sezonu)
+BATTERY_GOOD = 65      # SOC dobre
+BATTERY_HIGH = 70      # SOC wysokie
+BATTERY_MAX = 80       # Limit Huawei: 80%
 
 # Temperatura i PC
 TEMP_HEATING_THRESHOLD = 12  # °C
@@ -84,11 +83,12 @@ def execute_strategy():
             return
 
     # PRIORYTET 1: Sprawdź czy osiągnięto Target SOC - jeśli tak, ZATRZYMAJ ładowanie
+    # ALE kontynuuj do decide_strategy() żeby obsłużyć L1/L2/weekend!
     soc = data['soc']
     target_soc = data['target_soc']
 
     if soc >= target_soc:
-        # Bateria naładowana do Target SOC - zatrzymaj ładowanie
+        # Bateria naładowana do Target SOC - zatrzymaj ładowanie (jeśli włączone)
         charging_active = hass.states.get('switch.akumulatory_ladowanie_z_sieci')
         if charging_active and charging_active.state == 'on':
             # Explicite zatrzymaj ładowanie
@@ -100,15 +100,11 @@ def execute_strategy():
                 'entity_id': 'number.akumulatory_maksymalna_moc_ladowania',
                 'value': 0
             })
-            # Zapisz powód decyzji
-            hass.services.call('input_text', 'set_value', {
-                'entity_id': 'input_text.battery_decision_reason',
-                'value': f'✅ Target SOC osiągnięty ({soc:.0f}% >= {target_soc}%) - ZATRZYMANO ładowanie'
-            })
-            return
-        # Jeśli ładowanie już wyłączone, ale przywróć moc ładowania na normalną (5000W)
-        # Bo mogła być ustawiona na 0W w poprzednim cyklu
+            # NIE ROBIMY RETURN! Kontynuujemy do decide_strategy()
+            # żeby obsłużyć rozładowywanie w L1, weekend, itp.
         else:
+            # Jeśli ładowanie już wyłączone - przywróć moc ładowania na normalną (5000W)
+            # Bo mogła być ustawiona na 0W w poprzednim cyklu
             hass.services.call('number', 'set_value', {
                 'entity_id': 'number.akumulatory_maksymalna_moc_ladowania',
                 'value': 5000
@@ -266,8 +262,8 @@ def decide_strategy(data, balance):
     if soc < 20:
         return {
             'mode': 'charge_from_grid',
-            'target_soc': 20,
-            'priority': 'critical',
+            'target_soc': target_soc,  # Użyj obliczonego Target SOC (np. 80%), NIE 20%!
+            'priority': 'high',  # Było 'critical' - to pilne ale nie błąd
             'reason': 'SOC < 20% - PILNE ładowanie w najbliższym oknie L2!'
         }
 
@@ -286,7 +282,7 @@ def decide_strategy(data, balance):
         if balance['surplus'] > 0:
             return {
                 'mode': 'discharge_to_grid',
-                'priority': 'high',
+                'priority': 'normal',  # Normalna operacja przy pełnej baterii
                 'reason': 'SOC 80%, nadwyżka PV - sprzedaj'
             }
         else:
@@ -308,20 +304,37 @@ def decide_strategy(data, balance):
 
     # Weekend energetyczny: piątek 22:00 → niedziela 22:00
     # W tym czasie: NIE ładuj z sieci, czekaj na PV, oszczędzaj baterię
-    import datetime
-    weekday = datetime.datetime.now().weekday()  # 0=Pon, 4=Pt, 5=Sob, 6=Ndz
+    # Oblicz dzień tygodnia bez importu datetime (algorytm Tomohiko Sakamoto)
+    date_sensor = hass.states.get('sensor.date')
+    today_str = date_sensor.state if date_sensor else ''
+    if today_str and len(today_str) >= 10:
+        y = int(today_str[0:4])
+        m = int(today_str[5:7])
+        d = int(today_str[8:10])
+        # Algorytm: zwraca 0=niedziela, 1=pon, ... 5=pt, 6=sob
+        t = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4]
+        if m < 3:
+            y = y - 1
+        dow = (y + y//4 - y//100 + y//400 + t[m-1] + d) % 7
+        # Konwersja na format Python: 0=pon, 4=pt, 5=sob, 6=ndz
+        weekday = (dow + 6) % 7
+    else:
+        weekday = 0  # Fallback na poniedziałek
     is_friday_evening = (weekday == 4 and hour >= 22)   # Piątek 22:00+ = START weekendu
     is_sunday_evening = (weekday == 6 and hour >= 22)   # Niedziela 22:00+ = KONIEC weekendu
 
     # Weekend energetyczny = (weekend/święto LUB piątek wieczór) ALE NIE niedziela wieczór
     is_energy_weekend = (not is_workday or is_friday_evening) and not is_sunday_evening
 
-    # Weekend energetyczny: self consumption (PV→bateria→dom, bez ładowania z sieci)
-    if tariff == 'L2' and soc >= 20 and is_energy_weekend:
+    # WEEKEND ENERGETYCZNY (piątek 22:00 - niedziela 21:59)
+    # ZAWSZE self consumption - NIE ładuj z sieci, nawet gdy SOC spadnie
+    # Wyjątek: SOC < 5% (obsłużone wyżej jako ładowanie krytyczne 24/7)
+    # Ładowanie do Target SOC dopiero w niedzielę 22:00+
+    if is_energy_weekend:
         return {
             'mode': 'discharge_to_home',
             'priority': 'normal',
-            'reason': f'Weekend - self consumption bez sieci (SOC {soc:.0f}%)'
+            'reason': 'Weekend - tylko self consumption, bez ładowania z sieci'
         }
 
     # ŁADOWANIE W L2 - INTELIGENTNE ZARZĄDZANIE PV vs SIEĆ
@@ -356,7 +369,7 @@ def decide_strategy(data, balance):
             # Brak znaczącej nadwyżki - rozładowuj do domu
             return {
                 'mode': 'discharge_to_home',
-                'priority': 'high',
+                'priority': 'normal',  # Normalna operacja w L1
                 'reason': f'L1 droga taryfa (1.11 zł) - rozładowuj baterię (SOC {soc:.0f}%)'
             }
 
@@ -379,10 +392,10 @@ def decide_strategy(data, balance):
         # PC CO potrzebuje energii rano, a zimowe PV jest słabe
         if heating_mode == 'heating_season' and soc < target_soc:
             if pv_forecast < 15:
-                priority = 'critical'
+                priority = 'normal'  # Normalne ładowanie w sezonie grzewczym
                 reason = f'Noc L2 + sezon grzewczy + pochmurno {forecast_label} ({pv_forecast:.1f} kWh) - ładuj do {target_soc}%!'
             else:
-                priority = 'high'
+                priority = 'normal'  # Normalna decyzja
                 reason = f'Noc L2 + sezon grzewczy - ładuj do {target_soc}% (PC potrzebuje energii rano)'
             return {
                 'mode': 'charge_from_grid',
@@ -422,13 +435,13 @@ def decide_strategy(data, balance):
         # Słaba prognoza (<15 kWh) → ŁADUJ
         if soc < target_soc:
             if pv_forecast < 10:
-                priority = 'critical'
+                priority = 'normal'  # Było 'critical' - normalne ładowanie
                 reason = f'Noc L2 + bardzo pochmurno {forecast_label} ({pv_forecast:.1f} kWh) - ładuj do {target_soc}%!'
             elif pv_forecast < 15:
-                priority = 'high'
+                priority = 'normal'  # Było 'high' - normalne ładowanie
                 reason = f'Noc L2 + pochmurno {forecast_label} ({pv_forecast:.1f} kWh) - ładuj do {target_soc}%'
             else:
-                priority = 'medium'
+                priority = 'normal'  # Było 'medium'
                 reason = f'Noc L2 + SOC {soc:.0f}% < próg - ładuj do {target_soc}%'
             return {
                 'mode': 'charge_from_grid',
@@ -471,7 +484,7 @@ def decide_strategy(data, balance):
                 return {
                     'mode': 'charge_from_grid',
                     'target_soc': min(80, target_soc),
-                    'priority': 'high',
+                    'priority': 'normal',  # Normalne ładowanie w L2
                     'reason': f'L2 13-15h: PV ({pv_surplus:.1f} kW) nie wystarczy, uzupełnij z sieci do {target_soc}%'
                 }
 
@@ -647,15 +660,17 @@ def calculate_cheapest_hours_to_store(data):
                 else:
                     continue
 
-                # Pobierz POCZĄTEK okresu z "period" (format: "00:45 - 01:00")
-                period_str = price_entry.get('period', '')
-                if ' - ' in period_str:
-                    start_time = period_str.split(' - ')[0]  # "00:45"
-                    price_hour = int(start_time.split(':')[0])  # 0
-                else:
-                    # Fallback: użyj dtime (może być nieprecyzyjne)
-                    time_part = dtime_str.split(' ')[1].split(':')[0] if ' ' in dtime_str else '0'
+                # Pobierz godzinę z dtime (KONIEC okresu) - spójne z template_sensors.yaml
+                # Format dtime: "2025-12-09 09:00:00" → godzina 9
+                # Dla okresu 08:45-09:00, dtime=09:00, przypisujemy do h09 (jak w dashboard)
+                if ' ' in dtime_str:
+                    time_part = dtime_str.split(' ')[1].split(':')[0]
                     price_hour = int(time_part)
+                elif 'T' in dtime_str:
+                    time_part = dtime_str.split('T')[1].split(':')[0]
+                    price_hour = int(time_part)
+                else:
+                    continue
 
                 # RCE PSE zwraca ceny w PLN/MWh - przelicz na PLN/kWh
                 price_float = float(price_val)
@@ -821,7 +836,7 @@ def handle_pv_surplus(data, balance):
     if rce_now < 0.15 and soc < BATTERY_MAX:
         return {
             'mode': 'charge_from_pv',
-            'priority': 'critical',
+            'priority': 'normal',  # Okazja cenowa, nie ostrzeżenie
             'reason': f'RCE ultra niskie ({rce_now:.3f} zł) - nie oddawaj za bezcen! MAGAZYNUJ'
         }
 
@@ -829,7 +844,7 @@ def handle_pv_surplus(data, balance):
     if forecast_tomorrow < FORECAST_POOR and soc < BATTERY_HIGH:
         return {
             'mode': 'charge_from_pv',
-            'priority': 'very_high',
+            'priority': 'normal',  # Normalna decyzja oparta na prognozie
             'reason': f'Jutro pochmurno ({forecast_tomorrow:.1f} kWh) - MAGAZYNUJ'
         }
 
@@ -837,7 +852,7 @@ def handle_pv_surplus(data, balance):
     if month in [11, 12, 1, 2] and soc < BATTERY_HIGH:
         return {
             'mode': 'charge_from_pv',
-            'priority': 'high',
+            'priority': 'normal',  # Normalna sezonowa strategia
             'reason': 'Zima - każda kWh cenna! MAGAZYNUJ'
         }
 
@@ -858,7 +873,7 @@ def handle_pv_surplus(data, balance):
         # TANIA godzina → MAGAZYNUJ
         return {
             'mode': 'charge_from_pv',
-            'priority': 'high',
+            'priority': 'normal',  # Normalna decyzja magazynowania
             'reason': reason,
             'cheapest_hours': cheapest_hours
         }
@@ -897,7 +912,7 @@ def handle_power_deficit(data, balance):
             return {
                 'mode': 'discharge_to_grid',
                 'target_soc': arbitrage['min_soc'],
-                'priority': 'high',
+                'priority': 'normal',  # Normalna decyzja arbitrażowa
                 'reason': arbitrage['reason']
             }
 
@@ -909,7 +924,7 @@ def handle_power_deficit(data, balance):
             if soc > 20:
                 return {
                     'mode': 'discharge_to_home',
-                    'priority': 'critical',
+                    'priority': 'normal',  # Normalna operacja PC w L1
                     'reason': f'PC w L1 (temp {temp:.1f}°C) - rozładowuj baterię, oszczędzaj drogą L1!'
                 }
             else:
@@ -918,7 +933,7 @@ def handle_power_deficit(data, balance):
                 # Wyjątek: SOC ≤5% jest obsłużony wcześniej w decide_strategy (linia 248)
                 return {
                     'mode': 'idle',
-                    'priority': 'high',
+                    'priority': 'normal',  # Normalne czekanie na L2
                     'reason': f'SOC {soc:.0f}% w L1 - CZEKAJ na L2 22:00 (oszczędność 54%!), nie marnuj pieniędzy!'
                 }
         else:  # L2
@@ -932,7 +947,7 @@ def handle_power_deficit(data, balance):
                     return {
                         'mode': 'charge_from_grid',
                         'target_soc': target_soc,
-                        'priority': 'high',
+                        'priority': 'normal',  # Normalne nocne ładowanie
                         'reason': f'Noc L2 + deficit - ładuj do {target_soc}%'
                     }
                 else:
@@ -953,7 +968,7 @@ def handle_power_deficit(data, balance):
                     return {
                         'mode': 'charge_from_grid',
                         'target_soc': target_soc,
-                        'priority': 'high',
+                        'priority': 'normal',  # Normalne ładowanie przy PC
                         'reason': 'PC w L2 + doładuj baterię na L1'
                     }
 
@@ -962,7 +977,7 @@ def handle_power_deficit(data, balance):
         if tariff == 'L1' and soc > 20:
             return {
                 'mode': 'discharge_to_home',
-                'priority': 'high',
+                'priority': 'normal',  # Normalna operacja w L1
                 'reason': 'Oszczędzaj L1 (bez CO)'
             }
         elif data['cwu_window']:
@@ -982,7 +997,7 @@ def handle_power_deficit(data, balance):
     else:
         return {
             'mode': 'grid_to_home',
-            'priority': 'critical',
+            'priority': 'normal',  # Było 'critical' - to normalny fallback
             'reason': 'SOC za niskie - pobór z sieci'
         }
 
@@ -1021,7 +1036,7 @@ def should_charge_from_grid(data):
         return {
             'should_charge': True,
             'target_soc': 80,
-            'priority': 'critical',
+            'priority': 'normal',  # Okazja cenowa, nie ostrzeżenie
             'reason': f'RCE ujemne ({rce_now:.3f})! Płacą Ci za pobór! (max 80%)'
         }
 
@@ -1031,7 +1046,7 @@ def should_charge_from_grid(data):
             return {
                 'should_charge': True,
                 'target_soc': 80,
-                'priority': 'high',
+                'priority': 'normal',  # Okazja cenowa
                 'reason': f'RCE bardzo niskie ({rce_now:.3f}) + pochmurno jutro'
             }
 
@@ -1045,7 +1060,7 @@ def should_charge_from_grid(data):
             return {
                 'should_charge': True,
                 'target_soc': 80,
-                'priority': 'critical',
+                'priority': 'normal',  # Normalna decyzja o ostatnim ładowaniu
                 'reason': f'Ostatnia szansa w L2! Pochmurno jutro ({forecast_tomorrow:.1f} kWh) (max 80%)'
             }
 
@@ -1363,7 +1378,7 @@ def get_fallback_strategy(data):
         return {
             'mode': 'charge_from_grid',
             'target_soc': 50,
-            'priority': 'high',
+            'priority': 'normal',  # Fallback to nie błąd
             'reason': 'FALLBACK: Brak danych, ładuj'
         }
     else:

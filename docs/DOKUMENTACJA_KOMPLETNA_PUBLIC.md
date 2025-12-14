@@ -255,19 +255,19 @@ Po dodaniu integracji, Home Assistant wykryje:
 ## 2.1 Harmonogram uruchamiania
 
 ```
-04:00  → fetch_forecast_pv() + calculate_daily_strategy()
+03:55  → fetch_forecast_pv()
 04:30  → execute_strategy() [początek okna CWU]
 06:00  → execute_strategy() [zmiana L2→L1]
-12:00  → fetch_forecast_pv() + recalculate_strategy()
+12:00  → fetch_forecast_pv()
 13:00  → execute_strategy() [zmiana L1→L2]
 15:00  → execute_strategy() [zmiana L2→L1]
 18:00  → fetch_rce_prices() [random 0-15min delay]
 19:00  → execute_strategy() [SZCZYT + arbitraż]
-20:00  → fetch_forecast_pv() + finalize_night_strategy()
+20:00  → fetch_forecast_pv()
+21:05  → calculate_daily_strategy() [Target SOC na dobę 22:00-21:59]
 22:00  → execute_strategy() [zmiana L1→L2 + ładowanie]
 
 CO 1h (XX:00) → execute_strategy() [główna pętla]
-CO 1min → monitor_critical_states()
 ```
 
 ## 2.2 Główna funkcja decyzyjna
@@ -336,7 +336,7 @@ RCE < 0.15 zł/kWh + pochmurno jutro → ładuj do 75%
 
 ### CASE 3: NOC L2 - GŁÓWNE ŁADOWANIE
 **Godziny:** 22:00-06:00
-**Cel:** Target SOC obliczony o 04:00
+**Cel:** Target SOC obliczony o 21:05
 
 **Priorytety:**
 - Pochmurno jutro (< 15 kWh) → CRITICAL
@@ -387,7 +387,7 @@ SOC < 15% → ładuj do 30% (bezpieczeństwo baterii)
 
 ## 2.7 Obliczanie Target SOC
 
-Wykonywane codziennie o 04:00
+Wykonywane codziennie o 21:05
 
 ### SEZON GRZEWCZY:
 
@@ -500,13 +500,12 @@ FORECAST_VERY_BAD = 5
 
 ### Progi baterii:
 ```python
-BATTERY_CRITICAL = 10  # %
-BATTERY_LOW = 20
-BATTERY_RESERVE_SUMMER = 30
-BATTERY_RESERVE_WINTER = 45
-BATTERY_GOOD = 70
-BATTERY_HIGH = 85
-BATTERY_MAX = 95  # Uwaga: Huawei zaleca max 80%!
+BATTERY_CRITICAL = 5   # % - SOC krytyczne, natychmiastowe ładowanie 24/7
+BATTERY_LOW = 20       # % - SOC niskie, pilne ładowanie w L2
+BATTERY_RESERVE = 30   # % - Rezerwa weekendowa (stała, niezależna od sezonu)
+BATTERY_GOOD = 65      # % - SOC dobre
+BATTERY_HIGH = 70      # % - SOC wysokie
+BATTERY_MAX = 80       # % - Limit Huawei (nie przekraczać!)
 ```
 
 ### Temperatura i PC:
@@ -546,7 +545,7 @@ CWU_AFTERNOON_END = 15
 ### Scenariusz 1: Zimowy dzień (mróz -10°C, pochmurno)
 
 ```
-04:00 → calculate_daily_strategy()
+21:05 → calculate_daily_strategy()
   Prognoza: 5 kWh
   Temp: -10°C (CO aktywne)
   TARGET_SOC = 85% (PC będzie ciężko pracować!)
@@ -574,7 +573,7 @@ CWU_AFTERNOON_END = 15
 ### Scenariusz 2: Letni dzień (20°C, słonecznie)
 
 ```
-04:00 → calculate_daily_strategy()
+21:05 → calculate_daily_strategy()
   Prognoza: 35 kWh
   Temp: 20°C (CO wyłączone!)
   TARGET_SOC = 20% (PV wystarczy)
@@ -692,8 +691,8 @@ CWU_AFTERNOON_END = 15
 
 ### Lista automatyzacji:
 
-1. **[Bateria] Oblicz strategię dzienną 04:00**
-   - Trigger: time 04:00:00
+1. **[Bateria] Oblicz strategię dzienną 21:05**
+   - Trigger: time 21:05:00
    - Wywołuje: `python_script.calculate_daily_strategy`
    - Oblicza Target SOC na dzień
 
