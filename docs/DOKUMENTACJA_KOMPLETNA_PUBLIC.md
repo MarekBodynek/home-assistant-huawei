@@ -1,7 +1,7 @@
 # 📚 Home Assistant + Huawei Solar - Kompletna Dokumentacja
 
-**Wersja:** 3.2
-**Data aktualizacji:** 2025-11-23
+**Wersja:** 3.13
+**Data aktualizacji:** 2025-12-17
 **Autor:** [Autor] + Claude Code (Anthropic AI)
 
 ---
@@ -30,13 +30,16 @@
 ### [3. INTEGRACJE](#3-integracje)
 - [3.1 Integracja Pstryk (ceny RCE)](#31-integracja-pstryk-ceny-rce)
 - [3.2 Integracja Forecast.Solar (prognoza PV)](#32-integracja-forecastsolar-prognoza-pv)
-- [3.3 Integracja Panasonic T-CAP (pompa ciepła)](#33-integracja-panasonic-t-cap-pompa-ciepła)
+- [3.3 Integracja Panasonic Aquarea (pompa ciepła)](#33-integracja-panasonic-aquarea-pompa-ciepła)
 
 ### [4. AUTOMATYZACJE](#4-automatyzacje)
 - [4.1 Automatyzacje baterii](#41-automatyzacje-baterii)
 - [4.2 Watchdog algorytmu](#42-watchdog-algorytmu)
 - [4.3 Monitoring temperatury baterii](#43-monitoring-temperatury-baterii)
 - [4.4 Auto git pull](#44-auto-git-pull)
+- [4.5 CWU z nadwyżki PV](#45-cwu-z-nadwyżki-pv)
+- [4.6 Watchdog Aquarea](#46-watchdog-aquarea)
+- [4.7 CWU harmonogram 13:02](#47-cwu-harmonogram-1302)
 
 ### [5. DASHBOARD](#5-dashboard)
 - [5.1 Instalacja dashboardu](#51-instalacja-dashboardu)
@@ -387,7 +390,7 @@ SOC < 15% → ładuj do 30% (bezpieczeństwo baterii)
 
 ## 2.7 Obliczanie Target SOC
 
-Wykonywane codziennie o 21:05
+Wykonywane codziennie o 21:05 (przed dobą energetyczną 22:00-21:59)
 
 ### SEZON GRZEWCZY:
 
@@ -546,13 +549,13 @@ CWU_AFTERNOON_END = 15
 
 ```
 21:05 → calculate_daily_strategy()
-  Prognoza: 5 kWh
+  Prognoza jutro: 5 kWh
   Temp: -10°C (CO aktywne)
-  TARGET_SOC = 85% (PC będzie ciężko pracować!)
+  TARGET_SOC = 80% (PC będzie ciężko pracować!)
 
-04:30 → execute_strategy()
-  PC CWU w L2, SOC 42% < 85%
-  DECYZJA: Ładuj z sieci L2 + PC CWU może brać
+22:00 → execute_strategy()
+  Zmiana L1→L2, SOC 42% < 80%
+  DECYZJA: Ładuj z sieci L2
 
 06:00 → execute_strategy()
   Zmiana L2→L1, PC CO pracuje 6 kW!
@@ -574,9 +577,9 @@ CWU_AFTERNOON_END = 15
 
 ```
 21:05 → calculate_daily_strategy()
-  Prognoza: 35 kWh
+  Prognoza jutro: 35 kWh
   Temp: 20°C (CO wyłączone!)
-  TARGET_SOC = 20% (PV wystarczy)
+  TARGET_SOC = 35% (PV wystarczy)
 
 13:00 → execute_strategy()
   L2, PC CWU 3 kW, PV 8 kW
@@ -653,33 +656,49 @@ CWU_AFTERNOON_END = 15
 - Redukcja zapytań: -50%
 - Ręczne update o 03:55, 12:00, 20:00 (kluczowe momenty)
 
-## 3.3 Integracja Panasonic T-CAP (pompa ciepła)
+## 3.3 Integracja Panasonic Aquarea (pompa ciepła)
 
-**Status:** ✅ Zainstalowana (wymaga konfiguracji)
-**GitHub:** https://github.com/sockless-coding/panasonic_cc
+**Status:** ✅ Zainstalowana i działająca
+**GitHub:** https://github.com/cjaliaga/home-assistant-aquarea
+**Integracja:** Aquarea Smart Cloud (HACS)
 
 ### Wymagania:
 - Moduł WiFi CZ-TAW1 w pompie ciepła
-- Konto Panasonic Comfort Cloud
+- Konto Panasonic Aquarea Smart Cloud (aquarea-smart.panasonic.com)
 
 ### Konfiguracja:
-1. **Settings** → **Devices & Services** → **+ ADD INTEGRATION**
-2. Wyszukaj: **Panasonic Comfort Cloud**
-3. Podaj dane logowania z aplikacji mobilnej
+1. **HACS** → **Integrations** → Wyszukaj: **Aquarea Smart Cloud**
+2. Zainstaluj i restart HA
+3. **Settings** → **Devices & Services** → **+ ADD INTEGRATION**
+4. Wyszukaj: **Aquarea Smart Cloud**
+5. Podaj dane logowania z aquarea-smart.panasonic.com
 
-### Encje:
-- `sensor.pompa_ciepla_outside_temperature` - Temperatura zewnętrzna
-- `binary_sensor.pompa_ciepla_heating` - Czy PC grzeje (CO)
-- `binary_sensor.pompa_ciepla_hot_water` - Czy PC podgrzewa wodę (CWU)
-- `sensor.pompa_ciepla_inside_temperature` - Temperatura wewnętrzna
-- `sensor.pompa_ciepla_tank_temperature` - Temperatura zasobnika CWU
-- `sensor.pompa_ciepla_compressor_frequency` - Częstotliwość sprężarki
+### Główne encje:
+- `climate.bodynek_nb_zone_1` - Sterowanie ogrzewaniem (CO)
+  - Stany: `heat`, `off`
+  - Atrybut: `current_temperature` - temperatura zasilania
+- `water_heater.bodynek_nb_tank` - Sterowanie CWU
+  - Stany: `heating`, `off`
+  - Atrybut: `current_temperature` - temperatura wody w zbiorniku
+  - Atrybut: `temperature` - temperatura docelowa
+- `switch.bodynek_nb_wymus_c_w_u` - Wymuszenie grzania CWU
+
+### Sensory pomocnicze (template):
+```yaml
+# config/template_sensors.yaml
+- binary_sensor:
+    - name: "PC CO aktywne"
+      state: "{{ states('climate.bodynek_nb_zone_1') == 'heat' }}"
+
+    - name: "CWU aktywne"
+      state: "{{ states('water_heater.bodynek_nb_tank') == 'heating' }}"
+```
 
 ### Korzyści:
-- ✅ Rzeczywisty status CO i CWU (zamiast obliczanych okien)
-- ✅ Dokładna temperatura z czujnika PC
-- ✅ Monitoring zużycia PC w czasie rzeczywistym
-- ✅ Algorytm może unikać ładowania gdy PC pobiera dużo mocy
+- ✅ Rzeczywisty status CO i CWU (z API pompy)
+- ✅ Sterowanie pompą z Home Assistant
+- ✅ Wymuszanie grzania CWU z nadwyżki PV
+- ✅ Integracja z algorytmem zarządzania baterią
 
 ---
 
@@ -834,6 +853,180 @@ curl -X POST http://192.168.x.x:8123/api/webhook/git_pull_webhook_secret_12345
     - service: homeassistant.reload_core_config
 ```
 
+## 4.5 CWU z nadwyżki PV
+
+**Plik:** `config/automations_battery.yaml`
+
+### Opis funkcjonalności:
+Automatyczne grzanie ciepłej wody użytkowej (CWU) gdy:
+- Jest nadwyżka produkcji PV
+- Cena energii jest w zielonej strefie (< p33)
+
+### Automatyzacja 1: Włączenie CWU
+**ID:** `cwu_pv_surplus_enable`
+
+**Trigger:**
+- Nadwyżka PV > 2 kW
+
+**Warunki (wszystkie muszą być spełnione):**
+1. CWU nie grzeje aktualnie (`water_heater.bodynek_nb_tank` = off)
+2. Wymuszenie CWU wyłączone (`switch.bodynek_nb_wymus_c_w_u` = off)
+3. Cena energii < p33 (dynamiczny próg zielonej strefy z `sensor.rce_progi_cenowe`)
+4. Temperatura wody < 55°C
+
+**Akcja:**
+- Włącz `switch.bodynek_nb_wymus_c_w_u`
+- Wyślij powiadomienie
+
+### Automatyzacja 2: Wyłączenie CWU
+**ID:** `cwu_pv_surplus_disable`
+
+**Trigger (dowolny):**
+- Nadwyżka PV < 0.5 kW
+- Temperatura wody > 55°C
+
+**Warunek:**
+- Flaga `input_boolean.cwu_pv_surplus_active` = ON (włączone przez automatyzację PV, nie ręcznie!)
+
+**Akcja:**
+- Wyłącz `switch.bodynek_nb_wymus_c_w_u`
+- Wyłącz flagę `input_boolean.cwu_pv_surplus_active`
+- Wyślij powiadomienie z powodem
+
+### Automatyzacja 3: Ręczne wymuszenie CWU - auto-off po 30 min
+**ID:** `cwu_manual_force_auto_off`
+
+**Trigger:**
+- `switch.bodynek_nb_wymus_c_w_u` = ON przez 30 minut
+
+**Akcja:**
+- Wyłącz `switch.bodynek_nb_wymus_c_w_u`
+- Wyślij powiadomienie o automatycznym wyłączeniu
+
+### Flaga automatyzacji PV
+**Encja:** `input_boolean.cwu_pv_surplus_active`
+
+Flaga rozróżnia czy CWU zostało włączone:
+- **Przez automatyzację PV** → wyłączy się automatycznie gdy spadnie nadwyżka
+- **Ręcznie przez użytkownika** → wyłączy się po 30 minutach (safety timeout)
+
+### Parametry:
+| Parametr | Wartość | Opis |
+|----------|---------|------|
+| Próg włączenia PV | > 2 kW | Minimalna nadwyżka do startu |
+| Próg wyłączenia PV | < 0.5 kW | Histereza wyłączenia |
+| Próg temp. wyłączenia | > 55°C | Max temperatura wody |
+| Próg cenowy | < p33 | Dynamiczny (zielona strefa) |
+
+### Diagram działania:
+```
+┌─────────────────────────────────────────────────────────────┐
+│  WŁĄCZENIE gdy:                                              │
+│  ✓ Nadwyżka PV > 2 kW                                       │
+│  ✓ Cena energii < p33 (zielona strefa - DYNAMICZNY próg!)   │
+│  ✓ CWU nie grzeje (stan "off")                              │
+│  ✓ Temp wody < 55°C                                         │
+├─────────────────────────────────────────────────────────────┤
+│  WYŁĄCZENIE gdy:                                             │
+│  ✓ Nadwyżka PV < 0.5 kW  LUB  Temp wody > 55°C              │
+│  ✓ Wymuszenie CWU jest włączone                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Korzyści:
+- ✅ Wykorzystanie darmowej energii z PV do grzania wody
+- ✅ Redukcja eksportu do sieci (niskie ceny sprzedaży)
+- ✅ Grzanie tylko w najtańszych godzinach (ochrona przed drogą energią)
+- ✅ Automatyczna ochrona przed przegrzaniem (max 55°C)
+
+---
+
+## 4.6 Watchdog Aquarea
+
+**Plik:** `config/automations_battery.yaml`
+**ID:** `aquarea_watchdog_token`
+
+### Opis funkcjonalności:
+Automatyczne monitorowanie i naprawianie połączenia z integracją Aquarea Smart Cloud.
+
+**Problem:** Integracja Aquarea traci połączenie z chmurą Panasonic (TOKEN_EXPIRED, Failed communication with adaptor).
+
+**Rozwiązanie:** Watchdog co godzinę sprawdza stan i automatycznie przeładowuje integrację.
+
+### Trigger:
+- Co godzinę o :47 (`time_pattern: minutes: "47"`)
+
+### Warunek:
+- `water_heater.xxx_tank` = `unavailable`
+
+### Akcje:
+1. Powiadomienie o wykryciu problemu
+2. Przeładowanie integracji Aquarea (`homeassistant.reload_config_entry`)
+3. Czekanie 30 sekund
+4. Sprawdzenie czy naprawione
+5. Powiadomienie o wyniku (sukces/porażka)
+
+### Parametry:
+| Parametr | Wartość |
+|----------|---------|
+| Entry ID Aquarea | `[YOUR_ENTRY_ID]` |
+| Częstotliwość | Co godzinę o :47 |
+| Timeout naprawy | 30 sekund |
+
+---
+
+## 4.7 CWU harmonogram 13:02
+
+**Plik:** `config/automations_battery.yaml`
+**ID:** `cwu_scheduled_1300`
+
+### Opis funkcjonalności:
+Backup harmonogramu CWU z Aquarea Smart Cloud. Uruchamia grzanie CWU o 13:02 jeśli chmura Panasonic nie zadziałała.
+
+**Problem:** Harmonogram CWU w Aquarea Cloud może nie zadziałać gdy:
+- Serwery Panasonic mają problemy
+- Token sesji wygasł
+- Brak komunikacji z adapterem WiFi pompy
+
+**Rozwiązanie:** HA uruchamia wymuszenie CWU o 13:02 (2 min po harmonogramie chmury) jako backup.
+
+### Trigger:
+- Godzina 13:02 (`time: "13:02:00"`)
+
+### Warunki (wszystkie muszą być spełnione):
+1. Integracja dostępna (`water_heater.xxx_tank` ≠ `unavailable`)
+2. CWU nie grzeje aktualnie (`water_heater.xxx_tank` ≠ `heating`)
+3. Temperatura wody < cel (dynamicznie z atrybutu `temperature`)
+
+### Akcje:
+1. Powiadomienie o uruchomieniu
+2. Włączenie wymuszenia CWU (`switch.xxx_wymus_c_w_u`)
+3. Czekanie aż temperatura osiągnie cel (timeout 2h)
+4. Wyłączenie wymuszenia CWU
+5. Powiadomienie o zakończeniu
+
+### Logika działania:
+```
+13:00 → Harmonogram Panasonic Cloud (jeśli działa)
+13:02 → Backup HA sprawdza:
+        ├─ CWU już grzeje? → nie rób nic (chmura zadziałała)
+        └─ CWU nie grzeje i temp < cel? → włącz wymuszenie
+```
+
+### Parametry:
+| Parametr | Wartość |
+|----------|---------|
+| Godzina uruchomienia | 13:02 |
+| Timeout grzania | 2 godziny |
+| Warunek temperatury | < cel (dynamiczny) |
+
+### Obliczenia czasu grzania:
+- Zbiornik: 385 litrów
+- Pompa: 9 kW (Panasonic T-CAP)
+- ΔT: 20°C (35→55°C)
+- Energia: 8.96 kWh
+- Czas teoretyczny: ~1h (pełna moc) do ~2h (50% mocy CWU)
+
 ---
 
 # 5. DASHBOARD
@@ -870,22 +1063,37 @@ lovelace:
 
 ## 5.2 Struktura dashboardu
 
-**Sections view z 3 kolumnami**
+**Sections view z 3 kolumnami** - ujednolicony układ: tytuł → gauge'y → encje
 
 ### SEKCJA 1 (lewa kolumna):
-- Algorytm baterii (decyzja, analiza, najtańsze godziny)
-- Stan baterii Luna (SOC, moc, temperatura)
-- Moc invertera (wyjściowa, wejściowa, wydajność)
+
+#### Zarządzanie baterią
+- **Gauge'y:** Stan baterii (SOC %), Moc baterii (W)
+- **Encje:** Decyzja, Target SOC, Ładowanie z sieci, Status, Temperatura, Tryb pracy
+
+#### Pompa ciepła
+- **Gauge'y:**
+  - Temp. zasilania (°C) - zakres 15-65°C, kolory: niebieski (15-20), zielony (20-35), pomarańczowy (35-50), czerwony (50-65)
+  - Temp. CWU (°C) - zakres 30-60°C + wyświetlanie temperatury docelowej pod gauge
+- **Status:** Sezon grzewczy • CO • CWU (emoji indicators)
+- **Encje:** Wymuś CWU (switch)
 
 ### SEKCJA 2 (środkowa kolumna):
-- Taryfa i ceny energii (RCE, zakup, sprzedaż)
-- Prognoza PV (dziś, jutro, pozostało)
-- Wymiana z siecią (moc, energia dzienna)
+
+#### Ceny RCE
+- **Tabela:** Ceny godzinowe DZIŚ i JUTRO (06:00-21:00)
+- **Encje:** Strefa taryfowa G12w, Cena obecna RCE, RCE najtańsze godziny
 
 ### SEKCJA 3 (prawa kolumna):
-- Historia mocy (24h)
-- Produkcja energii (dzienna, godzinna)
-- Sezon grzewczy i temperatura (na dole!)
+
+#### Pogoda i prognoza PV
+- **Kafelek pogody:** weather.forecast_dom (hourly forecast)
+- **Encje:** Prognoza PV dziś, Prognoza PV jutro
+
+#### Produkcja energii
+- **Gauge'y:** Produkcja PV (W), Nadwyżka PV (W)
+- **Encje:** Produkcja PV w tej godzinie, Dzienna produkcja PV
+- **Wykres:** Historia mocy 24h (zużycie domu, moc wyjściowa, bateria, sieć)
 
 ### Widok STATYSTYKI:
 - Bateria - ostatni tydzień (średnia, min, max)
@@ -2294,6 +2502,178 @@ Klucze przechowywane w `.claude/settings.local.json`:
 
 ---
 
+## 11.7 Dashboard redesign + CWU improvements (2025-12-15)
+
+**Status:** ✅ Wdrożone
+**Wersja:** 3.11
+
+### Podsumowanie zmian
+
+#### 1. Redesign dashboardu Lovelace
+
+**Problem:** Niespójny układ kart - różne style, brak grupowania
+
+**Rozwiązanie:** Ujednolicony układ wszystkich sekcji:
+- Każda grupa: **tytuł → gauge'y → encje (bez tytułu)**
+- Użycie `vertical-stack` z tytułem jako kontener
+- `horizontal-stack` dla par gauge'ów
+- `entities` bez tytułu pod gauge'ami
+
+##### Zmiany w sekcjach:
+
+| Sekcja | Przed | Po |
+|--------|-------|-----|
+| Zarządzanie baterią | Luźne karty | vertical-stack z tytułem + gauge'y + entities |
+| Pompa ciepła | Bez gauge'ów | Gauge'y temp. CO/CWU + status markdown |
+| Ceny RCE | Tabela + entities | vertical-stack z tytułem + tabela + entities |
+| Pogoda | Osobna karta | Połączona z prognozą PV w jednej grupie |
+| Produkcja energii | Luźne karty | vertical-stack + gauge'y + entities + history-graph |
+
+#### 2. CWU z nadwyżki PV - ulepszenia
+
+**Nowe encje:**
+- `input_boolean.cwu_pv_surplus_active` - flaga czy CWU włączone przez automatyzację PV
+
+**Nowe automatyzacje:**
+- `cwu_manual_force_auto_off` - automatyczne wyłączenie wymuszenia CWU po 30 minutach
+
+**Logika:**
+- CWU włączone przez PV → wyłączy się gdy spadnie nadwyżka lub temp > 55°C
+- CWU włączone ręcznie → wyłączy się po 30 min (safety timeout)
+
+### Pliki zmodyfikowane
+
+| Plik | Zmiany |
+|------|--------|
+| `config/lovelace_huawei.yaml` | Kompletny redesign - ujednolicony układ sekcji |
+| `config/automations_battery.yaml` | Dodano automatyzację auto-off CWU po 30 min |
+| `config/input_boolean.yaml` | Dodano `cwu_pv_surplus_active` |
+
+### Korzyści
+
+- ✅ Spójny, czytelny interfejs użytkownika
+- ✅ Lepsze grupowanie informacji tematycznie
+- ✅ Bezpieczne ręczne wymuszanie CWU (auto-off)
+- ✅ Rozróżnienie między automatycznym a ręcznym CWU
+
+---
+
+## 11.8 Dashboard improvements + Claude Code settings (2025-12-17)
+
+**Status:** ✅ Wdrożone
+**Wersja:** 3.12
+
+### Podsumowanie zmian
+
+#### 1. Dashboard - zmiany w gauge'ach
+
+**Gauge Temp. CO → Temp. zasilania:**
+- Zmiana nazwy z "Temp. CO" na "Temp. zasilania"
+- Rozszerzenie zakresu: 35°C → 65°C
+- Nowe segmenty kolorów:
+  - 15-20°C: niebieski (zimno)
+  - 20-35°C: zielony (norma)
+  - 35-50°C: pomarańczowy (ciepło)
+  - 50-65°C: czerwony (gorąco)
+
+**Gauge Temp. CWU:**
+- Dodanie wyświetlania temperatury docelowej pod gauge
+- Format: `<center>Cel: XX°C</center>`
+
+#### 2. Dashboard - tabela cen RCE
+
+- Konwersja z markdown table na HTML table
+- Nagłówki "Dziś" i "Jutro" z colspan dla lepszego wyrównania
+- Separator 40px między sekcjami Dziś/Jutro
+
+#### 3. Claude Code - poprawka uprawnień Bash
+
+**Problem:** Nieprawidłowa składnia `"Bash(*)"` w permissions
+
+**Rozwiązanie:** Prawidłowa składnia to `"Bash"` (bez nawiasów)
+
+```json
+// ❌ Nieprawidłowo
+"permissions": { "allow": ["Bash(*)"] }
+
+// ✅ Prawidłowo
+"permissions": { "allow": ["Bash"] }
+```
+
+**Pliki zaktualizowane:**
+- `~/.claude/settings.json` - globalne ustawienia
+- `.claude/settings.local.json` - ustawienia projektu
+
+#### 4. Znane ograniczenia integracji Aquarea Smart Cloud
+
+**Problem:** `climate.bodynek_nb_zone_1.current_temperature` zwraca temperaturę zbiornika CWU (55°C) zamiast temperatury zasilania strefy (33°C)
+
+**Status:** Bug w integracji Aquarea Smart Cloud - nie do naprawienia po stronie HA
+
+**Workaround:** Brak - czekać na fix integracji lub użyć lokalnego odczytu z pompy
+
+#### 5. Aquarea Smart Cloud - niedostępne dane
+
+Integracja NIE udostępnia:
+- Harmonogramu CWU (tylko w aplikacji Panasonic)
+- Histerezy CWU (ustawienie lokalne na pompie, domyślnie ~5°C)
+- Temperatury wyjściowej strefy (zwraca temp zbiornika)
+
+### Pliki zmodyfikowane
+
+| Plik | Zmiany |
+|------|--------|
+| `config/lovelace_huawei.yaml` | Gauge'y, tabela HTML, temp docelowa CWU |
+| `~/.claude/settings.json` | Dodano `"Bash"` w permissions |
+| `.claude/settings.local.json` | Poprawiono `"Bash(*)"` → `"Bash"` |
+
+---
+
+## v3.13 (2025-12-17) - Watchdog Aquarea + CWU backup
+
+### Nowe automatyzacje
+
+#### 1. Watchdog Aquarea (ID: `aquarea_watchdog_token`)
+
+**Problem:** Integracja Aquarea Smart Cloud traci połączenie (TOKEN_EXPIRED, Failed communication with adaptor)
+
+**Rozwiązanie:**
+- Automatyzacja uruchamia się co godzinę o :47
+- Sprawdza czy `water_heater.xxx_tank` jest `unavailable`
+- Jeśli tak → automatycznie przeładowuje integrację
+- Powiadomienia o wykryciu problemu i wyniku naprawy
+
+#### 2. CWU harmonogram 13:02 (ID: `cwu_scheduled_1300`)
+
+**Problem:** Harmonogram CWU w Aquarea Cloud nie zadziałał z powodu awarii komunikacji
+
+**Rozwiązanie:**
+- Backup harmonogramu chmury uruchamiany przez HA
+- O 13:02 (2 min po harmonogramie Panasonic) sprawdza:
+  - Czy CWU już grzeje (chmura zadziałała) → nie rób nic
+  - Czy temp < cel i CWU nie grzeje → włącz wymuszenie
+- Timeout 2h (obliczony dla zbiornika 385l i pompy 9kW)
+- Automatyczne wyłączenie po osiągnięciu temperatury celu
+
+### Analiza czasu grzania CWU
+
+| Parametr | Wartość |
+|----------|---------|
+| Zbiornik | 385 litrów |
+| Pompa | 9 kW (Panasonic T-CAP) |
+| ΔT | 20°C (35→55°C) |
+| Energia | 8.96 kWh |
+| Czas (pełna moc) | ~1h |
+| Czas (50% mocy CWU) | ~2h |
+
+### Pliki zmodyfikowane
+
+| Plik | Zmiany |
+|------|--------|
+| `config/automations_battery.yaml` | Watchdog Aquarea, CWU harmonogram 13:02 |
+
+---
+
 # WSPARCIE
 
 **Dokumentacja:**
@@ -2312,6 +2692,6 @@ Klucze przechowywane w `.claude/settings.local.json`:
 
 **Autor:** [Autor] + Claude Code (Anthropic AI)
 **Licencja:** MIT
-**Ostatnia aktualizacja:** 2025-11-18
+**Ostatnia aktualizacja:** 2025-12-17
 
 **Powodzenia! 🚀⚡**

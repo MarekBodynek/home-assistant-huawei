@@ -10,3 +10,8 @@ telegram_notifications_enabled:
 persistent_notifications_enabled:
   name: "Powiadomienia w UI"
   icon: mdi:bell
+
+# CWU włączone przez automatyzację PV surplus
+cwu_pv_surplus_active:
+  name: "CWU włączone przez PV surplus"
+  icon: mdi:water-boiler-auto

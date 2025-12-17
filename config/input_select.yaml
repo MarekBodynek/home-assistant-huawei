@@ -10,4 +10,4 @@ telegram_notification_level:
     - WARNING
     - ERROR
     - CRITICAL
-  initial: INFO
+  initial: ERROR

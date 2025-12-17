@@ -864,3 +864,267 @@
         title: "🔄 Git Pull"
         message: "Wykonano git pull o {{ now().strftime('%H:%M:%S') }}"
   mode: single
+
+# ============================================
+# CWU Z NADWYŻKI PV (TYLKO W ZIELONEJ STREFIE CENOWEJ)
+# ============================================
+
+- id: cwu_pv_surplus_enable
+  alias: "[CWU] Włącz grzanie z nadwyżki PV (zielona cena)"
+  description: "Włącza wymuszenie CWU gdy: nadwyżka PV > 2000W, cena < p33 (dynamiczny), temp < 55°C"
+  trigger:
+    # Trigger gdy nadwyżka PV przekroczy 2000 W
+    - platform: numeric_state
+      entity_id: sensor.nadwyzka_pv
+      above: 2000
+  condition:
+    # Wszystkie warunki muszą być spełnione
+    - condition: and
+      conditions:
+        # 1. CWU aktualnie nie grzeje (nie wymuszamy podczas normalnego cyklu)
+        - condition: state
+          entity_id: water_heater.bodynek_nb_tank
+          state: "off"
+        # 2. Wymuszenie CWU jest wyłączone (nie dublujemy)
+        - condition: state
+          entity_id: switch.bodynek_nb_wymus_c_w_u
+          state: "off"
+        # 3. Cena energii < p33 (DYNAMICZNY próg zielonej strefy)
+        - condition: template
+          value_template: >
+            {% set cena = states('sensor.cena_zakupu_energii') | float(1) %}
+            {% set p33 = state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.5) %}
+            {{ cena < p33 }}
+        # 4. Temperatura wody < 55°C (zapas przed wyłączeniem)
+        - condition: template
+          value_template: >
+            {{ state_attr('water_heater.bodynek_nb_tank', 'current_temperature') | float(60) < 55 }}
+  action:
+    # Oznacz że włączono przez automatyzację PV
+    - service: input_boolean.turn_on
+      target:
+        entity_id: input_boolean.cwu_pv_surplus_active
+    # Włącz wymuszenie CWU
+    - service: switch.turn_on
+      target:
+        entity_id: switch.bodynek_nb_wymus_c_w_u
+    # Powiadomienie
+    - service: persistent_notification.create
+      data:
+        title: "🌞 CWU: Włączono grzanie z nadwyżki PV"
+        message: |
+          ✅ Wymuszenie CWU włączone
+
+          **Warunki spełnione:**
+          - Nadwyżka PV: {{ states('sensor.nadwyzka_pv') }} W (> 2000 W)
+          - Cena RCE: {{ states('sensor.cena_zakupu_energii') }} PLN/kWh
+          - Próg p33: {{ state_attr('sensor.rce_progi_cenowe', 'p33') }} PLN/kWh
+          - Temp wody: {{ state_attr('water_heater.bodynek_nb_tank', 'current_temperature') }}°C
+
+          Grzanie wyłączy się gdy:
+          - Nadwyżka < 500 W LUB
+          - Temp wody > 55°C
+        notification_id: cwu_pv_surplus
+  mode: single
+
+- id: cwu_pv_surplus_disable
+  alias: "[CWU] Wyłącz grzanie (brak nadwyżki lub temp osiągnięta)"
+  description: "Wyłącza wymuszenie CWU gdy: nadwyżka PV < 500W LUB temp wody > 55°C (tylko gdy włączone przez automatyzację PV)"
+  trigger:
+    # Trigger 1: Nadwyżka PV spadła poniżej 500 W
+    - platform: numeric_state
+      entity_id: sensor.nadwyzka_pv
+      below: 500
+      id: low_surplus
+    # Trigger 2: Temperatura wody przekroczyła 55°C
+    - platform: template
+      value_template: >
+        {{ state_attr('water_heater.bodynek_nb_tank', 'current_temperature') | float(0) > 55 }}
+      id: high_temp
+  condition:
+    # Tylko jeśli CWU włączone przez automatyzację PV (nie ręcznie!)
+    - condition: state
+      entity_id: input_boolean.cwu_pv_surplus_active
+      state: "on"
+  action:
+    # Wyłącz wymuszenie CWU
+    - service: switch.turn_off
+      target:
+        entity_id: switch.bodynek_nb_wymus_c_w_u
+    # Wyłącz flagę automatyzacji
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.cwu_pv_surplus_active
+    # Powiadomienie z powodem
+    - service: persistent_notification.create
+      data:
+        title: "🌙 CWU: Wyłączono grzanie z nadwyżki PV"
+        message: |
+          ❌ Wymuszenie CWU wyłączone
+
+          **Powód:** {% if trigger.id == 'low_surplus' %}Nadwyżka PV < 500 W{% else %}Temp wody > 55°C{% endif %}
+
+          **Aktualny stan:**
+          - Nadwyżka PV: {{ states('sensor.nadwyzka_pv') }} W
+          - Temp wody: {{ state_attr('water_heater.bodynek_nb_tank', 'current_temperature') }}°C
+        notification_id: cwu_pv_surplus
+  mode: single
+
+# ============================================
+# RĘCZNE WYMUSZENIE CWU - AUTO-OFF PO 30 MIN
+# ============================================
+
+- id: cwu_manual_force_auto_off
+  alias: "[CWU] Wymuszenie CWU na 30 min (auto-off)"
+  description: "Wymuszenie CWU działa przez 30 minut i automatycznie się wyłącza"
+  trigger:
+    - platform: state
+      entity_id: switch.bodynek_nb_wymus_c_w_u
+      to: "on"
+      for:
+        minutes: 30
+  action:
+    - service: switch.turn_off
+      target:
+        entity_id: switch.bodynek_nb_wymus_c_w_u
+    - service: persistent_notification.create
+      data:
+        title: "⏱️ CWU: Auto-wyłączenie po 30 min"
+        message: |
+          ⏱️ Wymuszenie CWU wyłączone automatycznie po 30 minutach.
+          Temp wody: {{ state_attr('water_heater.bodynek_nb_tank', 'current_temperature') }}°C
+        notification_id: cwu_manual_auto_off
+  mode: single
+
+# ============================================
+# WATCHDOG AQUAREA - SPRAWDZANIE TOKENU
+# ============================================
+
+- id: aquarea_watchdog_token
+  alias: "[Aquarea] Watchdog - sprawdzanie połączenia"
+  description: "Co godzinę o :47 sprawdza czy integracja Aquarea działa. Jeśli unavailable - przeładowuje."
+  trigger:
+    - platform: time_pattern
+      minutes: "47"
+  condition:
+    # Sprawdź czy encja jest unavailable
+    - condition: state
+      entity_id: water_heater.bodynek_nb_tank
+      state: "unavailable"
+  action:
+    # Powiadomienie o wykryciu problemu
+    - service: persistent_notification.create
+      data:
+        title: "🔧 Aquarea: Wykryto problem z połączeniem"
+        message: |
+          ⚠️ Encja water_heater.bodynek_nb_tank jest niedostępna.
+
+          🔄 Przeładowuję integrację Aquarea...
+
+          Czas: {{ now().strftime('%H:%M:%S') }}
+        notification_id: aquarea_watchdog
+    # Przeładuj integrację Aquarea
+    - service: homeassistant.reload_config_entry
+      data:
+        entry_id: "01KCFK1ETFE13JR1S6C97PT0QY"
+    # Poczekaj 30 sekund na ponowne połączenie
+    - delay:
+        seconds: 30
+    # Sprawdź czy naprawione
+    - if:
+        - condition: not
+          conditions:
+            - condition: state
+              entity_id: water_heater.bodynek_nb_tank
+              state: "unavailable"
+      then:
+        - service: persistent_notification.create
+          data:
+            title: "✅ Aquarea: Połączenie przywrócone"
+            message: |
+              ✅ Integracja Aquarea działa poprawnie po przeładowaniu.
+
+              Temp CWU: {{ state_attr('water_heater.bodynek_nb_tank', 'current_temperature') }}°C
+              Stan: {{ states('water_heater.bodynek_nb_tank') }}
+            notification_id: aquarea_watchdog
+      else:
+        - service: persistent_notification.create
+          data:
+            title: "❌ Aquarea: Problem nadal występuje"
+            message: |
+              ❌ Przeładowanie nie pomogło. Możliwe przyczyny:
+              - Problem z serwerami Panasonic Aquarea Cloud
+              - Problem z adapterem WiFi pompy (CZ-TAW1)
+
+              💡 Spróbuj: restart Home Assistant lub sprawdź aplikację Comfort Cloud
+            notification_id: aquarea_watchdog
+  mode: single
+
+# ============================================
+# CWU O 13:00 - NIEZALEŻNE OD CHMURY PANASONIC
+# ============================================
+
+- id: cwu_scheduled_1300
+  alias: "[CWU] Harmonogram 13:00 - grzanie niezależne od chmury"
+  description: "O 13:00 włącza wymuszenie CWU jeśli temp < cel. Backup dla harmonogramu Aquarea Cloud."
+  trigger:
+    - platform: time
+      at: "13:02:00"
+  condition:
+    # Wszystkie warunki muszą być spełnione
+    - condition: and
+      conditions:
+        # 1. Integracja dostępna
+        - condition: not
+          conditions:
+            - condition: state
+              entity_id: water_heater.bodynek_nb_tank
+              state: "unavailable"
+        # 2. CWU nie grzeje aktualnie
+        - condition: not
+          conditions:
+            - condition: state
+              entity_id: water_heater.bodynek_nb_tank
+              state: "heating"
+        # 3. Temperatura wody < cel, czyli potrzebuje grzania
+        - condition: template
+          value_template: >
+            {% set current = state_attr('water_heater.bodynek_nb_tank', 'current_temperature') | float(0) %}
+            {% set target = state_attr('water_heater.bodynek_nb_tank', 'temperature') | float(55) %}
+            {{ current < target }}
+  action:
+    # Powiadomienie o uruchomieniu
+    - service: persistent_notification.create
+      data:
+        title: "🌡️ CWU: Uruchamiam grzanie o 13:02"
+        message: |
+          🔄 Włączam wymuszenie CWU (backup harmonogramu chmury)
+
+          Temp aktualna: {{ state_attr('water_heater.bodynek_nb_tank', 'current_temperature') }}°C
+          Temp docelowa: {{ state_attr('water_heater.bodynek_nb_tank', 'temperature') }}°C
+        notification_id: cwu_scheduled_1300
+    # Włącz wymuszenie CWU
+    - service: switch.turn_on
+      target:
+        entity_id: switch.bodynek_nb_wymus_c_w_u
+    # Czekaj aż temperatura osiągnie cel (max 2h)
+    - wait_template: >
+        {{ state_attr('water_heater.bodynek_nb_tank', 'current_temperature') | float(0) >=
+           state_attr('water_heater.bodynek_nb_tank', 'temperature') | float(55) }}
+      timeout:
+        hours: 2
+      continue_on_timeout: true
+    # Wyłącz wymuszenie CWU
+    - service: switch.turn_off
+      target:
+        entity_id: switch.bodynek_nb_wymus_c_w_u
+    # Powiadomienie o zakończeniu
+    - service: persistent_notification.create
+      data:
+        title: "✅ CWU: Grzanie zakończone"
+        message: |
+          ✅ Temperatura osiągnięta!
+
+          Temp końcowa: {{ state_attr('water_heater.bodynek_nb_tank', 'current_temperature') }}°C
+        notification_id: cwu_scheduled_1300
+  mode: single

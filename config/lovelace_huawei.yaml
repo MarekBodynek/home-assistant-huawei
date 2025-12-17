@@ -13,200 +13,232 @@ views:
       - type: grid
         column_span: 1
         cards:
-          # Pogoda
-          - type: weather-forecast
-            entity: weather.forecast_dom
-            show_forecast: true
-            forecast_type: hourly
-            show_current: true
+          # Zarządzanie baterią - tytuł + gauge + entities bez tytułu
+          - type: vertical-stack
+            title: Zarządzanie baterią
+            cards:
+              # Gauge'y baterii
+              - type: horizontal-stack
+                cards:
+                  - type: gauge
+                    entity: sensor.akumulatory_stan_pojemnosci
+                    name: Stan Baterii
+                    unit: "%"
+                    min: 0
+                    max: 100
+                    needle: true
+                    segments:
+                      - from: 0
+                        color: "#db4437"
+                      - from: 20
+                        color: "#43a047"
+                      - from: 80
+                        color: "#db4437"
+                  - type: gauge
+                    entity: sensor.akumulatory_moc_ladowania_rozladowania
+                    name: Moc Baterii
+                    unit: "W"
+                    min: -5000
+                    max: 5000
+                    needle: true
+                    segments:
+                      - from: -5000
+                        color: "#db4437"
+                      - from: -4000
+                        color: "#ffa600"
+                      - from: -2000
+                        color: "#43a047"
+                      - from: 2000
+                        color: "#ffa600"
+                      - from: 4000
+                        color: "#db4437"
+              # Entities bez tytułu
+              - type: entities
+                entities:
+                  - entity: input_text.battery_decision_reason
+                    name: 🎯 Decyzja
+                    icon: mdi:chart-line
+                  - entity: input_number.battery_target_soc
+                    name: 🎯 Target SOC (obliczony o 04:00)
+                  - entity: switch.akumulatory_ladowanie_z_sieci
+                    name: Ładowanie z sieci
+                  - entity: sensor.akumulatory_status
+                    name: Status baterii
+                  - entity: sensor.bateria_temperatura_maksymalna
+                    name: 🌡️ Temperatura baterii (max)
+                    icon: mdi:thermometer-high
+                  - entity: select.akumulatory_tryb_pracy
+                    name: ⚙️ Tryb pracy
+                state_color: true
 
-          # Bateria - wszystko w jednej karcie
-          - type: entities
-            title: Zarządzanie Baterią
-            icon: mdi:battery-charging
-            entities:
-              # Decyzje algorytmu
-              - entity: input_text.battery_decision_reason
-                name: 🎯 Decyzja
-                icon: mdi:chart-line
-              - entity: input_number.battery_target_soc
-                name: 🎯 Target SOC (obliczony o 04:00)
-              # Status baterii
-              - entity: sensor.akumulatory_stan_pojemnosci
-                name: 🔋 Stan naładowania (SOC)
-                icon: mdi:battery-80
-              - entity: switch.akumulatory_ladowanie_z_sieci
-                name: Ładowanie z sieci
-              - entity: sensor.akumulatory_status
-                name: Status baterii
-              - entity: sensor.akumulatory_moc_ladowania_rozladowania
-                name: Moc ładowania (+) lub rozładowania (-)
-                icon: mdi:battery-charging
-              # Temperatura baterii
-              - entity: sensor.bateria_temperatura_maksymalna
-                name: 🌡️ Temperatura baterii (max)
-                icon: mdi:thermometer-high
-              - entity: binary_sensor.bateria_bezpieczna_temperatura
-                name: ✅ Bezpieczna temperatura
-                icon: mdi:thermometer-check
-              # Sterowanie
-              - entity: select.akumulatory_tryb_pracy
-                name: ⚙️ Tryb pracy
-            state_color: true
-
-          # Powiadomienia
-          - type: entities
-            title: Powiadomienia
-            icon: mdi:bell
-            entities:
-              - entity: input_boolean.telegram_notifications_enabled
-                name: 📱 Telegram
-                icon: mdi:telegram
-              - entity: input_boolean.persistent_notifications_enabled
-                name: 🔔 Powiadomienia UI
-                icon: mdi:bell-ring
-              - entity: input_select.telegram_notification_level
-                name: 📊 Min. poziom Telegram
-                icon: mdi:filter
+          # Pompa ciepła - tytuł + gauge + entities bez tytułu
+          - type: vertical-stack
+            title: Pompa ciepła
+            cards:
+              # Gauge'y temperatury
+              - type: horizontal-stack
+                cards:
+                  - type: gauge
+                    entity: sensor.temperatura_co
+                    name: Temp. zasilania
+                    unit: "°C"
+                    min: 15
+                    max: 65
+                    needle: true
+                    segments:
+                      - from: 15
+                        color: "#2196f3"
+                      - from: 20
+                        color: "#43a047"
+                      - from: 35
+                        color: "#ffa600"
+                      - from: 50
+                        color: "#db4437"
+                  - type: vertical-stack
+                    cards:
+                      - type: gauge
+                        entity: sensor.temperatura_cwu
+                        name: Temp. CWU
+                        unit: "°C"
+                        min: 30
+                        max: 60
+                        needle: true
+                        segments:
+                          - from: 30
+                            color: "#2196f3"
+                          - from: 47
+                            color: "#43a047"
+                          - from: 55
+                            color: "#db4437"
+                      - type: markdown
+                        content: "<center>Cel: {{ state_attr('water_heater.bodynek_nb_tank', 'temperature') }}°C</center>"
+              # Status i encje bez tytułu
+              - type: markdown
+                content: |
+                  {% set sezon = '🟢' if is_state('binary_sensor.sezon_grzewczy', 'on') else '🔴' %}
+                  {% set co = '🟢' if is_state('binary_sensor.pc_co_aktywne', 'on') else '🔴' %}
+                  {% set cwu = '🟢' if is_state('binary_sensor.cwu_aktywne', 'on') else '🔴' %}
+                  {{ sezon }} Sezon Grzewczy • {{ co }} CO • {{ cwu }} CWU
+              - type: entities
+                entities:
+                  - entity: switch.bodynek_nb_wymus_c_w_u
+                    name: Wymuś CWU
+                state_color: true
 
       # SEKCJA 2 (środkowa kolumna)
       - type: grid
         column_span: 1
         cards:
-          # Ceny energii
-          - type: entities
-            title: Ceny energii RCE
-            icon: mdi:cash-multiple
-            entities:
-              - entity: sensor.strefa_taryfowa
-                name: Strefa taryfowa G12w
-                icon: mdi:clock-time-four-outline
-              - entity: sensor.cena_zakupu_energii
-                name: Cena obecna RCE
-                icon: mdi:cash
-              - entity: sensor.rce_srednia_wieczorna
-                name: RCE średnia wieczorna (zachód→22h)
-                icon: mdi:chart-timeline
-              - entity: input_text.battery_cheapest_hours
-                name: RCE najtańsze godziny
-                icon: mdi:currency-usd
-              - type: attribute
-                entity: sensor.rce_progi_cenowe
-                attribute: legend
-                name: Progi cenowe
-                icon: mdi:palette
+          # Ceny RCE - tytuł + ceny godzinowe + encje bez tytułu
+          - type: vertical-stack
+            title: Ceny RCE
+            cards:
+              # Ceny godzinowe (DZIŚ i JUTRO)
+              - type: markdown
+                content: |
+                  <table cellspacing="0" cellpadding="4" style="width:100%; text-align:center; border-color:#1c1c1c;">
+                  <tr><th colspan="4" style="border-color:#1c1c1c;"><b>Dziś</b></th><th width="40" style="border-color:#1c1c1c;"></th><th colspan="4" style="border-color:#1c1c1c;"><b>Jutro</b></th></tr>
+                  <tr><th style="border-color:#1c1c1c;">Godz</th><th style="border-color:#1c1c1c;">Cena</th><th style="border-color:#1c1c1c;">Godz</th><th style="border-color:#1c1c1c;">Cena</th><th style="border-color:#1c1c1c;"></th><th style="border-color:#1c1c1c;">Godz</th><th style="border-color:#1c1c1c;">Cena</th><th style="border-color:#1c1c1c;">Godz</th><th style="border-color:#1c1c1c;">Cena</th></tr>
+                  <tr><td style="border-color:#1c1c1c;">06</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h06') }}</td><td style="border-color:#1c1c1c;">14</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h14') }}</td><td style="border-color:#1c1c1c;"></td><td style="border-color:#1c1c1c;">06</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't06') }}</td><td style="border-color:#1c1c1c;">14</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't14') }}</td></tr>
+                  <tr><td style="border-color:#1c1c1c;">07</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h07') }}</td><td style="border-color:#1c1c1c;">15</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h15') }}</td><td style="border-color:#1c1c1c;"></td><td style="border-color:#1c1c1c;">07</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't07') }}</td><td style="border-color:#1c1c1c;">15</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't15') }}</td></tr>
+                  <tr><td style="border-color:#1c1c1c;">08</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h08') }}</td><td style="border-color:#1c1c1c;">16</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h16') }}</td><td style="border-color:#1c1c1c;"></td><td style="border-color:#1c1c1c;">08</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't08') }}</td><td style="border-color:#1c1c1c;">16</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't16') }}</td></tr>
+                  <tr><td style="border-color:#1c1c1c;">09</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h09') }}</td><td style="border-color:#1c1c1c;">17</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h17') }}</td><td style="border-color:#1c1c1c;"></td><td style="border-color:#1c1c1c;">09</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't09') }}</td><td style="border-color:#1c1c1c;">17</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't17') }}</td></tr>
+                  <tr><td style="border-color:#1c1c1c;">10</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h10') }}</td><td style="border-color:#1c1c1c;">18</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h18') }}</td><td style="border-color:#1c1c1c;"></td><td style="border-color:#1c1c1c;">10</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't10') }}</td><td style="border-color:#1c1c1c;">18</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't18') }}</td></tr>
+                  <tr><td style="border-color:#1c1c1c;">11</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h11') }}</td><td style="border-color:#1c1c1c;">19</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h19') }}</td><td style="border-color:#1c1c1c;"></td><td style="border-color:#1c1c1c;">11</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't11') }}</td><td style="border-color:#1c1c1c;">19</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't19') }}</td></tr>
+                  <tr><td style="border-color:#1c1c1c;">12</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h12') }}</td><td style="border-color:#1c1c1c;">20</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h20') }}</td><td style="border-color:#1c1c1c;"></td><td style="border-color:#1c1c1c;">12</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't12') }}</td><td style="border-color:#1c1c1c;">20</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't20') }}</td></tr>
+                  <tr><td style="border-color:#1c1c1c;">13</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h13') }}</td><td style="border-color:#1c1c1c;">21</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h21') }}</td><td style="border-color:#1c1c1c;"></td><td style="border-color:#1c1c1c;">13</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't13') }}</td><td style="border-color:#1c1c1c;">21</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't21') }}</td></tr>
+                  </table>
+              # Encje bez tytułu
+              - type: entities
+                entities:
+                  - entity: sensor.strefa_taryfowa
+                    name: Strefa taryfowa G12w
+                    icon: mdi:clock-time-four-outline
+                  - entity: sensor.cena_zakupu_energii
+                    name: Cena obecna RCE
+                    icon: mdi:cash
+                  - entity: input_text.battery_cheapest_hours
+                    name: RCE najtańsze godziny
+                    icon: mdi:currency-usd
 
-          # Ceny godzinowe RCE (DZIŚ i JUTRO)
-          - type: markdown
-            title: Ceny RCE godzinowe
-            content: |
-              **Dziś** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **Jutro**
-              | Godz | Cena | &nbsp;&nbsp; | Godz | Cena | &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | Godz | Cena | &nbsp;&nbsp; | Godz | Cena |
-              |------|------|------|------|------|:------------:|------|------|------|------|------|
-              | 06 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h06') }} | | 14 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h14') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 06 | {{ state_attr('sensor.rce_ceny_godzinowe', 't06') }} | | 14 | {{ state_attr('sensor.rce_ceny_godzinowe', 't14') }} |
-              | 07 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h07') }} | | 15 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h15') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 07 | {{ state_attr('sensor.rce_ceny_godzinowe', 't07') }} | | 15 | {{ state_attr('sensor.rce_ceny_godzinowe', 't15') }} |
-              | 08 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h08') }} | | 16 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h16') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 08 | {{ state_attr('sensor.rce_ceny_godzinowe', 't08') }} | | 16 | {{ state_attr('sensor.rce_ceny_godzinowe', 't16') }} |
-              | 09 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h09') }} | | 17 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h17') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 09 | {{ state_attr('sensor.rce_ceny_godzinowe', 't09') }} | | 17 | {{ state_attr('sensor.rce_ceny_godzinowe', 't17') }} |
-              | 10 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h10') }} | | 18 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h18') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 10 | {{ state_attr('sensor.rce_ceny_godzinowe', 't10') }} | | 18 | {{ state_attr('sensor.rce_ceny_godzinowe', 't18') }} |
-              | 11 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h11') }} | | 19 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h19') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 11 | {{ state_attr('sensor.rce_ceny_godzinowe', 't11') }} | | 19 | {{ state_attr('sensor.rce_ceny_godzinowe', 't19') }} |
-              | 12 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h12') }} | | 20 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h20') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 12 | {{ state_attr('sensor.rce_ceny_godzinowe', 't12') }} | | 20 | {{ state_attr('sensor.rce_ceny_godzinowe', 't20') }} |
-              | 13 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h13') }} | | 21 | {{ state_attr('sensor.rce_ceny_godzinowe', 'h21') }} | &nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp; | 13 | {{ state_attr('sensor.rce_ceny_godzinowe', 't13') }} | | 21 | {{ state_attr('sensor.rce_ceny_godzinowe', 't21') }} |
-
-          # Prognoza PV i bilans mocy
-          - type: entities
-            title: Prognoza PV i bilans mocy
-            icon: mdi:solar-power-variant
-            entities:
-              - entity: sensor.prognoza_pv_dzisiaj
-                name: Prognoza PV dziś (pozostało)
-                icon: mdi:solar-power
-              - entity: sensor.prognoza_pv_jutro
-                name: Prognoza PV jutro
-                icon: mdi:solar-power
-              - entity: sensor.prognoza_pv_6h
-                name: Prognoza PV następne 6h
-                icon: mdi:solar-power-variant
-              - entity: sensor.nadwyzka_pv
-                name: Nadwyżka PV
-                icon: mdi:solar-power
-              - entity: sensor.deficyt_mocy
-                name: Deficyt mocy
-                icon: mdi:flash-alert
-              - entity: input_text.battery_storage_status
-                name: 📊 Analiza
-                icon: mdi:clock-outline
+          # Pogoda i prognoza PV - tytuł + kafelek + encje
+          - type: vertical-stack
+            title: Pogoda i prognoza PV
+            cards:
+              - type: weather-forecast
+                entity: weather.forecast_dom
+                show_forecast: true
+                forecast_type: hourly
+                show_current: true
+              - type: entities
+                entities:
+                  - entity: sensor.prognoza_pv_dzisiaj
+                    name: Prognoza PV dziś
+                    icon: mdi:solar-power
+                  - entity: sensor.prognoza_pv_jutro
+                    name: Prognoza PV jutro
+                    icon: mdi:solar-power
 
       # SEKCJA 3 (prawa kolumna)
       - type: grid
         column_span: 1
         cards:
-          # Historia mocy (24h)
-          - type: history-graph
-            title: Historia mocy (24h)
-            hours_to_show: 24
-            entities:
-              - entity: sensor.inwerter_moc_czynna
-                name: Moc wyjściowa
-              - entity: sensor.akumulatory_moc_ladowania_rozladowania
-                name: Bateria
-              - entity: sensor.pomiar_mocy_moc_czynna
-                name: Sieć
-
-          # Produkcja energii
-          - type: entities
+          # Produkcja energii - tytuł + gauge + entities + wykres bez tytułu
+          - type: vertical-stack
             title: Produkcja energii
-            icon: mdi:chart-line
-            entities:
-              - entity: sensor.inwerter_moc_wejsciowa
-                name: Aktualna produkcja PV
-                icon: mdi:solar-power
-              - entity: sensor.produkcja_pv_godzinowa_dc
-                name: Produkcja PV w tej godzinie
-                icon: mdi:clock-outline
-              - entity: sensor.produkcja_pv_dzienna_rzeczywista
-                name: Dzienna produkcja PV
-                icon: mdi:weather-sunny
-
-          # Sezon grzewczy
-          - type: entities
-            title: Sezon grzewczy
-            icon: mdi:radiator
-            entities:
-              - entity: binary_sensor.sezon_grzewczy
-                name: Sezon grzewczy aktywny
-                icon: mdi:radiator
-              - entity: binary_sensor.pc_co_aktywne
-                name: Pompa ciepła CO aktywna
-                icon: mdi:heat-pump
-              - entity: binary_sensor.okno_cwu
-                name: Okno CWU aktywne
-                icon: mdi:water-boiler
-
-          # Event Log - Ostatnie zdarzenie
-          - type: entities
-            title: 📋 Event Log
-            icon: mdi:text-box-outline
-            entities:
-              - entity: sensor.event_log_ostatnie_zdarzenie
-                name: Ostatnie zdarzenie
-                secondary_info: attribute
-                attribute: full_message
-              - entity: input_text.event_log_1
-                name: "Slot 1"
-              - entity: input_text.event_log_2
-                name: "Slot 2"
-              - entity: input_text.event_log_3
-                name: "Slot 3"
-
-          # Event Log - Statystyki
-          - type: entities
-            title: 📊 Event Log - Status
-            icon: mdi:history
-            entities:
-              - entity: sensor.event_log_ostatnie_zdarzenie
-                name: Ostatnie zdarzenie
-              - entity: sensor.event_log_historia
-                name: Historia (5 ostatnich)
+            cards:
+              # Gauge'y PV
+              - type: horizontal-stack
+                cards:
+                  - type: gauge
+                    entity: sensor.inwerter_moc_wejsciowa
+                    name: Produkcja PV
+                    unit: "W"
+                    min: 0
+                    max: 12000
+                    needle: true
+                    segments:
+                      - from: 0
+                        color: "#43a047"
+                      - from: 2000
+                        color: "#ffa600"
+                      - from: 7000
+                        color: "#db4437"
+                  - type: gauge
+                    entity: sensor.nadwyzka_pv
+                    name: Nadwyżka PV
+                    unit: "W"
+                    min: 0
+                    max: 12000
+                    needle: true
+                    segments:
+                      - from: 0
+                        color: "#43a047"
+                      - from: 2000
+                        color: "#ffa600"
+                      - from: 5000
+                        color: "#db4437"
+              # Entities bez tytułu
+              - type: entities
+                entities:
+                  - entity: sensor.produkcja_pv_godzinowa_dc
+                    name: Produkcja PV w tej godzinie
+                    icon: mdi:clock-outline
+                  - entity: sensor.produkcja_pv_dzienna_rzeczywista
+                    name: Dzienna produkcja PV
+                    icon: mdi:weather-sunny
+              # Historia mocy bez tytułu
+              - type: history-graph
+                hours_to_show: 24
+                entities:
+                  - entity: sensor.zuzycie_domu_moc
+                    name: Zużycie domu
+                  - entity: sensor.inwerter_moc_czynna
+                    name: Moc wyjściowa
+                  - entity: sensor.akumulatory_moc_ladowania_rozladowania
+                    name: Bateria
+                  - entity: sensor.pomiar_mocy_moc_czynna
+                    name: Sieć
 
   - title: Statystyki
     icon: mdi:chart-bar
