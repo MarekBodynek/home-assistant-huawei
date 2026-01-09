@@ -971,28 +971,56 @@
   mode: single
 
 # ============================================
-# RĘCZNE WYMUSZENIE CWU - AUTO-OFF PO 30 MIN
+# RĘCZNE WYMUSZENIE CWU - DO OSIĄGNIĘCIA TEMP CELU (MAX 2H)
 # ============================================
 
 - id: cwu_manual_force_auto_off
-  alias: "[CWU] Wymuszenie CWU na 30 min (auto-off)"
-  description: "Wymuszenie CWU działa przez 30 minut i automatycznie się wyłącza"
+  alias: "[CWU] Wymuszenie CWU do osiągnięcia temp celu (max 2h)"
+  description: "Wymuszenie CWU działa do osiągnięcia temperatury celu, max 2h jako zabezpieczenie"
   trigger:
     - platform: state
       entity_id: switch.bodynek_nb_wymus_c_w_u
       to: "on"
-      for:
-        minutes: 30
+  condition:
+    # Tylko jeśli NIE włączone przez automatyzację PV (ta ma własne zarządzanie)
+    - condition: state
+      entity_id: input_boolean.cwu_pv_surplus_active
+      state: "off"
   action:
+    # Powiadomienie o starcie
+    - service: persistent_notification.create
+      data:
+        title: "🌡️ CWU: Wymuszenie włączone"
+        message: |
+          🔄 Grzanie CWU do osiągnięcia temperatury celu (max 2h)
+
+          Temp aktualna: {{ state_attr('water_heater.bodynek_nb_tank', 'current_temperature') }}°C
+          Temp docelowa: {{ state_attr('water_heater.bodynek_nb_tank', 'temperature') }}°C
+        notification_id: cwu_manual_auto_off
+    # Czekaj aż temperatura osiągnie cel (max 2h)
+    - wait_template: >
+        {{ state_attr('water_heater.bodynek_nb_tank', 'current_temperature') | float(0) >=
+           state_attr('water_heater.bodynek_nb_tank', 'temperature') | float(55) }}
+      timeout:
+        hours: 2
+      continue_on_timeout: true
+    # Wyłącz wymuszenie CWU
     - service: switch.turn_off
       target:
         entity_id: switch.bodynek_nb_wymus_c_w_u
+    # Powiadomienie o zakończeniu
     - service: persistent_notification.create
       data:
-        title: "⏱️ CWU: Auto-wyłączenie po 30 min"
+        title: "{% if wait.completed %}✅ CWU: Temp osiągnięta{% else %}⏱️ CWU: Timeout 2h{% endif %}"
         message: |
-          ⏱️ Wymuszenie CWU wyłączone automatycznie po 30 minutach.
-          Temp wody: {{ state_attr('water_heater.bodynek_nb_tank', 'current_temperature') }}°C
+          {% if wait.completed %}
+          ✅ Wymuszenie CWU wyłączone - temperatura celu osiągnięta!
+          {% else %}
+          ⏱️ Wymuszenie CWU wyłączone - timeout 2h (zabezpieczenie)
+          {% endif %}
+
+          Temp końcowa: {{ state_attr('water_heater.bodynek_nb_tank', 'current_temperature') }}°C
+          Temp docelowa: {{ state_attr('water_heater.bodynek_nb_tank', 'temperature') }}°C
         notification_id: cwu_manual_auto_off
   mode: single
 
@@ -1127,4 +1155,63 @@
 
           Temp końcowa: {{ state_attr('water_heater.bodynek_nb_tank', 'current_temperature') }}°C
         notification_id: cwu_scheduled_1300
+  mode: single
+
+- id: cwu_scheduled_0432
+  alias: "[CWU] Harmonogram 04:32 - grzanie niezależne od chmury"
+  description: "O 04:32 włącza wymuszenie CWU jeśli temp < cel. Backup dla harmonogramu Aquarea Cloud (rano)."
+  trigger:
+    - platform: time
+      at: "04:32:00"
+  condition:
+    - condition: and
+      conditions:
+        # 1. Integracja dostępna
+        - condition: not
+          conditions:
+            - condition: state
+              entity_id: water_heater.bodynek_nb_tank
+              state: "unavailable"
+        # 2. CWU nie grzeje aktualnie
+        - condition: not
+          conditions:
+            - condition: state
+              entity_id: water_heater.bodynek_nb_tank
+              state: "heating"
+        # 3. Temperatura wody < cel
+        - condition: template
+          value_template: >
+            {% set current = state_attr('water_heater.bodynek_nb_tank', 'current_temperature') | float(0) %}
+            {% set target = state_attr('water_heater.bodynek_nb_tank', 'temperature') | float(55) %}
+            {{ current < target }}
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "🌡️ CWU: Uruchamiam grzanie o 04:32"
+        message: |
+          🔄 Włączam wymuszenie CWU (backup harmonogramu chmury - rano)
+
+          Temp aktualna: {{ state_attr('water_heater.bodynek_nb_tank', 'current_temperature') }}°C
+          Temp docelowa: {{ state_attr('water_heater.bodynek_nb_tank', 'temperature') }}°C
+        notification_id: cwu_scheduled_0432
+    - service: switch.turn_on
+      target:
+        entity_id: switch.bodynek_nb_wymus_c_w_u
+    - wait_template: >
+        {{ state_attr('water_heater.bodynek_nb_tank', 'current_temperature') | float(0) >=
+           state_attr('water_heater.bodynek_nb_tank', 'temperature') | float(55) }}
+      timeout:
+        hours: 2
+      continue_on_timeout: true
+    - service: switch.turn_off
+      target:
+        entity_id: switch.bodynek_nb_wymus_c_w_u
+    - service: persistent_notification.create
+      data:
+        title: "✅ CWU: Grzanie zakończone"
+        message: |
+          ✅ Temperatura osiągnięta!
+
+          Temp końcowa: {{ state_attr('water_heater.bodynek_nb_tank', 'current_temperature') }}°C
+        notification_id: cwu_scheduled_0432
   mode: single

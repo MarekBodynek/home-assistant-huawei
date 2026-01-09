@@ -124,30 +124,162 @@ views:
                   - entity: switch.bodynek_nb_wymus_c_w_u
                     name: Wymuś CWU
                 state_color: true
+              # Historia temperatury CWU
+              - type: custom:apexcharts-card
+                graph_span: 24h
+                header:
+                  show: false
+                apex_config:
+                  chart:
+                    height: 150
+                  yaxis:
+                    min: 35
+                    max: 60
+                series:
+                  - entity: sensor.temperatura_cwu
+                    name: Temp. CWU
+                    stroke_width: 2
+                    color: "#ff9800"
 
       # SEKCJA 2 (środkowa kolumna)
       - type: grid
         column_span: 1
         cards:
-          # Ceny RCE - tytuł + ceny godzinowe + encje bez tytułu
+          # Ceny RCE - tytuł + wykresy z kolorami + encje
           - type: vertical-stack
             title: Ceny RCE
             cards:
-              # Ceny godzinowe (DZIŚ i JUTRO)
-              - type: markdown
-                content: |
-                  <table cellspacing="0" cellpadding="4" style="width:100%; text-align:center; border-color:#1c1c1c;">
-                  <tr><th colspan="4" style="border-color:#1c1c1c;"><b>Dziś</b></th><th width="40" style="border-color:#1c1c1c;"></th><th colspan="4" style="border-color:#1c1c1c;"><b>Jutro</b></th></tr>
-                  <tr><th style="border-color:#1c1c1c;">Godz</th><th style="border-color:#1c1c1c;">Cena</th><th style="border-color:#1c1c1c;">Godz</th><th style="border-color:#1c1c1c;">Cena</th><th style="border-color:#1c1c1c;"></th><th style="border-color:#1c1c1c;">Godz</th><th style="border-color:#1c1c1c;">Cena</th><th style="border-color:#1c1c1c;">Godz</th><th style="border-color:#1c1c1c;">Cena</th></tr>
-                  <tr><td style="border-color:#1c1c1c;">06</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h06') }}</td><td style="border-color:#1c1c1c;">14</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h14') }}</td><td style="border-color:#1c1c1c;"></td><td style="border-color:#1c1c1c;">06</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't06') }}</td><td style="border-color:#1c1c1c;">14</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't14') }}</td></tr>
-                  <tr><td style="border-color:#1c1c1c;">07</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h07') }}</td><td style="border-color:#1c1c1c;">15</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h15') }}</td><td style="border-color:#1c1c1c;"></td><td style="border-color:#1c1c1c;">07</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't07') }}</td><td style="border-color:#1c1c1c;">15</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't15') }}</td></tr>
-                  <tr><td style="border-color:#1c1c1c;">08</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h08') }}</td><td style="border-color:#1c1c1c;">16</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h16') }}</td><td style="border-color:#1c1c1c;"></td><td style="border-color:#1c1c1c;">08</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't08') }}</td><td style="border-color:#1c1c1c;">16</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't16') }}</td></tr>
-                  <tr><td style="border-color:#1c1c1c;">09</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h09') }}</td><td style="border-color:#1c1c1c;">17</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h17') }}</td><td style="border-color:#1c1c1c;"></td><td style="border-color:#1c1c1c;">09</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't09') }}</td><td style="border-color:#1c1c1c;">17</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't17') }}</td></tr>
-                  <tr><td style="border-color:#1c1c1c;">10</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h10') }}</td><td style="border-color:#1c1c1c;">18</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h18') }}</td><td style="border-color:#1c1c1c;"></td><td style="border-color:#1c1c1c;">10</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't10') }}</td><td style="border-color:#1c1c1c;">18</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't18') }}</td></tr>
-                  <tr><td style="border-color:#1c1c1c;">11</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h11') }}</td><td style="border-color:#1c1c1c;">19</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h19') }}</td><td style="border-color:#1c1c1c;"></td><td style="border-color:#1c1c1c;">11</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't11') }}</td><td style="border-color:#1c1c1c;">19</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't19') }}</td></tr>
-                  <tr><td style="border-color:#1c1c1c;">12</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h12') }}</td><td style="border-color:#1c1c1c;">20</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h20') }}</td><td style="border-color:#1c1c1c;"></td><td style="border-color:#1c1c1c;">12</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't12') }}</td><td style="border-color:#1c1c1c;">20</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't20') }}</td></tr>
-                  <tr><td style="border-color:#1c1c1c;">13</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h13') }}</td><td style="border-color:#1c1c1c;">21</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 'h21') }}</td><td style="border-color:#1c1c1c;"></td><td style="border-color:#1c1c1c;">13</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't13') }}</td><td style="border-color:#1c1c1c;">21</td><td style="border-color:#1c1c1c;">{{ state_attr('sensor.rce_ceny_godzinowe', 't21') }}</td></tr>
-                  </table>
+              # Wykres cen RCE - dziś (z kolorami przez fillColor)
+              - type: custom:apexcharts-card
+                header:
+                  show: true
+                  title: Ceny RCE (Dziś)
+                  show_states: false
+                graph_span: 24h
+                span:
+                  start: day
+                apex_config:
+                  chart:
+                    height: 200
+                  plotOptions:
+                    bar:
+                      distributed: true
+                  legend:
+                    show: false
+                  xaxis:
+                    labels:
+                      show: true
+                      rotate: 0
+                    tickAmount: 12
+                  yaxis:
+                    min: 0
+                    max: |
+                      EVAL:function(max) { return Math.round((max + 0.1) * 100) / 100; }
+                    tickAmount: 5
+                    labels:
+                      formatter: |
+                        EVAL:function(val) { return val.toFixed(2); }
+                  tooltip:
+                    enabled: true
+                    y:
+                      formatter: |
+                        EVAL:function(val) { return val.toFixed(3) + ' PLN/kWh'; }
+                series:
+                  - entity: sensor.rce_pse_cena
+                    type: column
+                    name: Cena
+                    float_precision: 3
+                    unit: PLN/kWh
+                    data_generator: |
+                      const prices = entity.attributes.prices || [];
+                      const today = new Date().toISOString().split('T')[0];
+                      const thresholds = hass.states['sensor.rce_progi_cenowe'];
+                      const p33 = parseFloat(thresholds?.attributes?.p33) || 0.40;
+                      const p66 = parseFloat(thresholds?.attributes?.p66) || 0.60;
+                      function getColor(price) {
+                        if (price < 0.20) return '#1b5e20';
+                        if (price < p33) return '#4caf50';
+                        if (price < p66) return '#ffeb3b';
+                        return '#f44336';
+                      }
+                      const todayPrices = prices.filter(p => p.dtime && p.dtime.startsWith(today));
+                      const hourly = {};
+                      todayPrices.forEach(p => {
+                        const hour = p.dtime.split(' ')[1].substring(0,2);
+                        if (!hourly[hour]) hourly[hour] = [];
+                        hourly[hour].push(p.rce_pln / 1000);
+                      });
+                      return Object.keys(hourly).sort().map(hour => {
+                        const avg = hourly[hour].reduce((a,b) => a+b, 0) / hourly[hour].length;
+                        const dt = new Date(today + 'T' + hour + ':00:00');
+                        return { x: dt.getTime(), y: avg, fillColor: getColor(avg) };
+                      });
+              # Wykres cen RCE - jutro (z kolorami przez fillColor)
+              - type: custom:apexcharts-card
+                header:
+                  show: true
+                  title: Ceny RCE (Jutro)
+                  show_states: false
+                graph_span: 24h
+                span:
+                  start: day
+                  offset: +1d
+                apex_config:
+                  chart:
+                    height: 200
+                  plotOptions:
+                    bar:
+                      distributed: true
+                  legend:
+                    show: false
+                  xaxis:
+                    labels:
+                      show: true
+                      rotate: 0
+                    tickAmount: 12
+                  yaxis:
+                    min: 0
+                    max: |
+                      EVAL:function(max) { return Math.round((max + 0.1) * 100) / 100; }
+                    tickAmount: 5
+                    labels:
+                      formatter: |
+                        EVAL:function(val) { return val.toFixed(2); }
+                  tooltip:
+                    enabled: true
+                    y:
+                      formatter: |
+                        EVAL:function(val) { return val.toFixed(3) + ' PLN/kWh'; }
+                series:
+                  - entity: sensor.rce_pse_cena_jutro
+                    type: column
+                    name: Cena
+                    float_precision: 3
+                    unit: PLN/kWh
+                    data_generator: |
+                      const prices = entity.attributes.prices || [];
+                      const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+                      const thresholds = hass.states['sensor.rce_progi_cenowe_jutro'];
+                      const p33 = parseFloat(thresholds?.attributes?.p33) || 0.40;
+                      const p66 = parseFloat(thresholds?.attributes?.p66) || 0.60;
+                      function getColor(price) {
+                        if (price < 0.20) return '#1b5e20';
+                        if (price < p33) return '#4caf50';
+                        if (price < p66) return '#ffeb3b';
+                        return '#f44336';
+                      }
+                      const tomorrowPrices = prices.filter(p => p.dtime && p.dtime.startsWith(tomorrow));
+                      const hourly = {};
+                      tomorrowPrices.forEach(p => {
+                        const hour = p.dtime.split(' ')[1].substring(0,2);
+                        if (!hourly[hour]) hourly[hour] = [];
+                        hourly[hour].push(p.rce_pln / 1000);
+                      });
+                      return Object.keys(hourly).sort().map(hour => {
+                        const avg = hourly[hour].reduce((a,b) => a+b, 0) / hourly[hour].length;
+                        const dt = new Date(tomorrow + 'T' + hour + ':00:00');
+                        return { x: dt.getTime(), y: avg, fillColor: getColor(avg) };
+                      });
               # Encje bez tytułu
               - type: entities
                 entities:

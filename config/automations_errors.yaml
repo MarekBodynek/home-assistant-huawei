@@ -356,10 +356,10 @@
 # AWARIA SIECI - BACKUP MODE
 # ============================================
 
-# ===== AWARIA SIECI - NATYCHMIASTOWE POWIADOMIENIE =====
+# ===== AWARIA SIECI - URUCHOM ALGORYTM =====
 - alias: "[KRYTYCZNE] Awaria sieci - backup mode"
-  id: grid_outage_notification
-  description: "Powiadomienie gdy wykryto brak napięcia w sieci"
+  id: krytyczne_awaria_sieci_backup_mode
+  description: "Uruchom algorytm baterii gdy wykryto brak napięcia w sieci"
   trigger:
     - platform: state
       entity_id: binary_sensor.awaria_sieci
@@ -367,64 +367,20 @@
   action:
     # Natychmiast uruchom algorytm baterii (przejmie kontrolę)
     - service: python_script.battery_algorithm
-
-    # Telegram
-    - service: notify.telegram
-      data:
-        title: "🚨 AWARIA SIECI!"
-        message: |
-          **Brak napięcia w sieci!**
-
-          Bateria przejęła zasilanie domu.
-
-          **SOC:** {{ states('sensor.akumulatory_stan_pojemnosci') }}%
-          **Status:** {{ states('sensor.inwerter_stan') }}
-          **Czas:** {{ now().strftime('%H:%M:%S') }}
-
-          Bateria 15kWh przy zużyciu 2kW wystarczy na ~7h.
-
-    # Powiadomienie na iPhone
-    - service: notify.mobile_app_marek_iphone_15_pro
-      data:
-        title: "⚡ AWARIA SIECI"
-        message: "Bateria zasila dom (SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%)"
-        data:
-          push:
-            sound:
-              critical: 1
-              volume: 1.0
   mode: single
 
-# ===== SIEĆ PRZYWRÓCONA - POWIADOMIENIE =====
+# ===== SIEĆ PRZYWRÓCONA - URUCHOM ALGORYTM =====
 - alias: "[INFO] Sieć przywrócona"
-  id: grid_restored_notification
-  description: "Powiadomienie gdy sieć wróciła"
+  id: info_siec_przywrocona
+  description: "Uruchom algorytm baterii gdy sieć wróciła"
   trigger:
     - platform: state
       entity_id: binary_sensor.awaria_sieci
       from: "on"
       to: "off"
   action:
-    # Telegram
-    - service: notify.telegram
-      data:
-        title: "✅ Sieć przywrócona"
-        message: |
-          **Napięcie w sieci wróciło!**
-
-          **SOC po awarii:** {{ states('sensor.akumulatory_stan_pojemnosci') }}%
-          **Czas awarii:** od {{ trigger.from_state.last_changed.strftime('%H:%M') }} do {{ now().strftime('%H:%M') }}
-
-          Algorytm przywraca normalne działanie.
-
     # Uruchom algorytm żeby przywrócić normalny tryb
     - delay:
         seconds: 10
     - service: python_script.battery_algorithm
-
-    # Powiadomienie na iPhone
-    - service: notify.mobile_app_marek_iphone_15_pro
-      data:
-        title: "✅ Sieć OK"
-        message: "Napięcie przywrócone. SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}%"
   mode: single

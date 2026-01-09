@@ -1,7 +1,7 @@
 # 📚 Home Assistant + Huawei Solar - Kompletna Dokumentacja
 
-**Wersja:** 3.13
-**Data aktualizacji:** 2025-12-17
+**Wersja:** 3.14
+**Data aktualizacji:** 2026-01-09
 **Autor:** [Autor] + Claude Code (Anthropic AI)
 
 ---
@@ -2674,6 +2674,96 @@ Integracja NIE udostępnia:
 
 ---
 
+## v3.14 (2026-01-09) - Eliminacja race condition taryfy + poprawki RCE
+
+### Podsumowanie zmian
+
+#### 1. Eliminacja race condition z sensorem taryfowym
+
+**Problem:** Algorytm baterii triggerował o 13:00:00, ale sensor `sensor.strefa_taryfowa` jeszcze się nie zaktualizował - algorytm widział L1 zamiast L2.
+
+**Rozwiązanie:** Nowa funkcja `get_tariff_zone(hour)` w `battery_algorithm.py`:
+- Oblicza taryfę G12w bezpośrednio z godziny
+- Sprawdza `binary_sensor.dzien_roboczy` dla weekendów/świąt
+- Weekend/święto = L2 cały dzień (logika zachowana)
+- Eliminuje całkowicie zależność od sensora taryfowego dla timing-critical decisions
+
+```python
+def get_tariff_zone(hour):
+    workday_state = hass.states.get('binary_sensor.dzien_roboczy')
+    is_workday = workday_state and workday_state.state == 'on'
+
+    if not is_workday:
+        return 'L2'  # Weekend/święto
+    elif hour >= 22 or hour < 6:
+        return 'L2'  # Noc
+    elif 13 <= hour < 15:
+        return 'L2'  # Południe
+    else:
+        return 'L1'  # Dzień roboczy, godziny szczytu
+```
+
+#### 2. RCE najtańsze godziny - prefiks dnia
+
+**Problem:** Brak informacji czy wyświetlane najtańsze godziny dotyczą dziś czy jutra
+
+**Rozwiązanie:** Dodano prefiks "[Dziś]" lub "[Jutro]" do `input_text.rce_najtansze_godziny`
+- Po zachodzie słońca automatycznie przełącza na dane jutrzejsze
+- Używa odpowiedniego sensora: `sensor.rce_pse_cena` (dziś) lub `sensor.rce_pse_cena_jutro` (jutro)
+
+#### 3. Poprawka kolorów RCE
+
+**Problem:** Zielone kolory znikały z wykresu - błąd konwersji integer (grosze) tracił precyzję
+
+**Rozwiązanie:**
+- Zmiana z porównania groszy (`pr_gr < p33_gr`) na float (`pr < p33`)
+- Nowy kolor 💚 (zielone serce) dla cen < 0.20 PLN/kWh
+- Zmiana operatora z `<=` na `<` dla spójności percentyli
+
+#### 4. RCE progi cenowe jutro
+
+**Nowy sensor:** `sensor.rce_progi_cenowe_jutro`
+- Oblicza dynamiczne progi p33/p66 dla jutrzejszych cen
+- Używany do kolorowania wykresów po zachodzie słońca
+
+#### 5. RCE ceny godzinowe - pełna doba
+
+**Rozszerzenie:** Atrybuty z h06-h21 na h00-h23
+- Pełna doba dla dziś i jutro
+- Spójność z algorytmem baterii
+
+#### 6. CWU wymuszenie - ulepszenie logiki
+
+**Zmiana:** Z "30 min auto-off" na "do osiągnięcia temp celu (max 2h)"
+- Monitoruje `water_heater.bodynek_nb_tank` temperature
+- Wyłącza automatycznie gdy `current_temperature >= temperature` (cel)
+- Timeout 2h jako zabezpieczenie
+
+#### 7. CWU harmonogram 04:32
+
+**Nowa automatyzacja:** Backup poranny niezależny od Aquarea Cloud
+- Triggeruje o 04:32 (2 min po harmonogramie Panasonic)
+- Włącza wymuszenie CWU jeśli temp < cel
+
+### Pliki zmodyfikowane
+
+| Plik | Zmiany |
+|------|--------|
+| `config/python_scripts/battery_algorithm.py` | Nowa funkcja `get_tariff_zone()`, eliminacja odczytu sensora taryfowego |
+| `config/template_sensors.yaml` | RCE progi jutro, kolory float, pełna doba h00-h23 |
+| `config/automations_battery.yaml` | CWU wymuszenie do temp celu, CWU harmonogram 04:32 |
+| `config/lovelace_huawei.yaml` | Aktualizacja dashboardu |
+
+### Korzyści
+
+- ✅ Bateria natychmiast startuje ładowanie o 13:00/22:00 (brak race condition)
+- ✅ Zachowana logika weekendów/świąt (L2 cały dzień)
+- ✅ Poprawne kolory na wykresie RCE
+- ✅ Czytelna informacja czy dane dotyczą dziś/jutro
+- ✅ Inteligentne CWU - wyłącza się gdy osiągnie temperaturę celu
+
+---
+
 # WSPARCIE
 
 **Dokumentacja:**
@@ -2692,6 +2782,6 @@ Integracja NIE udostępnia:
 
 **Autor:** [Autor] + Claude Code (Anthropic AI)
 **Licencja:** MIT
-**Ostatnia aktualizacja:** 2025-12-17
+**Ostatnia aktualizacja:** 2026-01-09
 
 **Powodzenia! 🚀⚡**

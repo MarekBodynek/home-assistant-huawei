@@ -44,6 +44,34 @@ TEMP_COLD = 5
 
 
 # ============================================
+# TARYFA G12w - OBLICZANIE Z GODZINY
+# ============================================
+
+def get_tariff_zone(hour):
+    """
+    Oblicz taryfę G12w bezpośrednio z godziny i dnia roboczego.
+    Eliminuje race condition - nie czeka na aktualizację sensora.
+
+    Logika G12w:
+    - Weekend/święto: L2 cały dzień
+    - Dzień roboczy:
+      - L2: 22:00-05:59 (noc), 13:00-14:59 (południe)
+      - L1: 06:00-12:59, 15:00-21:59
+    """
+    workday_state = hass.states.get('binary_sensor.dzien_roboczy')
+    is_workday = workday_state and workday_state.state == 'on'
+
+    if not is_workday:
+        return 'L2'  # Weekend/święto = cały dzień L2
+    elif hour >= 22 or hour < 6:
+        return 'L2'  # Noc
+    elif 13 <= hour < 15:
+        return 'L2'  # Południe
+    else:
+        return 'L1'  # Dzień roboczy, godziny szczytu
+
+
+# ============================================
 # FUNKCJA GŁÓWNA - EXECUTE_STRATEGY
 # ============================================
 
@@ -164,11 +192,11 @@ def collect_input_data():
             'weekday': 0,  # uproszczenie - nie używane w logice
             'month': month,
 
-            # Taryfa
-            'tariff_zone': get_state('sensor.strefa_taryfowa'),
+            # Taryfa - obliczana z godziny (eliminuje race condition)
+            'tariff_zone': get_tariff_zone(hour),
 
             # Ceny RCE
-            'rce_now': float(get_state('sensor.tge_rce_current') or 0.45),
+            'rce_now': float(get_state('sensor.rce_pse_cena_za_kwh') or 0.45),
             'rce_evening_avg': float(get_state('sensor.rce_srednia_wieczorna') or 0.55),
 
             # Bateria
@@ -262,7 +290,7 @@ def decide_strategy(data, balance):
     if soc < 20:
         return {
             'mode': 'charge_from_grid',
-            'target_soc': target_soc,  # Użyj obliczonego Target SOC (np. 80%), NIE 20%!
+            'target_soc': data['target_soc'],  # Użyj Target SOC z danych
             'priority': 'high',  # Było 'critical' - to pilne ale nie błąd
             'reason': 'SOC < 20% - PILNE ładowanie w najbliższym oknie L2!'
         }
@@ -575,8 +603,38 @@ def calculate_cheapest_hours_to_store(data):
 
         hours_needed = max(1, hours_needed)  # minimum 1 godzina
 
-        # 4. Pobierz ceny godzinowe z RCE PSE
-        rce_sensor = hass.states.get('sensor.rce_pse_cena')
+        # 4. Określ czy pokazujemy dziś czy jutro (po zachodzie słońca → jutro)
+        date_state = hass.states.get('sensor.date')
+        today_str = date_state.state if date_state else "2025-01-07"
+
+        # Oblicz jutrzejszą datę
+        year = int(today_str[0:4])
+        month_num = int(today_str[5:7])
+        day_num = int(today_str[8:10])
+        days_in_month = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        if (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0):
+            days_in_month[2] = 29
+        day_num += 1
+        if day_num > days_in_month[month_num]:
+            day_num = 1
+            month_num += 1
+            if month_num > 12:
+                month_num = 1
+                year += 1
+        tomorrow_str = f"{year:04d}-{month_num:02d}-{day_num:02d}"
+
+        # Po zachodzie słońca → używaj danych na jutro
+        if hour >= sunset_hour:
+            target_date = tomorrow_str
+            day_label = "Jutro"
+            rce_sensor_name = 'sensor.rce_pse_cena_jutro'
+        else:
+            target_date = today_str
+            day_label = "Dziś"
+            rce_sensor_name = 'sensor.rce_pse_cena'
+
+        # Pobierz ceny godzinowe z odpowiedniego sensora RCE PSE
+        rce_sensor = hass.states.get(rce_sensor_name)
         if not rce_sensor or rce_sensor.state in ['unavailable', 'unknown', None]:
             # Brak sensora RCE PSE - zapisz status i zakończ
             hass.services.call('input_text', 'set_value', {
@@ -602,41 +660,6 @@ def calculate_cheapest_hours_to_store(data):
                 'value': "Brak danych"[:100]
             })
             return None, "Brak cen godzinowych", []
-
-        # Filtruj godziny słoneczne (sunrise - sunset)
-        # Po zachodzie słońca → pokaż dane na JUTRO
-        date_state = hass.states.get('sensor.date')
-        today_str = date_state.state if date_state else "2025-11-16"
-
-        # Oblicz jutrzejszą datę (YYYY-MM-DD) bez importu datetime
-        # Parsuj ręcznie: "2025-12-08" → rok, miesiąc, dzień
-        year = int(today_str[0:4])
-        month_num = int(today_str[5:7])
-        day_num = int(today_str[8:10])
-
-        # Dodaj 1 dzień (prosta logika bez obsługi wszystkich edge cases)
-        days_in_month = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-        # Rok przestępny
-        if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0):
-            days_in_month[2] = 29
-
-        day_num = day_num + 1
-        if day_num > days_in_month[month_num]:
-            day_num = 1
-            month_num = month_num + 1
-            if month_num > 12:
-                month_num = 1
-                year = year + 1
-
-        tomorrow_str = f"{year:04d}-{month_num:02d}-{day_num:02d}"
-
-        # Po zachodzie słońca → używaj danych na jutro
-        if hour >= sunset_hour:
-            target_date = tomorrow_str
-            day_label = "Jutro"
-        else:
-            target_date = today_str
-            day_label = "Dziś"
 
         # POPRAWKA: RCE PSE zwraca dane co 15 min, więc dla każdej godziny są 4 wpisy
         # Zbieramy wszystkie ceny per godzina, potem liczymy średnią
@@ -756,10 +779,13 @@ def calculate_cheapest_hours_to_store(data):
         })
 
         # Formatuj wszystkie godziny słoneczne z kolorowymi kropkami
-        # Używaj percentyli z sensor.rce_progi_cenowe (p33/p66)
+        # Używaj percentyli z odpowiedniego sensora (dziś lub jutro)
         # Pobierz progi z sensora (te same co na dashboard)
         try:
-            progi_state = hass.states.get('sensor.rce_progi_cenowe')
+            if day_label == "Jutro":
+                progi_state = hass.states.get('sensor.rce_progi_cenowe_jutro')
+            else:
+                progi_state = hass.states.get('sensor.rce_progi_cenowe')
             if progi_state and progi_state.attributes:
                 p33 = float(progi_state.attributes.get('p33', 0.5))
                 p66 = float(progi_state.attributes.get('p66', 0.7))
@@ -775,19 +801,20 @@ def calculate_cheapest_hours_to_store(data):
             h = p['hour']
             # WAŻNE: Zaokrąglij cenę do 2 miejsc, żeby być spójnym z wyświetlaną wartością w tabeli
             price = round(p['price'], 2)
-            # Progi: 🟢 < p33 | 🟡 p33-p66 | 🔴 > p66
-            if price < p33:
+            # Progi: 💚 < 0.20 | 🟢 < p33 | 🟡 < p66 | 🔴 >= p66
+            if price < 0.20:
+                dot = '💚'
+            elif price < p33:
                 dot = '🟢'
-            elif price <= p66:
+            elif price < p66:
                 dot = '🟡'
             else:
                 dot = '🔴'
             hours_display_parts.append(str(h) + dot)
         hours_display = ' '.join(hours_display_parts)
 
-        # Dodaj prefix "Jutro:" gdy pokazujemy dane na jutro
-        if day_label == "Jutro":
-            hours_display = f"[{day_label}] {hours_display}"
+        # Zawsze dodaj prefix z dniem (Dziś/Jutro)
+        hours_display = f"[{day_label}] {hours_display}"
 
         hass.services.call('input_text', 'set_value', {
             'entity_id': 'input_text.battery_cheapest_hours',
@@ -1230,8 +1257,10 @@ def apply_battery_mode(strategy):
         # ===========================================
         # POPRAWKA 4: W L2 chroń baterię, w L1 normalne zachowanie
         # ===========================================
-        tariff_state = hass.states.get('sensor.strefa_taryfowa')
-        if tariff_state and tariff_state.state == 'L2':
+        now_state = hass.states.get('sensor.time')
+        current_hour = int(now_state.state.split(':')[0]) if now_state else 12
+        current_tariff = get_tariff_zone(current_hour)
+        if current_tariff == 'L2':
             # W L2 - tryb TOU kontroluje rozładowanie wg harmonogramu
             # UWAGA: max_discharge_power=5000 (nie 0!) - żeby backup mode działał
             # UWAGA: set_tou_periods=True żeby ustawić ochronę weekendową nawet przy restarcie
@@ -1358,15 +1387,16 @@ def set_huawei_mode(working_mode, **kwargs):
 # ============================================
 
 def get_state(entity_id):
-    """Pobiera stan encji"""
+    """Pobiera stan encji, zwraca None dla unavailable/unknown"""
     try:
         state = hass.states.get(entity_id)
         if state is None:
-            # logger.warning(f"Encja nie znaleziona: {entity_id}")
+            return None
+        # Zwróć None dla unavailable/unknown żeby fallback values działały
+        if state.state in ('unavailable', 'unknown', 'None', ''):
             return None
         return state.state
     except Exception as e:
-        # logger.error(f"Błąd pobierania stanu {entity_id}: {e}")
         return None
 
 
