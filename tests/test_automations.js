@@ -55,25 +55,34 @@ try {
     console.log('[PASS] Główna automatyzacja algorytmu istnieje (Wykonaj strategię co 1h)');
     passed++;
 
-    // Test 2a: Trigger co godzinę
+    // Test 2a: Trigger co godzinę (time_pattern z hours=* i minutes=0/00)
     const triggers = mainAlgo.trigger || mainAlgo.triggers || [];
     const timeTrigger = triggers.find(t => t.trigger === 'time_pattern' || t.platform === 'time_pattern');
-    if (timeTrigger && (timeTrigger.minutes === 0 || timeTrigger.minutes === '0' || timeTrigger.minutes === '/1')) {
-      console.log('[PASS] Algorytm uruchamia się co godzinę');
+    const minutesValid = timeTrigger && (
+      timeTrigger.minutes === 0 ||
+      timeTrigger.minutes === '0' ||
+      timeTrigger.minutes === '00' ||
+      timeTrigger.minutes === '/1'
+    );
+    if (minutesValid && (timeTrigger.hours === '*' || !timeTrigger.hours)) {
+      console.log('[PASS] Algorytm uruchamia się co godzinę (time_pattern hours=* minutes=00)');
       passed++;
     } else {
-      console.log('[WARN] Algorytm nie ma triggera co godzinę');
+      console.log(`[WARN] Algorytm nie ma triggera co godzinę (minutes=${timeTrigger?.minutes})`);
       warnings++;
     }
 
-    // Test 2b: Akcja wywołuje pyscript
+    // Test 2b: Akcja wywołuje skrypt Python (python_script lub pyscript)
     const actions = mainAlgo.action || mainAlgo.actions || [];
-    const pyscriptAction = actions.find(a => a.service && a.service.includes('pyscript'));
-    if (pyscriptAction) {
-      console.log('[PASS] Algorytm wywołuje pyscript');
+    const pythonAction = actions.find(a => a.service && (
+      a.service.includes('python_script') ||
+      a.service.includes('pyscript')
+    ));
+    if (pythonAction) {
+      console.log(`[PASS] Algorytm wywołuje skrypt Python (${pythonAction.service})`);
       passed++;
     } else {
-      console.log('[WARN] Algorytm nie wywołuje pyscript bezpośrednio');
+      console.log('[WARN] Algorytm nie wywołuje skryptu Python');
       warnings++;
     }
   } else {
@@ -126,7 +135,7 @@ try {
   const withMode = automations.filter(a => a.mode);
   console.log(`[INFO] ${withMode.length}/${automations.length} automatyzacji ma zdefiniowany mode`);
 
-  // Test 7: Sprawdź timeout w automatyzacjach z pętlami
+  // Test 7: Sprawdź warunek wyjścia w automatyzacjach z pętlami
   const withRepeat = automations.filter(a => {
     const actions = a.action || a.actions || [];
     return actions.some(act => act.repeat);
@@ -134,8 +143,16 @@ try {
   withRepeat.forEach(a => {
     const actions = a.action || a.actions || [];
     const repeatAction = actions.find(act => act.repeat);
-    if (repeatAction && repeatAction.repeat.until) {
-      console.log(`[PASS] Automatyzacja "${a.alias}" ma warunek wyjścia z pętli`);
+    // Warunek wyjścia: until (warunek), count (liczba powtórzeń), while (warunek)
+    const hasExit = repeatAction && (
+      repeatAction.repeat.until ||
+      repeatAction.repeat.count ||
+      repeatAction.repeat.while
+    );
+    if (hasExit) {
+      const exitType = repeatAction.repeat.count ? `count: ${repeatAction.repeat.count}` :
+                       repeatAction.repeat.until ? 'until' : 'while';
+      console.log(`[PASS] Automatyzacja "${a.alias}" ma warunek wyjścia (${exitType})`);
       passed++;
     } else {
       console.log(`[WARN] Automatyzacja "${a.alias}" ma pętlę bez warunku wyjścia`);
