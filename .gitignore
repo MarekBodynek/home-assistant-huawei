@@ -31,3 +31,6 @@ config/home-assistant_v2.db*
 config/secrets.yaml
 config/tts/
 secrets.yaml
+node_modules/
+.pytest_cache/
+__pycache__/

@@ -1,0 +1,19 @@
+{
+  "name": "home-assistant-huawei-tests",
+  "version": "1.0.0",
+  "description": "Testy integralności i wydajności automatyzacji HA dla Huawei Luna 15kWh",
+  "scripts": {
+    "test": "npm run test:yaml && npm run test:automations && npm run test:python",
+    "test:yaml": "node tests/validate_yaml.js",
+    "test:automations": "node tests/test_automations.js",
+    "test:entities": "node tests/validate_entities.js",
+    "test:python": "python3 -m pytest tests/ -v --tb=short",
+    "test:battery": "python3 -m pytest tests/test_battery_algorithm.py -v",
+    "test:strategy": "python3 -m pytest tests/test_daily_strategy.py -v",
+    "test:sensors": "python3 -m pytest tests/test_template_sensors.py -v",
+    "lint": "npm run test:yaml"
+  },
+  "devDependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}
