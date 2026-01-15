@@ -985,18 +985,19 @@ def handle_power_deficit(data, balance):
                     }
 
             if data['cwu_window']:
-                if soc > 70:
-                    return {
-                        'mode': 'grid_to_home',
-                        'priority': 'medium',
-                        'reason': 'PC CWU w L2 (tanie), oszczędzaj baterię na L1'
-                    }
-                else:
+                # CWU i bateria ładują się równolegle z sieci - nie ma konfliktu
+                if soc < target_soc:
                     return {
                         'mode': 'charge_from_grid',
                         'target_soc': target_soc,
-                        'priority': 'normal',  # Normalne ładowanie przy PC
-                        'reason': 'PC w L2 + doładuj baterię na L1'
+                        'priority': 'normal',
+                        'reason': f'PC CWU + ładuj baterię do {target_soc}% (równolegle)'
+                    }
+                else:
+                    return {
+                        'mode': 'grid_to_home',
+                        'priority': 'medium',
+                        'reason': f'PC CWU w L2, SOC {soc:.0f}% >= {target_soc}% - OK'
                     }
 
     # Poza sezonem
