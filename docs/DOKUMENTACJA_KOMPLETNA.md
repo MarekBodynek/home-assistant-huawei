@@ -1,7 +1,7 @@
 # 📚 Home Assistant + Huawei Solar - Kompletna Dokumentacja
 
-**Wersja:** 3.14
-**Data aktualizacji:** 2026-01-09
+**Wersja:** 3.15
+**Data aktualizacji:** 2026-02-01
 **Autor:** Marek Bodynek + Claude Code (Anthropic AI)
 
 ---
@@ -80,6 +80,12 @@
 - [11.2 Fix: Target SOC Charging](#112-fix-target-soc-charging-2025-11-17)
 - [11.3 Fix: Parametry baterii w L1](#113-fix-parametry-baterii-w-l1-2025-11-17)
 - [11.4 System logowania błędów + Fix temperatury](#114-system-logowania-błędów--fix-temperatury-2025-11-18)
+
+### [12. HOME ASSISTANT API & NARZĘDZIA](#12-home-assistant-api--narzędzia)
+- [12.1 Dostęp do API](#121-dostęp-do-api)
+- [12.2 Kluczowe czujniki temperatury](#122-kluczowe-czujniki-temperatury)
+- [12.3 Skrypt check_temps.py](#123-skrypt-check_tempspy)
+- [12.4 Dokumentacja API](#124-dokumentacja-api)
 
 ---
 
@@ -2764,6 +2770,177 @@ def get_tariff_zone(hour):
 
 ---
 
+# 12. HOME ASSISTANT API & NARZĘDZIA
+
+## 12.1 Dostęp do API
+
+Home Assistant udostępnia REST API pod:
+
+**Endpointy:**
+- **Zewnętrzny:** https://ha.bodino.us.kg/api/
+- **Lokalny:** http://192.168.0.106:8123/api/
+
+**Token API:**
+- Zapisany w: `config/secrets.yaml` → `ha_api_token`
+- Ważny do: 2036-01-20
+- Utworzony: 2026-02-01
+
+**Podstawowe użycie:**
+```bash
+# Sprawdzenie dostępności
+curl -X GET "https://ha.bodino.us.kg/api/" \
+  -H "Authorization: Bearer <TOKEN>"
+
+# Pobranie stanu encji
+curl -s "https://ha.bodino.us.kg/api/states/sensor.akumulatory_stan_pojemnosci" \
+  -H "Authorization: Bearer <TOKEN>" | jq '.state'
+```
+
+## 12.2 Kluczowe czujniki temperatury
+
+System monitoruje trzy kluczowe temperatury:
+
+### 1. Temperatura zewnętrzna
+```yaml
+Entity ID: sensor.temperatura_zewnetrzna
+Jednostka: °C
+Przykład: -7.0°C
+```
+
+**Interpretacja:**
+- < -10°C → Mróz ekstremalny
+- -10°C do 0°C → Mróz normalny
+- 0°C do 12°C → Sezon grzewczy
+- > 12°C → Poza sezonem
+
+### 2. Temperatura jadalnia
+```yaml
+Entity ID: sensor.jadalnie_czujnik_temperatury_temperature
+Jednostka: °C
+Przykład: 21.84°C
+Uwaga: nazwa ma literówkę "Jadalnie" zamiast "Jadalnia"
+```
+
+**Zakres komfortowy:**
+- < 18°C → Za zimno
+- 18-22°C → Komfortowo ✅
+- 22-24°C → Ciepło
+- > 24°C → Za gorąco
+
+### 3. Temperatura CWU (ciepła woda użytkowa)
+```yaml
+Entity ID: sensor.temperatura_cwu
+Jednostka: °C
+Przykład: 53.0°C
+```
+
+**Zakres bezpieczny:**
+- < 40°C → 🔴 Za zimna, bakterie!
+- 40-50°C → ⚠️ Minimum użytkowe
+- 50-60°C → ✅ Zalecana (ochrona przed Legionella)
+- > 60°C → ⚠️ Niebezpieczeństwo poparzeń
+
+## 12.3 Skrypt check_temps.py
+
+Prosty skrypt Python do szybkiego odczytu trzech kluczowych temperatur.
+
+**Lokalizacja:** `scripts/check_temps.py`
+
+**Uruchomienie:**
+```bash
+python3 scripts/check_temps.py
+```
+
+**Przykładowy output:**
+```
+📊 Temperatury:
+========================================
+🌡️  Zewnętrzna         -7.0°C
+🏠 Jadalnia            21.8°C
+💧 CWU                 53.0°C
+========================================
+
+🔍 Analiza:
+   Różnica temp (jadalnia - zewn.): 28.8°C
+   Status CWU: ✅ OK (można podgrzać do 55-60°C)
+```
+
+**Funkcjonalność:**
+- Automatyczny odczyt z Home Assistant API
+- Token z `config/secrets.yaml`
+- Analiza różnicy temperatur
+- Status CWU z zaleceniami
+
+## 12.4 Dokumentacja API
+
+Szczegółowa dokumentacja dostępna w:
+
+- **docs/HOME_ASSISTANT_API.md** - pełna instrukcja API
+- **docs/CLAUDE_TEMPERATURES.md** - instrukcje dla Claude Code
+
+**Zawartość:**
+- 4 metody dostępu (curl, Python, bash helper, skrypt)
+- Przykłady wywołań usług
+- Kluczowe encje do monitoringu
+- Troubleshooting i bezpieczeństwo
+
+---
+
+## v3.15 (2026-02-01) - Home Assistant API + monitoring temperatur
+
+### Zmiany
+
+**1. Konfiguracja API Home Assistant**
+- Utworzono Long-Lived Access Token (ważny do 2036-01-20)
+- Token zapisany w `config/secrets.yaml`
+- Dodano `ha_api_token` i `ha_api_url`
+
+**2. Dokumentacja API**
+- Nowy plik: `docs/HOME_ASSISTANT_API.md`
+- 4 metody dostępu: curl, Python, bash helper, skrypt
+- Przykłady wywołań usług i encji
+- Troubleshooting i bezpieczeństwo
+
+**3. Monitoring temperatur**
+- Nowy plik: `docs/CLAUDE_TEMPERATURES.md`
+- Instrukcje dla Claude Code
+- Kluczowe czujniki: zewnętrzna, jadalnia, CWU
+- Interpretacja wartości i analiza
+
+**4. Skrypt check_temps.py**
+- Nowy skrypt: `scripts/check_temps.py`
+- Automatyczny odczyt 3 temperatur
+- Analiza różnicy temp i status CWU
+- Integracja z secrets.yaml
+
+**5. Byte Rover**
+- Inicjalizacja projektu w Byte Rover
+- Team: Marek_team
+- Space: Marek_Space
+- Dodano `.brv/` do `.gitignore`
+
+### Pliki zmodyfikowane
+
+| Plik | Zmiany |
+|------|--------|
+| `.gitignore` | Dodano `.brv/` (Byte Rover) |
+| `config/secrets.yaml` | Dodano `ha_api_token` i `ha_api_url` |
+| `docs/HOME_ASSISTANT_API.md` | Nowa dokumentacja API |
+| `docs/CLAUDE_TEMPERATURES.md` | Instrukcje monitoringu temperatur |
+| `scripts/check_temps.py` | Nowy skrypt odczytu temperatur |
+| `docs/DOKUMENTACJA_KOMPLETNA.md` | Sekcja 12: API & narzędzia |
+| `docs/DOKUMENTACJA_KOMPLETNA_PUBLIC.md` | Zanonimizowana wersja |
+
+### Korzyści
+
+- ✅ Łatwy dostęp do danych HA przez API (zewnętrzny i lokalny)
+- ✅ Monitoring kluczowych temperatur (zewnętrzna, jadalnia, CWU)
+- ✅ Gotowe narzędzia dla Claude Code w przyszłych sesjach
+- ✅ Dokumentacja dla developerów i automatyzacji
+- ✅ Integracja z Byte Rover dla zarządzania kontekstem
+
+---
+
 # WSPARCIE
 
 **Dokumentacja:**
@@ -2782,6 +2959,6 @@ def get_tariff_zone(hour):
 
 **Autor:** Marek Bodynek + Claude Code (Anthropic AI)
 **Licencja:** MIT
-**Ostatnia aktualizacja:** 2026-01-09
+**Ostatnia aktualizacja:** 2026-02-01
 
 **Powodzenia! 🚀⚡**
