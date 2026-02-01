@@ -92,7 +92,7 @@
 - **Tryb pracy:** PV PRIORITY (priorytet ładowania z fotowoltaiki)
 - **Home Assistant:** Najnowsza stabilna wersja (Docker)
 - **Taryfa:** G12w (dwustrefowa)
-- **Pompa ciepła:** Panasonic T-CAP (opcjonalnie)
+- **Pompa ciepła:** Panasonic Aquarea T-CAP KIT-WQC09H3E8 (9 kW)
 
 ## 1.2 Status instalacji
 

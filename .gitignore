@@ -11,6 +11,9 @@ data/*.csv
 data/*.pkl
 scripts/*.csv
 
+# Byte Rover (zarządzanie kontekstem)
+.brv/
+
 # Claude Code local settings (zawiera tokeny!)
 .claude/settings.local.json
 *.log

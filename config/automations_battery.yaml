@@ -68,6 +68,41 @@
   mode: single
 
 # ============================================
+# SOC PRZEKROCZYŁ PRÓG - URUCHOM ALGORYTM
+# ============================================
+
+- id: battery_soc_threshold_crossed
+  alias: "[Bateria] SOC przekroczył próg - uruchom algorytm"
+  description: "Uruchamia algorytm gdy SOC przekroczy którykolwiek z progów sezonowych (min/max/rezerwa)"
+  trigger:
+    # === SPADEK PONIŻEJ (sezonowe minimum) ===
+    - platform: numeric_state
+      entity_id: sensor.akumulatory_stan_pojemnosci
+      below: 10  # min zima
+    - platform: numeric_state
+      entity_id: sensor.akumulatory_stan_pojemnosci
+      below: 15  # min wiosna/jesień
+    - platform: numeric_state
+      entity_id: sensor.akumulatory_stan_pojemnosci
+      below: 20  # min lato
+    # === WZROST POWYŻEJ (sezonowe maximum / rezerwa) ===
+    - platform: numeric_state
+      entity_id: sensor.akumulatory_stan_pojemnosci
+      above: 30  # rezerwa weekend (nie-zima)
+    - platform: numeric_state
+      entity_id: sensor.akumulatory_stan_pojemnosci
+      above: 80  # max lato + rezerwa weekend zima
+    - platform: numeric_state
+      entity_id: sensor.akumulatory_stan_pojemnosci
+      above: 85  # max wiosna/jesień
+    - platform: numeric_state
+      entity_id: sensor.akumulatory_stan_pojemnosci
+      above: 90  # max zima
+  action:
+    - service: python_script.battery_algorithm
+  mode: single
+
+# ============================================
 # MONITOROWANIE KRYTYCZNE (co 1 minutę)
 # ============================================
 
@@ -106,11 +141,11 @@
 
 - id: battery_monitor_soc_max
   alias: "[Bateria] Monitor SOC maksymalne"
-  description: "Zatrzymuje ładowanie gdy SOC osiągnie 78% (blisko limitu Huawei 80%)"
+  description: "Backup awaryjny - zatrzymuje ładowanie gdy SOC przekroczy 90% (algorytm powinien zatrzymać przy 80%)"
   trigger:
     - platform: numeric_state
       entity_id: sensor.akumulatory_stan_pojemnosci
-      above: 78
+      above: 90
   action:
     - service: switch.turn_off
       target:
@@ -1214,4 +1249,61 @@
 
           Temp końcowa: {{ state_attr('water_heater.bodynek_nb_tank', 'current_temperature') }}°C
         notification_id: cwu_scheduled_0432
+  mode: single
+
+# ============================================
+# SEZONOWY TARGET SOC - AUTOMATYCZNA AKTUALIZACJA SUWAKA
+# ============================================
+
+- id: battery_seasonal_target_soc_startup
+  alias: "[Bateria] Ustaw sezonowy Target SOC przy starcie HA"
+  description: "Przy restarcie HA ustawia suwak Target SOC na sezonowe max (90% zima, 85% wiosna/jesień, 80% lato)"
+  trigger:
+    - platform: homeassistant
+      event: start
+  action:
+    # Dłuższy delay żeby sensor template był już dostępny
+    - delay:
+        seconds: 60
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.battery_target_soc
+      data:
+        value: "{{ state_attr('sensor.bateria_limity_soc', 'max_soc') | int(80) }}"
+    - service: persistent_notification.create
+      data:
+        title: "🔋 Target SOC ustawiony na sezonowy max"
+        message: |
+          ✅ Suwak Target SOC ustawiony na {{ state_attr('sensor.bateria_limity_soc', 'max_soc') }}%
+
+          **Sezon:** {{ state_attr('sensor.bateria_limity_soc', 'season') }}
+          **Limity:** {{ states('sensor.bateria_limity_soc') }}
+        notification_id: battery_seasonal_target_soc
+  mode: single
+
+- id: battery_seasonal_target_soc_monthly
+  alias: "[Bateria] Aktualizuj sezonowy Target SOC (1. dzień miesiąca)"
+  description: "Pierwszego dnia miesiąca o 00:05 aktualizuje suwak Target SOC na nowy sezonowy max"
+  trigger:
+    - platform: time
+      at: "00:05:00"
+  condition:
+    # Tylko pierwszego dnia miesiąca
+    - condition: template
+      value_template: "{{ now().day == 1 }}"
+  action:
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.battery_target_soc
+      data:
+        value: "{{ state_attr('sensor.bateria_limity_soc', 'max_soc') | int(80) }}"
+    - service: persistent_notification.create
+      data:
+        title: "🔋 Nowy sezon - Target SOC zaktualizowany"
+        message: |
+          ✅ Suwak Target SOC ustawiony na {{ state_attr('sensor.bateria_limity_soc', 'max_soc') }}%
+
+          **Nowy sezon:** {{ state_attr('sensor.bateria_limity_soc', 'season') }}
+          **Limity:** {{ states('sensor.bateria_limity_soc') }}
+        notification_id: battery_seasonal_target_soc
   mode: single

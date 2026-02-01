@@ -28,13 +28,37 @@ FORECAST_POOR = 12
 FORECAST_BAD = 8
 FORECAST_VERY_BAD = 5
 
-# Progi baterii (%) - LIMITY HUAWEI: 20% min, 80% max
-BATTERY_CRITICAL = 5   # SOC krytyczne - natychmiastowe ładowanie 24/7
-BATTERY_LOW = 20       # SOC niskie - pilne ładowanie w L2
-BATTERY_RESERVE = 30   # Rezerwa weekendowa (stała, niezależna od sezonu)
+# Progi baterii (%) - DYNAMICZNE W ZALEŻNOŚCI OD SEZONU
+BATTERY_CRITICAL = 5   # SOC krytyczne - natychmiastowe ładowanie 24/7 (stałe)
 BATTERY_GOOD = 65      # SOC dobre
 BATTERY_HIGH = 70      # SOC wysokie
-BATTERY_MAX = 80       # Limit Huawei: 80%
+
+# UWAGA: BATTERY_LOW i BATTERY_MAX są teraz dynamiczne
+# - użyj get_seasonal_soc_limits() dla min/max SOC
+
+
+def get_seasonal_soc_limits(month):
+    """
+    Zwraca (min_soc, max_soc) w zależności od miesiąca.
+
+    Sezonowe zakresy SOC:
+    - Listopad - Luty (11,12,1,2): 10-90% (minimalna produkcja PV, wysokie zużycie)
+    - Marzec - Kwiecień (3,4): 15-85% (przejściowo, PV rośnie)
+    - Maj - Wrzesień (5,6,7,8,9): 20-80% (PV ładuje baterię za darmo)
+    - Październik (10): 15-85% (przejściowo, PV spada)
+    """
+    if month in [11, 12, 1, 2]:      # Zima
+        return (10, 90)
+    elif month in [3, 4]:            # Wiosna
+        return (15, 85)
+    elif month in [5, 6, 7, 8, 9]:   # Lato
+        return (20, 80)
+    elif month == 10:                # Jesień
+        return (15, 85)
+    else:
+        # Fallback - bezpieczne wartości
+        return (20, 80)
+
 
 # Temperatura i PC
 TEMP_HEATING_THRESHOLD = 12  # °C
@@ -111,7 +135,7 @@ def execute_strategy():
             return
 
     # PRIORYTET 1: Sprawdź czy osiągnięto Target SOC - jeśli tak, ZATRZYMAJ ładowanie
-    # ALE kontynuuj do decide_strategy() żeby obsłużyć L1/L2/weekend!
+    # ALE kontynuuj do decide_strategy() żeby obsłużyć L1/L2!
     soc = data['soc']
     target_soc = data['target_soc']
 
@@ -129,7 +153,7 @@ def execute_strategy():
                 'value': 0
             })
             # NIE ROBIMY RETURN! Kontynuujemy do decide_strategy()
-            # żeby obsłużyć rozładowywanie w L1, weekend, itp.
+            # żeby obsłużyć rozładowywanie w L1, itp.
         else:
             # Jeśli ładowanie już wyłączone - przywróć moc ładowania na normalną (5000W)
             # Bo mogła być ustawiona na 0W w poprzednim cyklu
@@ -152,7 +176,7 @@ def execute_strategy():
         })
 
     strategy = decide_strategy(data, balance)
-    result = apply_battery_mode(strategy)
+    result = apply_battery_mode(strategy, data)
 
     # Event Log - logowanie decyzji
     try:
@@ -185,6 +209,9 @@ def collect_input_data():
             month = int(date_parts[1]) if len(date_parts) >= 2 else 1
         else:
             month = 1
+
+        # Pobierz sezonowe limity SOC
+        soc_min, soc_max = get_seasonal_soc_limits(month)
 
         return {
             'timestamp': time_str,
@@ -220,8 +247,15 @@ def collect_input_data():
             'pc_co_active': get_state('binary_sensor.pc_co_aktywne') == 'on',
             'cwu_window': get_state('binary_sensor.okno_cwu') == 'on',
 
-            # Target SOC
-            'target_soc': int(float(get_state('input_number.battery_target_soc') or 80)),
+            # Backup mode (awaria sieci)
+            'is_backup_mode': get_state('binary_sensor.awaria_zasilania_sieci') == 'on',
+
+            # Target SOC - z suwaka, ale max zgodne z sezonem
+            'target_soc': min(int(float(get_state('input_number.battery_target_soc') or soc_max)), soc_max),
+
+            # Sezonowe limity SOC
+            'soc_min': soc_min,
+            'soc_max': soc_max,
         }
     except Exception as e:
         # Błąd zbierania danych
@@ -274,64 +308,41 @@ def calculate_power_balance(data):
 def decide_strategy(data, balance):
     """Główna funkcja decyzyjna"""
     soc = data['soc']
-
-    # BEZPIECZEŃSTWO (limity Huawei: 20-80%)
-    # SUPER PILNY: SOC < 5% - ładuj NATYCHMIAST 24/7!
-    if soc < 5:
-        return {
-            'mode': 'charge_from_grid',
-            'target_soc': 35,
-            'priority': 'critical',
-            'reason': 'SOC < 5% - SUPER PILNE! Ładowanie NATYCHMIAST 24/7!',
-            'urgent_charge': True  # Ładuj przez całą dobę bez czekania na L2
-        }
-
-    # PILNY: SOC < 20% - ładuj w najbliższym oknie L2
-    if soc < 20:
-        return {
-            'mode': 'charge_from_grid',
-            'target_soc': data['target_soc'],  # Użyj Target SOC z danych
-            'priority': 'high',  # Było 'critical' - to pilne ale nie błąd
-            'reason': 'SOC < 20% - PILNE ładowanie w najbliższym oknie L2!'
-        }
-
-    if soc >= 80:
-        tariff = data['tariff_zone']
-
-        # W L2 (tania taryfa) - nie rozładowuj baterii, pobieraj z sieci!
-        if tariff == 'L2':
-            return {
-                'mode': 'grid_to_home',
-                'priority': 'low',
-                'reason': 'SOC 80% w L2 - zachowaj baterię na L1, pobieraj z sieci (tanie 0.41 zł/kWh)'
-            }
-
-        # W L1 (droga taryfa) - używaj baterii
-        if balance['surplus'] > 0:
-            return {
-                'mode': 'discharge_to_grid',
-                'priority': 'normal',  # Normalna operacja przy pełnej baterii
-                'reason': 'SOC 80%, nadwyżka PV - sprzedaj'
-            }
-        else:
-            return {
-                'mode': 'discharge_to_home',
-                'priority': 'normal',
-                'reason': 'SOC 80% w L1 - rozładowuj do domu (oszczędzaj drogi L1)'
-            }
-
-    # W L2 (tania taryfa weekend/święta) - oszczędzaj baterię
-    # O północy dzień zmieni się na roboczy i algorytm automatycznie zacznie ładować
+    soc_min = data['soc_min']
+    soc_max = data['soc_max']
     tariff = data['tariff_zone']
     hour = data['hour']
     target_soc = data['target_soc']
 
+    # ===========================================
+    # BEZPIECZEŃSTWO (limity krytyczne)
+    # ===========================================
+    # SUPER PILNY: SOC < 5% - ładuj NATYCHMIAST 24/7!
+    if soc < BATTERY_CRITICAL:
+        return {
+            'mode': 'charge_from_grid',
+            'target_soc': soc_min + 25,  # Doładuj do min + 25%
+            'priority': 'critical',
+            'reason': f'SOC < {BATTERY_CRITICAL}% - SUPER PILNE! Ładowanie NATYCHMIAST 24/7!',
+            'urgent_charge': True  # Ładuj przez całą dobę bez czekania na L2
+        }
+
+    # PILNY: SOC < soc_min - ładuj w najbliższym oknie L2
+    if soc < soc_min:
+        return {
+            'mode': 'charge_from_grid',
+            'target_soc': data['target_soc'],  # Użyj Target SOC z danych
+            'priority': 'high',  # Było 'critical' - to pilne ale nie błąd
+            'reason': f'SOC {soc:.0f}% < {soc_min}% (sezonowe min) - PILNE ładowanie w L2!'
+        }
+
+    # ===========================================
+    # WEEKEND ENERGETYCZNY (piątek 22:00 - niedziela 21:59)
+    # ===========================================
     # Sprawdź czy dziś jest dzień roboczy
     workday_state = hass.states.get('binary_sensor.dzien_roboczy')
     is_workday = workday_state and workday_state.state == 'on'
 
-    # Weekend energetyczny: piątek 22:00 → niedziela 22:00
-    # W tym czasie: NIE ładuj z sieci, czekaj na PV, oszczędzaj baterię
     # Oblicz dzień tygodnia bez importu datetime (algorytm Tomohiko Sakamoto)
     date_sensor = hass.states.get('sensor.date')
     today_str = date_sensor.state if date_sensor else ''
@@ -348,14 +359,14 @@ def decide_strategy(data, balance):
         weekday = (dow + 6) % 7
     else:
         weekday = 0  # Fallback na poniedziałek
+
     is_friday_evening = (weekday == 4 and hour >= 22)   # Piątek 22:00+ = START weekendu
     is_sunday_evening = (weekday == 6 and hour >= 22)   # Niedziela 22:00+ = KONIEC weekendu
 
     # Weekend energetyczny = (weekend/święto LUB piątek wieczór) ALE NIE niedziela wieczór
     is_energy_weekend = (not is_workday or is_friday_evening) and not is_sunday_evening
 
-    # WEEKEND ENERGETYCZNY (piątek 22:00 - niedziela 21:59)
-    # ZAWSZE self consumption - NIE ładuj z sieci, nawet gdy SOC spadnie
+    # W weekend energetycznym: NIE ładuj z sieci, tylko self consumption
     # Wyjątek: SOC < 5% (obsłużone wyżej jako ładowanie krytyczne 24/7)
     # Ładowanie do Target SOC dopiero w niedzielę 22:00+
     if is_energy_weekend:
@@ -365,8 +376,35 @@ def decide_strategy(data, balance):
             'reason': 'Weekend - tylko self consumption, bez ładowania z sieci'
         }
 
+    # ===========================================
+    # NORMALNA LOGIKA (dni robocze + niedziela wieczór)
+    # ===========================================
+    if soc >= soc_max:
+        # W L2 (tania taryfa) - nie rozładowuj baterii, pobieraj z sieci!
+        if tariff == 'L2':
+            return {
+                'mode': 'grid_to_home',
+                'discharge_limit': soc_max,  # Chroń pełną baterię
+                'priority': 'low',
+                'reason': f'SOC {soc:.0f}% >= {soc_max}% (sezonowe max) w L2 - pobieraj z sieci'
+            }
+
+        # W L1 (droga taryfa) - używaj baterii
+        if balance['surplus'] > 0:
+            return {
+                'mode': 'discharge_to_grid',
+                'priority': 'normal',  # Normalna operacja przy pełnej baterii
+                'reason': f'SOC {soc:.0f}% >= {soc_max}%, nadwyżka PV - sprzedaj'
+            }
+        else:
+            return {
+                'mode': 'discharge_to_home',
+                'priority': 'normal',
+                'reason': f'SOC {soc:.0f}% >= {soc_max}% w L1 - rozładowuj do domu'
+            }
+
     # ŁADOWANIE W L2 - INTELIGENTNE ZARZĄDZANIE PV vs SIEĆ
-    # PRIORYTET: PV (darmowe) > Sieć L2 (tanie 0.72 zł) > Sieć L1 (drogie 1.11 zł)
+    # PRIORYTET: PV (darmowe) > Sieć L2 (tanie 0.78 zł) > Sieć L1 (drogie 1.16 zł)
     forecast_today = data['forecast_today']
     forecast_tomorrow = data['forecast_tomorrow']
     pv_surplus = balance['surplus']
@@ -381,6 +419,7 @@ def decide_strategy(data, balance):
         if (is_night_l2 or is_midday_l2) and soc >= target_soc:
             return {
                 'mode': 'grid_to_home',
+                'discharge_limit': target_soc,  # Chroń target SOC
                 'priority': 'normal',
                 'reason': f'L2 - SOC {soc:.0f}% >= Target {target_soc}% - pobieraj z sieci, zachowaj baterię na L1'
             }
@@ -388,7 +427,7 @@ def decide_strategy(data, balance):
     # ===========================================
     # POPRAWKA 2: L1 (droga taryfa) - ROZŁADOWUJ baterię
     # ===========================================
-    if tariff == 'L1' and soc > 20:
+    if tariff == 'L1' and soc > soc_min:
         # Sprawdź czy nie ma nadwyżki PV do sprzedaży
         if pv_surplus > 0.5:  # >500W nadwyżki
             # Nadwyżka PV - pozwól handle_pv_surplus zdecydować (może sprzedać)
@@ -398,7 +437,7 @@ def decide_strategy(data, balance):
             return {
                 'mode': 'discharge_to_home',
                 'priority': 'normal',  # Normalna operacja w L1
-                'reason': f'L1 droga taryfa (1.11 zł) - rozładowuj baterię (SOC {soc:.0f}%)'
+                'reason': f'L1 droga taryfa (1.16 zł) - rozładowuj baterię (SOC {soc:.0f}%)'
             }
 
     # L2 NOC (22-06h) - inteligentne ładowanie z uwzględnieniem prognozy PV
@@ -440,6 +479,7 @@ def decide_strategy(data, balance):
         if pv_forecast >= 25:
             return {
                 'mode': 'grid_to_home',
+                'discharge_limit': soc_min,  # Zachowaj minimum sezonowe
                 'priority': 'low',
                 'reason': f'Noc L2 + słonecznie {forecast_label} ({pv_forecast:.1f} kWh) - PV naładuje baterię za darmo! (SOC {soc:.0f}%)'
             }
@@ -448,6 +488,7 @@ def decide_strategy(data, balance):
         if pv_forecast >= 20:
             return {
                 'mode': 'grid_to_home',
+                'discharge_limit': soc_min,  # Zachowaj minimum sezonowe
                 'priority': 'low',
                 'reason': f'Noc L2 + dobra prognoza {forecast_label} ({pv_forecast:.1f} kWh) - PV wystarczy! (SOC {soc:.0f}%)'
             }
@@ -456,6 +497,7 @@ def decide_strategy(data, balance):
         if pv_forecast >= 15:
             return {
                 'mode': 'grid_to_home',
+                'discharge_limit': soc_min,  # Zachowaj minimum sezonowe
                 'priority': 'low',
                 'reason': f'Noc L2 + prognoza {forecast_label} {pv_forecast:.1f} kWh - PV powinno wystarczyć (SOC {soc:.0f}%)'
             }
@@ -479,7 +521,7 @@ def decide_strategy(data, balance):
             }
 
     # L2 POŁUDNIE (13-15h) - INTELIGENTNE ZARZĄDZANIE: PV vs SIEĆ
-    if tariff == 'L2' and hour in [13, 14] and soc < 80:
+    if tariff == 'L2' and hour in [13, 14] and soc < soc_max:
         # Warunek: warto ładować (niska prognoza LUB SOC < Target)
         should_charge = forecast_today < 5 or soc < target_soc
 
@@ -511,7 +553,7 @@ def decide_strategy(data, balance):
                 # PV NIE wystarczy - uzupełnij z sieci (hybryda)
                 return {
                     'mode': 'charge_from_grid',
-                    'target_soc': min(80, target_soc),
+                    'target_soc': min(soc_max, target_soc),
                     'priority': 'normal',  # Normalne ładowanie w L2
                     'reason': f'L2 13-15h: PV ({pv_surplus:.1f} kW) nie wystarczy, uzupełnij z sieci do {target_soc}%'
                 }
@@ -858,9 +900,10 @@ def handle_pv_surplus(data, balance):
     forecast_tomorrow = data['forecast_tomorrow']
     hour = data['hour']
     month = data['month']
+    soc_max = data['soc_max']
 
     # 1. RCE ujemne lub ultra niskie → MAGAZYNUJ
-    if rce_now < 0.15 and soc < BATTERY_MAX:
+    if rce_now < 0.15 and soc < soc_max:
         return {
             'mode': 'charge_from_pv',
             'priority': 'normal',  # Okazja cenowa, nie ostrzeżenie
@@ -921,6 +964,8 @@ def handle_power_deficit(data, balance):
     temp = data['temp_outdoor']
     heating_mode = data['heating_mode']
     target_soc = data['target_soc']
+    soc_min = data['soc_min']
+    soc_max = data['soc_max']
 
     # Czy ładować z sieci?
     charge_decision = should_charge_from_grid(data)
@@ -946,22 +991,22 @@ def handle_power_deficit(data, balance):
     # Sezon grzewczy
     if heating_mode == 'heating_season':
         if tariff == 'L1':
-            # W L1 (droga taryfa 1.11 zł/kWh) - MINIMALIZUJ pobór z sieci!
+            # W L1 (droga taryfa 1.16 zł/kWh) - MINIMALIZUJ pobór z sieci!
             # Używaj baterii ile się da, NIE ładuj (czekaj na tanie L2 22:00)
-            if soc > 20:
+            if soc > soc_min:
                 return {
                     'mode': 'discharge_to_home',
                     'priority': 'normal',  # Normalna operacja PC w L1
                     'reason': f'PC w L1 (temp {temp:.1f}°C) - rozładowuj baterię, oszczędzaj drogą L1!'
                 }
             else:
-                # SOC ≤ 20%: NIE ŁADUJ w drogiej L1!
-                # Czekaj na L2 22:00 (tanie 0.72 zł vs 1.11 zł - oszczędność 54%!)
-                # Wyjątek: SOC ≤5% jest obsłużony wcześniej w decide_strategy (linia 248)
+                # SOC <= soc_min: NIE ŁADUJ w drogiej L1!
+                # Czekaj na L2 22:00 (tanie 0.78 zł vs 1.16 zł - oszczędność 49%!)
+                # Wyjątek: SOC < 5% jest obsłużony wcześniej w decide_strategy
                 return {
                     'mode': 'idle',
                     'priority': 'normal',  # Normalne czekanie na L2
-                    'reason': f'SOC {soc:.0f}% w L1 - CZEKAJ na L2 22:00 (oszczędność 54%!), nie marnuj pieniędzy!'
+                    'reason': f'SOC {soc:.0f}% <= {soc_min}% w L1 - CZEKAJ na L2 22:00!'
                 }
         else:  # L2
             # ===========================================
@@ -980,6 +1025,7 @@ def handle_power_deficit(data, balance):
                 else:
                     return {
                         'mode': 'grid_to_home',
+                        'discharge_limit': target_soc,  # Chroń target SOC
                         'priority': 'normal',
                         'reason': f'Noc L2, SOC {soc:.0f}% OK - pobieraj z sieci, zachowaj baterię'
                     }
@@ -996,13 +1042,14 @@ def handle_power_deficit(data, balance):
                 else:
                     return {
                         'mode': 'grid_to_home',
+                        'discharge_limit': target_soc,  # Chroń target SOC
                         'priority': 'medium',
                         'reason': f'PC CWU w L2, SOC {soc:.0f}% >= {target_soc}% - OK'
                     }
 
     # Poza sezonem
     else:
-        if tariff == 'L1' and soc > 20:
+        if tariff == 'L1' and soc > soc_min:
             return {
                 'mode': 'discharge_to_home',
                 'priority': 'normal',  # Normalna operacja w L1
@@ -1011,12 +1058,13 @@ def handle_power_deficit(data, balance):
         elif data['cwu_window']:
             return {
                 'mode': 'grid_to_home',
+                'discharge_limit': soc_min,  # Zachowaj minimum sezonowe
                 'priority': 'low',
                 'reason': 'CWU w L2 (tanie), oszczędzaj baterię'
             }
 
     # DEFAULT
-    if soc > 15:
+    if soc > soc_min - 5:  # 5% powyżej minimum sezonowego
         return {
             'mode': 'discharge_to_home',
             'priority': 'normal',
@@ -1025,8 +1073,9 @@ def handle_power_deficit(data, balance):
     else:
         return {
             'mode': 'grid_to_home',
+            'discharge_limit': soc_min,  # Zachowaj minimum sezonowe
             'priority': 'normal',  # Było 'critical' - to normalny fallback
-            'reason': 'SOC za niskie - pobór z sieci'
+            'reason': f'SOC {soc:.0f}% za niskie (min {soc_min}%) - pobór z sieci'
         }
 
 
@@ -1040,6 +1089,8 @@ def should_charge_from_grid(data):
     heating_mode = data['heating_mode']
     target_soc = data['target_soc']
     battery_temp = data['battery_temp']
+    soc_min = data['soc_min']
+    soc_max = data['soc_max']
 
     # BEZPIECZEŃSTWO TERMICZNE
     # Nie ładuj jeśli temperatura baterii jest poza bezpiecznym zakresem
@@ -1060,20 +1111,20 @@ def should_charge_from_grid(data):
         }
 
     # RCE ujemne
-    if rce_now < 0 and soc < 80:
+    if rce_now < 0 and soc < soc_max:
         return {
             'should_charge': True,
-            'target_soc': 80,
+            'target_soc': soc_max,
             'priority': 'normal',  # Okazja cenowa, nie ostrzeżenie
-            'reason': f'RCE ujemne ({rce_now:.3f})! Płacą Ci za pobór! (max 80%)'
+            'reason': f'RCE ujemne ({rce_now:.3f})! Płacą Ci za pobór! (max {soc_max}%)'
         }
 
     # RCE bardzo niskie w południe
     if rce_now < 0.15 and hour in [11, 12, 13, 14]:
-        if forecast_tomorrow < 10 and soc < 70:
+        if forecast_tomorrow < 10 and soc < soc_max - 10:
             return {
                 'should_charge': True,
-                'target_soc': 80,
+                'target_soc': soc_max,
                 'priority': 'normal',  # Okazja cenowa
                 'reason': f'RCE bardzo niskie ({rce_now:.3f}) + pochmurno jutro'
             }
@@ -1084,21 +1135,21 @@ def should_charge_from_grid(data):
 
     # Rano przed końcem L2
     if tariff == 'L2' and hour in [4, 5]:
-        if forecast_tomorrow < 12 and soc < 70:
+        if forecast_tomorrow < 12 and soc < soc_max - 10:
             return {
                 'should_charge': True,
-                'target_soc': 80,
+                'target_soc': soc_max,
                 'priority': 'normal',  # Normalna decyzja o ostatnim ładowaniu
-                'reason': f'Ostatnia szansa w L2! Pochmurno jutro ({forecast_tomorrow:.1f} kWh) (max 80%)'
+                'reason': f'Ostatnia szansa w L2! Pochmurno jutro ({forecast_tomorrow:.1f} kWh) (max {soc_max}%)'
             }
 
     # SOC krytyczne
-    if soc < 5:
+    if soc < BATTERY_CRITICAL:
         return {
             'should_charge': True,
-            'target_soc': 20,
+            'target_soc': soc_min,
             'priority': 'critical',
-            'reason': 'SOC krytyczne < 5% - ładuj do 20%!'
+            'reason': f'SOC krytyczne < {BATTERY_CRITICAL}% - ładuj do {soc_min}%!'
         }
 
     return {
@@ -1118,13 +1169,15 @@ def check_arbitrage_opportunity(data):
     heating_mode = data['heating_mode']
     hour = data['hour']
     month = data['month']
+    soc_min = data['soc_min']
+    soc_max = data['soc_max']
 
     if hour not in [19, 20, 21]:
         return {'should_sell': False, 'min_soc': None, 'reason': 'Nie wieczór'}
 
     # PRÓG ARBITRAŻU: Dynamiczny w zależności od sezonu
-    # Koszt: L2 (0.72 zł) + cykl (0.33 zł) = 1.054 zł
-    # Przychód: RCE × 1.23 > 1.054 → RCE > 0.86 zł
+    # Koszt: L2 (0.78 zł) + cykl (0.33 zł) = 1.11 zł
+    # Przychód: RCE × 1.23 > 1.11 → RCE > 0.90 zł
     # Sezon grzewczy: 0.90 zł (potrzebujesz baterii, wyższy próg)
     # Poza sezonem: 0.88 zł (niższy próg = więcej okazji do zarobku)
     arbitrage_threshold = 0.90 if heating_mode == 'heating_season' else 0.88
@@ -1171,11 +1224,13 @@ def check_arbitrage_opportunity(data):
 
     # Poza sezonem
     else:
-        if soc < 55:
+        # Minimalny SOC do arbitrażu = sezonowe min + 35% marginesu
+        min_soc_for_arbitrage = soc_min + 35
+        if soc < min_soc_for_arbitrage:
             return {
                 'should_sell': False,
                 'min_soc': None,
-                'reason': f'SOC {soc}% za niskie do arbitrażu'
+                'reason': f'SOC {soc}% za niskie do arbitrażu (min {min_soc_for_arbitrage}%)'
             }
 
         if forecast_tomorrow < 20:
@@ -1192,10 +1247,11 @@ def check_arbitrage_opportunity(data):
                 'reason': f'RCE {rce_now:.3f} za niskie (min 0.55)'
             }
 
+        # Minimalny SOC po arbitrażu = sezonowe min + 10-20% marginesu
         if month in [5, 6, 7, 8]:
-            min_soc = 30
+            min_soc = soc_min + 10  # Lato: więcej PV jutro
         else:
-            min_soc = 35
+            min_soc = soc_min + 15  # Przejściowo: mniej PV
 
     potential_kwh = (soc - min_soc) / 100 * 15
     revenue = potential_kwh * rce_now * 1.23
@@ -1213,10 +1269,14 @@ def check_arbitrage_opportunity(data):
 # APLIKACJA TRYBU BATERII
 # ============================================
 
-def apply_battery_mode(strategy):
+def apply_battery_mode(strategy, data=None):
     """Aplikuje strategię do baterii"""
     mode = strategy['mode']
     reason = strategy.get('reason', 'Brak powodu')
+
+    # Pobierz sezonowe limity (fallback na bezpieczne wartości)
+    soc_min = data.get('soc_min', 20) if data else 20
+    soc_max = data.get('soc_max', 80) if data else 80
 
     # logger.info(f"Applying strategy: {mode} - {reason}")
 
@@ -1227,21 +1287,21 @@ def apply_battery_mode(strategy):
     })
 
     if mode == 'charge_from_pv':
-        set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
+        set_huawei_mode('maximise_self_consumption', charge_from_grid=False, discharge_soc_limit=soc_min)
 
     elif mode == 'charge_from_grid':
-        target_soc = strategy.get('target_soc', 80)
+        target_soc = strategy.get('target_soc', soc_max)  # Użyj sezonowego max jako fallback
         urgent_charge = strategy.get('urgent_charge', False)
         # Tryb time_of_use_luna2000 + harmonogram TOU + grid charging
         # UWAGA: max_discharge_power=5000 (nie 0!) - żeby backup mode działał
         set_huawei_mode('time_of_use_luna2000', charge_from_grid=True, charge_soc_limit=target_soc,
-                       urgent_charge=urgent_charge, max_discharge_power=5000)
+                       urgent_charge=urgent_charge, max_discharge_power=5000, discharge_soc_limit=soc_min)
 
     elif mode == 'discharge_to_home':
-        set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
+        set_huawei_mode('maximise_self_consumption', charge_from_grid=False, discharge_soc_limit=soc_min)
 
     elif mode == 'discharge_to_grid':
-        min_soc = strategy.get('target_soc', 30)
+        min_soc = strategy.get('target_soc', soc_min + 10)  # Użyj sezonowego min + 10% jako fallback
         set_huawei_mode('maximise_self_consumption',
                        discharge_soc_limit=min_soc,
                        max_charge_power=0,
@@ -1249,10 +1309,14 @@ def apply_battery_mode(strategy):
                        charge_from_grid=False)
 
     elif mode == 'grid_to_home':
-        # W L2 - tryb TOU kontroluje rozładowanie wg harmonogramu
-        # UWAGA: max_discharge_power=5000 (nie 0!) - żeby backup mode działał
-        # UWAGA: set_tou_periods=True żeby ustawić ochronę weekendową nawet przy restarcie
-        set_huawei_mode('time_of_use_luna2000', charge_from_grid=False, max_discharge_power=5000, set_tou_periods=True)
+        # Użyj maximise_self_consumption żeby PV szło do domu, nie do baterii
+        # UWAGA: max_discharge_power=5000 (nie 0!) - żeby backup mode (EPS) działał
+        # OGRANICZENIE SPRZĘTOWE: discharge_soc_limit max 20% (Huawei Luna 2000)
+        discharge_limit = min(strategy.get('discharge_limit', soc_min), 20)
+        set_huawei_mode('maximise_self_consumption',
+                       charge_from_grid=False,
+                       max_discharge_power=5000,
+                       discharge_soc_limit=discharge_limit)
 
     elif mode == 'idle':
         # ===========================================
@@ -1264,11 +1328,10 @@ def apply_battery_mode(strategy):
         if current_tariff == 'L2':
             # W L2 - tryb TOU kontroluje rozładowanie wg harmonogramu
             # UWAGA: max_discharge_power=5000 (nie 0!) - żeby backup mode działał
-            # UWAGA: set_tou_periods=True żeby ustawić ochronę weekendową nawet przy restarcie
-            set_huawei_mode('time_of_use_luna2000', charge_from_grid=False, max_discharge_power=5000, set_tou_periods=True)
+            set_huawei_mode('time_of_use_luna2000', charge_from_grid=False, max_discharge_power=5000, set_tou_periods=True, discharge_soc_limit=soc_min)
         else:
             # W L1 - normalne zachowanie
-            set_huawei_mode('maximise_self_consumption', charge_from_grid=False)
+            set_huawei_mode('maximise_self_consumption', charge_from_grid=False, discharge_soc_limit=soc_min)
 
     return True
 
@@ -1290,7 +1353,7 @@ def set_huawei_mode(working_mode, **kwargs):
         # Tryb time_of_use_luna2000 wymaga harmonogramu NAJPIERW
         # Ustawiaj TOU periods gdy:
         # 1. charge_from_grid=True (ładowanie z sieci)
-        # 2. set_tou_periods=True (ochrona weekendowa dla grid_to_home/idle)
+        # 2. set_tou_periods=True (tryb idle w L2)
         should_set_tou = (
             ('charge_from_grid' in kwargs and kwargs['charge_from_grid']) or
             kwargs.get('set_tou_periods', False)
@@ -1301,16 +1364,15 @@ def set_huawei_mode(working_mode, **kwargs):
                 # SUPER PILNY (SOC < 5%): Ładuj NATYCHMIAST przez całą dobę!
                 if kwargs.get('urgent_charge', False):
                     tou_periods = "00:00-23:59/1234567/+"
-                # NORMALNY/PILNY: Ładuj w godzinach L2 + chroń baterię w weekend
-                # WAŻNE: NIE ładuj w weekend! Ładowanie tylko od niedzieli 22:00
+                # NORMALNY: Ładowanie dozwolone ZAWSZE z wyjątkiem Pon-Pt L1 (6-13h i 15-22h)
                 # Dni: 1=Pon, 2=Wt, 3=Śr, 4=Czw, 5=Pt, 6=Sob, 7=Ndz
                 else:
                     tou_periods = (
-                        "22:00-23:59/123457/+\n"   # Pon-Pt + Ndz wieczór: ładuj (22-24h)
-                        "00:00-05:59/12345/+\n"    # Pon-Pt noc: ładuj (0-6h) - NIE weekend!
-                        "13:00-14:59/12345/+\n"    # Pon-Pt południe: ładuj (13-15h) - NIE weekend!
-                        "06:00-12:59/67/+\n"       # Weekend: rano - ochrona baterii
-                        "15:00-21:59/67/+"         # Weekend: popołudnie - ochrona baterii
+                        "00:00-05:59/1234567/+\n"  # Cały tydzień noc (0-6h) - ładowanie OK
+                        "06:00-12:59/67/+\n"       # Weekend rano (6-13h) - ładowanie OK
+                        "13:00-14:59/1234567/+\n"  # Cały tydzień południe L2 (13-15h) - ładowanie OK
+                        "15:00-21:59/67/+\n"       # Weekend popołudnie (15-22h) - ładowanie OK
+                        "22:00-23:59/1234567/+"    # Cały tydzień wieczór (22-24h) - ładowanie OK
                     )
 
                 # Wywołaj serwis z poprawnym device_id
@@ -1404,13 +1466,18 @@ def get_state(entity_id):
 def get_fallback_strategy(data):
     """Strategia awaryjna"""
     soc = data.get('soc', 50)
+    soc_min = data.get('soc_min', 20)
+    soc_max = data.get('soc_max', 80)
 
-    if soc < 30:
+    # Dynamiczny próg: sezonowe min + 20% marginesu
+    charge_threshold = soc_min + 20
+
+    if soc < charge_threshold:
         return {
             'mode': 'charge_from_grid',
-            'target_soc': 50,
+            'target_soc': min(soc_min + 40, soc_max),  # Sezonowe min + 40%, ale nie więcej niż max
             'priority': 'normal',  # Fallback to nie błąd
-            'reason': 'FALLBACK: Brak danych, ładuj'
+            'reason': f'FALLBACK: Brak danych, ładuj (SOC {soc}% < {charge_threshold}%)'
         }
     else:
         return {

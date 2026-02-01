@@ -2,10 +2,10 @@
 
 battery_target_soc:
   name: "Docelowy SOC baterii"
-  min: 20
-  max: 80  # ✅ BEZPIECZEŃSTWO: Limit Huawei Luna (20-80%)
+  min: 10
+  max: 90  # ✅ Sezonowe limity: 10-90% (zima), 15-85% (przejściowo), 20-80% (lato)
   step: 5
-  initial: 80  # ✅ Domyślnie max dla bezpieczeństwa
+  initial: 80  # ✅ Domyślnie bezpieczna wartość
   unit_of_measurement: "%"
   icon: mdi:battery-charging-80
 

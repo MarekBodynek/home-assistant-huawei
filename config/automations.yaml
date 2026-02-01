@@ -97,7 +97,7 @@
   action:
     - service: huawei_solar.forcible_charge
       data:
-        device_id: 450d2d6fd853d7876315d70559e1dd83
+        device_id: 7aa193fa5ec07dc7da9f5034f97e6987  # Connected Energy Storage (bateria)
         power: 5000  # Moc ładowania w W (dla Luna 2000 15kWh max 5kW)
         duration: 120  # Czas w minutach
     - service: notify.persistent_notification
@@ -128,7 +128,7 @@
     # Załaduj baterię do wyższego poziomu przed dniem z małą produkcją PV
     - service: huawei_solar.forcible_charge
       data:
-        device_id: 450d2d6fd853d7876315d70559e1dd83
+        device_id: 7aa193fa5ec07dc7da9f5034f97e6987  # Connected Energy Storage (bateria)
         power: 3000
         duration: 480  # 8 godzin
     - service: notify.persistent_notification

@@ -20,20 +20,72 @@ views:
               # Gauge'y baterii
               - type: horizontal-stack
                 cards:
-                  - type: gauge
-                    entity: sensor.akumulatory_stan_pojemnosci
-                    name: Stan Baterii
-                    unit: "%"
-                    min: 0
-                    max: 100
-                    needle: true
-                    segments:
-                      - from: 0
-                        color: "#db4437"
-                      - from: 20
-                        color: "#43a047"
-                      - from: 80
-                        color: "#db4437"
+                  # Gauge SOC z kolorami sezonowymi (3 karty conditional)
+                  - type: vertical-stack
+                    cards:
+                      # ZIMA (10-90%)
+                      - type: conditional
+                        conditions:
+                          - condition: state
+                            entity: sensor.bateria_limity_soc
+                            state: "10-90%"
+                        card:
+                          type: gauge
+                          entity: sensor.akumulatory_stan_pojemnosci
+                          name: Stan Baterii
+                          unit: "%"
+                          min: 0
+                          max: 100
+                          needle: true
+                          segments:
+                            - from: 0
+                              color: "#db4437"
+                            - from: 10
+                              color: "#43a047"
+                            - from: 90
+                              color: "#db4437"
+                      # WIOSNA/JESIEŃ (15-85%)
+                      - type: conditional
+                        conditions:
+                          - condition: state
+                            entity: sensor.bateria_limity_soc
+                            state: "15-85%"
+                        card:
+                          type: gauge
+                          entity: sensor.akumulatory_stan_pojemnosci
+                          name: Stan Baterii
+                          unit: "%"
+                          min: 0
+                          max: 100
+                          needle: true
+                          segments:
+                            - from: 0
+                              color: "#db4437"
+                            - from: 15
+                              color: "#43a047"
+                            - from: 85
+                              color: "#db4437"
+                      # LATO (20-80%)
+                      - type: conditional
+                        conditions:
+                          - condition: state
+                            entity: sensor.bateria_limity_soc
+                            state: "20-80%"
+                        card:
+                          type: gauge
+                          entity: sensor.akumulatory_stan_pojemnosci
+                          name: Stan Baterii
+                          unit: "%"
+                          min: 0
+                          max: 100
+                          needle: true
+                          segments:
+                            - from: 0
+                              color: "#db4437"
+                            - from: 20
+                              color: "#43a047"
+                            - from: 80
+                              color: "#db4437"
                   - type: gauge
                     entity: sensor.akumulatory_moc_ladowania_rozladowania
                     name: Moc Baterii
@@ -359,6 +411,41 @@ views:
                   - entity: sensor.produkcja_pv_dzienna_rzeczywista
                     name: Dzienna produkcja PV
                     icon: mdi:weather-sunny
+              # Gauge'y zużycia
+              - type: horizontal-stack
+                cards:
+                  - type: gauge
+                    entity: sensor.zuzycie_domu_moc
+                    name: Zużycie domu
+                    unit: "W"
+                    min: 0
+                    max: 10000
+                    needle: true
+                    segments:
+                      - from: 0
+                        color: "#43a047"
+                      - from: 2000
+                        color: "#ffa600"
+                      - from: 5000
+                        color: "#db4437"
+                  - type: gauge
+                    entity: sensor.pomiar_mocy_moc_czynna
+                    name: Sieć
+                    unit: "W"
+                    min: -10000
+                    max: 10000
+                    needle: true
+                    segments:
+                      - from: -10000
+                        color: "#db4437"
+                      - from: -5000
+                        color: "#ffa600"
+                      - from: -2000
+                        color: "#43a047"
+                      - from: 2000
+                        color: "#ffa600"
+                      - from: 5000
+                        color: "#db4437"
               # Historia mocy bez tytułu
               - type: history-graph
                 hours_to_show: 24

@@ -808,10 +808,11 @@
         friendly_name: "Deficyt mocy"
 
 # ============================================
-# ZUŻYCIE DOMU (bez ładowania baterii)
+# ZUŻYCIE DOMU (zgodnie z FusionSolar)
 # ============================================
-# Formuła: dom = inwerter_AC + import_z_sieci - ładowanie_baterii
-# Gdzie inwerter_AC = PV + rozładowanie_baterii
+# Formuła FusionSolar: Dom = PV - Grid - Battery
+# Konwencja Huawei: grid < 0 = IMPORT, grid > 0 = eksport
+#                   battery > 0 = ŁADOWANIE, battery < 0 = rozładowanie
 
 - sensor:
     - name: "Zużycie domu - moc"
@@ -819,22 +820,24 @@
       unit_of_measurement: "W"
       device_class: power
       state: >
-        {% set inverter = states('sensor.inwerter_moc_czynna') | float(0) %}
+        {% set pv = states('sensor.inwerter_moc_wejsciowa') | float(0) %}
         {% set grid = states('sensor.pomiar_mocy_moc_czynna') | float(0) %}
         {% set battery = states('sensor.akumulatory_moc_ladowania_rozladowania') | float(0) %}
-        {% set battery_charge = [battery, 0] | max %}
-        {# Dom = Wyjście inwertera + Import z sieci - Ładowanie baterii #}
-        {# grid > 0 = import, grid < 0 = eksport #}
-        {% set house = inverter + grid - battery_charge %}
+        {# Konwencja Huawei (FusionSolar):
+           grid < 0 = IMPORT z sieci, grid > 0 = eksport do sieci
+           battery > 0 = ŁADOWANIE, battery < 0 = rozładowanie
+           Formuła: Dom = PV - Grid - Battery
+        #}
+        {% set house = pv - grid - battery %}
         {{ [house, 0] | max | round(0) }}
       icon: mdi:home-lightning-bolt
       attributes:
         friendly_name: "Zużycie domu (chwilowe)"
-        inverter_ac: "{{ states('sensor.inwerter_moc_czynna') }} W"
-        grid_power: "{{ states('sensor.pomiar_mocy_moc_czynna') }} W (+ import, - eksport)"
+        pv_dc: "{{ states('sensor.inwerter_moc_wejsciowa') }} W"
+        grid_power: "{{ states('sensor.pomiar_mocy_moc_czynna') }} W (- import, + eksport)"
         battery_power: "{{ states('sensor.akumulatory_moc_ladowania_rozladowania') }} W (+ ładowanie, - rozładowanie)"
-        formula: "dom = inwerter_AC + grid - max(battery_charge, 0)"
-        note: "NIE zawiera energii ładującej baterię"
+        formula: "Dom = PV - Grid - Battery"
+        note: "Formuła zgodna z FusionSolar"
 
 # ============================================
 # LIMITY MOCY BATERII
@@ -1137,3 +1140,76 @@
       unit_of_measurement: "°C"
       device_class: temperature
       icon: mdi:water-boiler
+
+    # ===== SEZONOWE LIMITY SOC BATERII =====
+    - name: "Bateria - limity SOC"
+      unique_id: battery_soc_limits
+      state: >
+        {% set month = now().month %}
+        {% if month in [11, 12, 1, 2] %}
+          10-90%
+        {% elif month in [3, 4] %}
+          15-85%
+        {% elif month in [5, 6, 7, 8, 9] %}
+          20-80%
+        {% else %}
+          15-85%
+        {% endif %}
+      icon: mdi:battery-clock
+      attributes:
+        friendly_name: "Sezonowe limity SOC"
+        season: >
+          {% set month = now().month %}
+          {% if month in [11, 12, 1, 2] %}
+            Zima
+          {% elif month in [3, 4] %}
+            Wiosna
+          {% elif month in [5, 6, 7, 8, 9] %}
+            Lato
+          {% else %}
+            Jesień
+          {% endif %}
+        min_soc: >
+          {% set month = now().month %}
+          {% if month in [11, 12, 1, 2] %}
+            10
+          {% elif month in [3, 4, 10] %}
+            15
+          {% else %}
+            20
+          {% endif %}
+        max_soc: >
+          {% set month = now().month %}
+          {% if month in [11, 12, 1, 2] %}
+            90
+          {% elif month in [3, 4, 10] %}
+            85
+          {% else %}
+            80
+          {% endif %}
+        description: "Zima (XI-II): 10-90%, Wiosna (III-IV): 15-85%, Lato (V-IX): 20-80%, Jesień (X): 15-85%"
+
+# ============================================
+# SEZONOWE LIMITY SOC - osobne sensory
+# ============================================
+
+- sensor:
+    - name: "Battery SOC Min"
+      unique_id: battery_soc_min
+      state: >
+        {% set month = now().month %}
+        {% if month in [11, 12, 1, 2] %}10
+        {% elif month in [3, 4, 10] %}15
+        {% else %}20{% endif %}
+      unit_of_measurement: "%"
+      icon: mdi:battery-arrow-down
+
+    - name: "Battery SOC Max"
+      unique_id: battery_soc_max
+      state: >
+        {% set month = now().month %}
+        {% if month in [11, 12, 1, 2] %}90
+        {% elif month in [3, 4, 10] %}85
+        {% else %}80{% endif %}
+      unit_of_measurement: "%"
+      icon: mdi:battery-arrow-up

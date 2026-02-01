@@ -54,6 +54,29 @@ def get_tariff_zone(hour, is_weekend):
     return 'L1'
 
 
+def get_seasonal_soc_limits(month):
+    """
+    Zwraca (min_soc, max_soc) w zależności od miesiąca.
+
+    Sezonowe zakresy SOC:
+    - Listopad - Luty (11,12,1,2): 10-90% (minimalna produkcja PV, wysokie zużycie)
+    - Marzec - Kwiecień (3,4): 15-85% (przejściowo, PV rośnie)
+    - Maj - Wrzesień (5,6,7,8,9): 20-80% (PV ładuje baterię za darmo)
+    - Październik (10): 15-85% (przejściowo, PV spada)
+    """
+    if month in [11, 12, 1, 2]:      # Zima
+        return (10, 90)
+    elif month in [3, 4]:            # Wiosna
+        return (15, 85)
+    elif month in [5, 6, 7, 8, 9]:   # Lato
+        return (20, 80)
+    elif month == 10:                # Jesień
+        return (15, 85)
+    else:
+        # Fallback - bezpieczne wartości
+        return (20, 80)
+
+
 def load_ml_profile():
     """Load ML hourly profile from JSON file."""
     try:
@@ -119,6 +142,10 @@ def calculate_daily_strategy():
     Oblicza cel ładowania na dobę energetyczną 22:00-21:59.
     Używa ML do predykcji zużycia zamiast stałych wartości.
     """
+    # === SEZONOWE LIMITY SOC (przed try, żeby były dostępne w fallbacku) ===
+    now = datetime.now()
+    soc_min, soc_max = get_seasonal_soc_limits(now.month)
+
     try:
         # Pobierz dane z Home Assistant
         forecast_state = hass.states.get('sensor.prognoza_pv_jutro')
@@ -198,12 +225,12 @@ def calculate_daily_strategy():
             elif temp < 5:
                 target_soc = max(target_soc, 65)
 
-        # === LIMITY BEZPIECZEŃSTWA ===
-        target_soc = max(20, min(80, target_soc))  # Huawei: 20-80%
+        # === LIMITY BEZPIECZEŃSTWA (sezonowe) ===
+        target_soc = max(soc_min, min(soc_max, target_soc))
 
         # Zaokrąglij do 5%
         target_soc = round(target_soc / 5) * 5
-        target_soc = max(20, min(80, target_soc))
+        target_soc = max(soc_min, min(soc_max, target_soc))
 
         # === ZAPISZ TARGET SOC ===
         hass.services.call('input_number', 'set_value', {
@@ -261,10 +288,11 @@ def calculate_daily_strategy():
 
     except Exception as e:
         logger.error(f"Błąd obliczania strategii ML: {e}")
-        # Fallback do prostej strategii
+        # Fallback do sezonowego limitu - 10%
+        fallback_soc = soc_max - 10
         hass.services.call('input_number', 'set_value', {
             'entity_id': 'input_number.battery_target_soc',
-            'value': 70
+            'value': fallback_soc
         })
         return None
 
