@@ -906,12 +906,12 @@
 
 - id: cwu_pv_surplus_enable
   alias: "[CWU] Włącz grzanie z nadwyżki PV (zielona cena)"
-  description: "Włącza wymuszenie CWU gdy: nadwyżka PV > 2000W, cena < p33 (dynamiczny), temp < 55°C"
+  description: "Włącza wymuszenie CWU gdy: nadwyżka PV > 1500W, SOC >= Target SOC (bateria ma priorytet), cena < p33, temp < 55°C"
   trigger:
-    # Trigger gdy nadwyżka PV przekroczy 2000 W
+    # Trigger gdy nadwyżka PV przekroczy 1500 W
     - platform: numeric_state
       entity_id: sensor.nadwyzka_pv
-      above: 2000
+      above: 1500
   condition:
     # Wszystkie warunki muszą być spełnione
     - condition: and
@@ -924,13 +924,19 @@
         - condition: state
           entity_id: switch.bodynek_nb_wymus_c_w_u
           state: "off"
-        # 3. Cena energii < p33 (DYNAMICZNY próg zielonej strefy)
+        # 3. Bateria naładowana do Target SOC (priorytet: bateria > CWU)
+        - condition: template
+          value_template: >
+            {% set soc = states('sensor.akumulatory_stan_pojemnosci') | float(0) %}
+            {% set target = states('input_number.battery_target_soc') | float(80) %}
+            {{ soc >= target }}
+        # 4. Cena energii < p33 (DYNAMICZNY próg zielonej strefy)
         - condition: template
           value_template: >
             {% set cena = states('sensor.cena_zakupu_energii') | float(1) %}
             {% set p33 = state_attr('sensor.rce_progi_cenowe', 'p33') | float(0.5) %}
             {{ cena < p33 }}
-        # 4. Temperatura wody < 55°C (zapas przed wyłączeniem)
+        # 5. Temperatura wody < 55°C (zapas przed wyłączeniem)
         - condition: template
           value_template: >
             {{ state_attr('water_heater.bodynek_nb_tank', 'current_temperature') | float(60) < 55 }}
@@ -951,7 +957,8 @@
           ✅ Wymuszenie CWU włączone
 
           **Warunki spełnione:**
-          - Nadwyżka PV: {{ states('sensor.nadwyzka_pv') }} W (> 2000 W)
+          - Nadwyżka PV: {{ states('sensor.nadwyzka_pv') }} W (> 1500 W)
+          - SOC: {{ states('sensor.akumulatory_stan_pojemnosci') }}% >= Target {{ states('input_number.battery_target_soc') }}%
           - Cena RCE: {{ states('sensor.cena_zakupu_energii') }} PLN/kWh
           - Próg p33: {{ state_attr('sensor.rce_progi_cenowe', 'p33') }} PLN/kWh
           - Temp wody: {{ state_attr('water_heater.bodynek_nb_tank', 'current_temperature') }}°C

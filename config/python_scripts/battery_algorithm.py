@@ -10,23 +10,8 @@ Data: 2025-11-11
 # KONFIGURACJA - PROGI
 # ============================================
 
-# Progi cenowe RCE (zł/kWh)
-RCE_NEGATIVE = 0.00
-RCE_VERY_LOW = 0.20
-RCE_LOW = 0.35
-RCE_MEDIUM = 0.45
-RCE_HIGH = 0.55
-RCE_VERY_HIGH = 0.65
-RCE_EXTREME = 0.75
-
-# Progi prognozy PV (kWh)
-FORECAST_EXCELLENT = 30
-FORECAST_VERY_GOOD = 25
-FORECAST_GOOD = 20
-FORECAST_MEDIUM = 15
+# Progi prognozy PV (kWh) - używane w handle_pv_surplus()
 FORECAST_POOR = 12
-FORECAST_BAD = 8
-FORECAST_VERY_BAD = 5
 
 # Progi baterii (%) - DYNAMICZNE W ZALEŻNOŚCI OD SEZONU
 BATTERY_CRITICAL = 5   # SOC krytyczne - natychmiastowe ładowanie 24/7 (stałe)
