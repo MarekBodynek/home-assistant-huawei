@@ -1314,3 +1314,105 @@
           **Limity:** {{ states('sensor.bateria_limity_soc') }}
         notification_id: battery_seasonal_target_soc
   mode: single
+
+# ============================================
+# AUTO-KALIBRACJA PROGNOZY PV (EMA)
+# ============================================
+
+# Inicjalizacja CSV przy starcie HA
+- id: pv_calibration_init_csv
+  alias: "[PV] Inicjalizacja CSV kalibracji"
+  description: "Przy starcie HA tworzy plik CSV jeśli nie istnieje"
+  trigger:
+    - platform: homeassistant
+      event: start
+  action:
+    - service: shell_command.init_pv_calibration_csv
+  mode: single
+
+# Poranny snapshot surowej prognozy (08:00)
+- id: pv_calibration_morning_snapshot
+  alias: "[PV] Poranny snapshot prognozy (08:00)"
+  description: "Zapisuje surową prognozę PV (bez korekcji) do input_number o 08:00"
+  trigger:
+    - platform: time
+      at: "08:00:00"
+  action:
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.pv_raw_forecast_today
+      data:
+        value: >
+          {% set w = states('sensor.pv_wschod_prognoza_dzis') | float(0) %}
+          {% set p = states('sensor.pv_poludnie_prognoza_dzis') | float(0) %}
+          {% set z = states('sensor.pv_zachod_prognoza_dzis') | float(0) %}
+          {{ (w + p + z) | round(1) }}
+  mode: single
+
+# Wieczorna kalibracja EMA (21:30)
+- id: pv_calibration_evening_ema
+  alias: "[PV] Wieczorna kalibracja EMA (21:30)"
+  description: "Porównuje prognozę z rzeczywistą produkcją i aktualizuje współczynnik korekcji przez EMA"
+  trigger:
+    - platform: time
+      at: "21:30:00"
+  condition:
+    - condition: template
+      value_template: >
+        {% set raw = states('input_number.pv_raw_forecast_today') | float(0) %}
+        {% set real = states('sensor.dzienna_produkcja_pv_dc') | float(0) %}
+        {{ raw > 1.0 and real > 0.5 }}
+  action:
+    # Oblicz ratio i nowy współczynnik
+    - variables:
+        raw_forecast: "{{ states('input_number.pv_raw_forecast_today') | float }}"
+        real_production: "{{ states('sensor.dzienna_produkcja_pv_dc') | float }}"
+        month_str: "{{ now().month | string }}"
+        ratio_raw: "{{ (real_production / raw_forecast) | round(3) }}"
+        ratio: "{{ [0.30, [1.10, (real_production / raw_forecast)] | min] | max | round(3) }}"
+        corrections_json: "{{ states('input_text.pv_monthly_corrections') }}"
+        defaults: '{"1":0.50,"2":0.60,"3":0.75,"4":0.85,"5":0.90,"6":0.90,"7":0.90,"8":0.90,"9":0.85,"10":0.75,"11":0.60,"12":0.50}'
+    - variables:
+        old_factor: >
+          {% set c = corrections_json | from_json if corrections_json not in ['unknown', 'unavailable'] else defaults | from_json %}
+          {{ c.get(month_str, 0.75) | float | round(3) }}
+    - variables:
+        new_factor: "{{ (0.7 * (old_factor | float) + 0.3 * (ratio | float)) | round(3) }}"
+    # Aktualizuj JSON z nowymi współczynnikami (tylko bieżący miesiąc)
+    - service: input_text.set_value
+      target:
+        entity_id: input_text.pv_monthly_corrections
+      data:
+        value: >
+          {% set c = corrections_json | from_json if corrections_json not in ['unknown', 'unavailable'] else defaults | from_json %}
+          {% set ns = namespace(result = {}) %}
+          {% for k, v in c.items() %}
+            {% if k == month_str %}
+              {% set ns.result = dict(ns.result, **{k: new_factor | float | round(3)}) %}
+            {% else %}
+              {% set ns.result = dict(ns.result, **{k: v}) %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.result | to_json }}
+    # Loguj do CSV
+    - service: shell_command.log_pv_calibration
+      data:
+        date: "{{ now().strftime('%Y-%m-%d') }}"
+        raw: "{{ raw_forecast }}"
+        real: "{{ real_production }}"
+        ratio: "{{ ratio }}"
+        old_factor: "{{ old_factor }}"
+        new_factor: "{{ new_factor }}"
+        month: "{{ month_str }}"
+    # Powiadomienie
+    - service: persistent_notification.create
+      data:
+        title: "📊 PV Kalibracja EMA"
+        message: |
+          **{{ now().strftime('%Y-%m-%d') }} (miesiąc {{ month_str }}):**
+          - Prognoza surowa: {{ raw_forecast }} kWh
+          - Produkcja realna: {{ real_production }} kWh
+          - Ratio: {{ ratio }} (surowe: {{ ratio_raw }})
+          - Stary współczynnik: {{ old_factor }}
+          - Nowy współczynnik: {{ new_factor }}
+        notification_id: pv_calibration_ema

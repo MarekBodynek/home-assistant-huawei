@@ -41,3 +41,14 @@ pv_start_hour:
   initial: 8
   unit_of_measurement: "h"
   icon: mdi:weather-sunny
+
+# === AUTO-KALIBRACJA PV ===
+# Surowa prognoza z rana (snapshot o 08:00) - do porównania wieczorem
+pv_raw_forecast_today:
+  name: "PV Surowa prognoza dziś"
+  min: 0
+  max: 100
+  step: 0.1
+  initial: 0
+  unit_of_measurement: "kWh"
+  icon: mdi:solar-power-variant

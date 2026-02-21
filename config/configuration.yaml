@@ -105,6 +105,9 @@ shell_command:
   # ML Data Collection - zapisuje dane godzinowe do CSV
   save_hourly_data: 'mkdir -p /config/data && echo "{{ timestamp }},{{ consumption }},{{ pv_production }},{{ grid_export }},{{ battery_charge }},{{ battery_discharge }},{{ soc }},{{ tariff }},{{ temperature }},{{ rce_price }}" >> /config/data/hourly_energy.csv'
   init_hourly_csv: 'mkdir -p /config/data && [ ! -f /config/data/hourly_energy.csv ] && echo "timestamp,consumption_kwh,pv_production_kwh,grid_export_kwh,battery_charge_kwh,battery_discharge_kwh,soc_percent,tariff_zone,temperature_c,rce_price_pln_mwh" > /config/data/hourly_energy.csv || true'
+  # Auto-kalibracja PV: logowanie prognozy vs rzeczywistość
+  log_pv_calibration: 'mkdir -p /config/data && echo "{{ date }},{{ raw }},{{ real }},{{ ratio }},{{ old_factor }},{{ new_factor }},{{ month }}" >> /config/data/pv_forecast_accuracy.csv'
+  init_pv_calibration_csv: 'mkdir -p /config/data && [ ! -f /config/data/pv_forecast_accuracy.csv ] && echo "date,raw_forecast_kwh,real_production_kwh,ratio,old_factor,new_factor,month" > /config/data/pv_forecast_accuracy.csv || true'
 
 # Time & Date sensors
 sensor:

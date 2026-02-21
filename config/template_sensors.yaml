@@ -502,20 +502,27 @@
 # PROGNOZA PV - POMOCNICZE SENSORY
 # ============================================
 
-# Współczynnik korekcji sezonowej - Forecast.Solar zawyża prognozy
-# Wartości oparte na porównaniu rzeczywistej produkcji z prognozami
+# Współczynnik korekcji sezonowej - AUTO-KALIBRACJA EMA
+# Czyta z input_text.pv_monthly_corrections (aktualizowane co wieczór)
+# Fallback do domyślnych wartości gdy brak danych
 - sensor:
     - name: "PV Współczynnik korekcji"
       unique_id: pv_correction_factor
       state: >
-        {% set month = now().month %}
-        {% set factors = {1: 0.50, 2: 0.60, 3: 0.75, 4: 0.85, 5: 0.90, 6: 0.90,
-                          7: 0.90, 8: 0.90, 9: 0.85, 10: 0.75, 11: 0.60, 12: 0.50} %}
-        {{ factors.get(month, 0.75) }}
+        {% set month = now().month | string %}
+        {% set defaults = {"1":0.50,"2":0.60,"3":0.75,"4":0.85,"5":0.90,"6":0.90,"7":0.90,"8":0.90,"9":0.85,"10":0.75,"11":0.60,"12":0.50} %}
+        {% set raw = states('input_text.pv_monthly_corrections') %}
+        {% if raw and raw not in ['unknown', 'unavailable'] %}
+          {% set corrections = raw | from_json %}
+          {{ corrections.get(month, defaults.get(month, 0.75)) | float | round(2) }}
+        {% else %}
+          {{ defaults.get(month, 0.75) | float }}
+        {% endif %}
       icon: mdi:percent
       attributes:
         friendly_name: "Współczynnik korekcji prognozy PV"
-        description: "Zimą Forecast.Solar zawyża prognozy o 30-50%"
+        description: "Auto-kalibracja EMA na podstawie real vs forecast"
+        source: "{{ states('input_text.pv_monthly_corrections') }}"
 
 - sensor:
     - name: "Prognoza PV dzisiaj"
