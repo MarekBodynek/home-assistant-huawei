@@ -42,7 +42,7 @@ logbook:
 
 # Rekorder - przechowywanie danych
 recorder:
-  purge_keep_days: 30
+  auto_purge: false
   db_url: sqlite:////config/home-assistant_v2.db
 
 # Energia
