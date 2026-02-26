@@ -1,132 +1,94 @@
-# Chat Session - 2025-12-17 (sesja 2)
+# Chat Session - 2026-02-26
 
 ## Podsumowanie sesji
 
-Kontynuacja pracy nad systemem Home Assistant + Huawei Solar. Główny temat: problemy z integracją Aquarea Smart Cloud.
+Sesja skupiona na optymalizacji algorytmu baterii i auto-kalibracji prognoz PV.
 
 ---
 
-## 1. Problem: CWU nie uruchomiło się o 13:00
+## 1. Analiza propozycji "Claudii" (AI agent)
 
-### Diagnoza
-Użytkownik zgłosił, że harmonogram CWU z Aquarea Cloud nie zadziałał o 13:00.
+Użytkownik udostępnił dokument analizy algorytmu baterii przygotowany przez agenta AI "Claudia". Ocena propozycji:
 
-### Analiza logów
-```
-12:06-12:08 → Internal server error, Failed communication with adaptor
-14:06 → TOKEN_EXPIRED - Token expires
-```
-
-### Przyczyna
-- Integracja Aquarea Smart Cloud traciła połączenie z serwerami Panasonic
-- Harmonogram CWU jest w chmurze Panasonic, nie w HA
-- Awaria komunikacji = harmonogram nie zadziałał
-
-### Stan CWU po diagnozie
-- Temperatura wody: 41°C
-- Temperatura cel: 55°C
-- Stan: off (nie grzeje)
+| Propozycja | Status | Uwagi |
+|-----------|--------|-------|
+| Dynamiczne czasy słońca | Odrzucone | Niski wpływ, statyczne wartości wystarczające |
+| Recorder 90 dni | Zmienione | auto_purge: false (nieograniczone dane) |
+| Dynamiczne progi RCE | Odrzucone | Stałe RCE były martwym kodem (nigdy nieużywane) |
+| ML improvements | Odroczone | |
+| Predykcja cen RCE | Odrzucone | Ceny podawane dobę wcześniej |
+| Feedback loop | Odroczone | |
+| Optymalizacja CWU | Wdrożone | Już istniało, dodano drobne usprawnienia |
 
 ---
 
-## 2. Rozwiązanie: Watchdog Aquarea
+## 2. Auto-kalibracja prognoz PV (EMA)
 
-**Automatyzacja:** `aquarea_watchdog_token`
+### Problem
+Forecast.Solar systematycznie zawyża prognozy. Hardcoded współczynniki korekcji (0.50-0.90) nie adaptują się do warunków.
 
-### Działanie:
-- Uruchamia się co godzinę o :47
-- Sprawdza czy `water_heater.bodynek_nb_tank` jest `unavailable`
-- Jeśli tak → przeładowuje integrację Aquarea
-- Powiadomienia o statusie naprawy
+### Rozwiązanie
+System EMA (Exponential Moving Average) — porównuje prognozę z realną produkcją i automatycznie dostosowuje współczynniki.
 
-### Parametry:
-| Parametr | Wartość |
-|----------|---------|
-| Entry ID | `01KCFK1ETFE13JR1S6C97PT0QY` |
-| Częstotliwość | Co godzinę o :47 |
-| Timeout naprawy | 30 sekund |
+### Implementacja
+- `input_text.pv_monthly_corrections` — JSON z 12 współczynnikami
+- `input_number.pv_raw_forecast_today` — snapshot poranny surowej prognozy
+- `sensor.pv_wspolczynnik_korekcji` — dynamiczny z input_text
+- 3 automatyzacje: init CSV, snapshot 08:00, kalibracja EMA 21:30
+- Wzór: `nowy = 0.7 × stary + 0.3 × (real/forecast)`
 
 ---
 
-## 3. Rozwiązanie: CWU backup harmonogram 13:02
+## 3. Usunięcie martwego kodu RCE
 
-**Automatyzacja:** `cwu_scheduled_1300`
-
-### Działanie:
-- Backup harmonogramu chmury Panasonic
-- Uruchamia się o 13:02 (2 min po harmonogramie chmury)
-- Sprawdza:
-  - Integracja dostępna?
-  - CWU nie grzeje? (chmura nie zadziałała)
-  - Temp < cel?
-- Włącza wymuszenie CWU
-- Wyłącza gdy temp >= cel lub po 2h (timeout)
-
-### Logika:
-```
-13:00 → Harmonogram Panasonic Cloud
-13:02 → Backup HA:
-        ├─ CWU grzeje? → skip (chmura zadziałała)
-        └─ CWU nie grzeje + temp < cel? → włącz wymuszenie
-```
+13 stałych (RCE_NEGATIVE, RCE_LOW, itd. + FORECAST_EXCELLENT, itd.) było zdefiniowanych ale nigdy nieużywanych w logice. Usunięto. FORECAST_POOR=12 zachowany (używany w handle_pv_surplus).
 
 ---
 
-## 4. Obliczenia czasu grzania CWU
+## 4. Optymalizacja CWU z PV
 
-| Parametr | Wartość |
-|----------|---------|
-| Zbiornik | 385 litrów |
-| Pompa | 9 kW (Panasonic T-CAP) |
-| ΔT | 20°C (35→55°C) |
-| Energia | 8.96 kWh |
-
-### Czas grzania:
-| Scenariusz | Moc | Czas |
-|------------|-----|------|
-| Pełna moc | 9 kW | ~1h |
-| 70% mocy | 6.3 kW | ~1h 25min |
-| 50% mocy | 4.5 kW | ~2h |
-
-**Timeout 2h** - bezpieczny margines dla trybu CWU.
+- Próg nadwyżki PV: 2000W → 1500W
+- Dodany warunek: SOC >= Target SOC (priorytet baterii nad CWU)
 
 ---
 
-## 5. Pliki zmodyfikowane w sesji
+## 5. Fix: handle_pv_surplus() — blok "Zima → MAGAZYNUJ"
 
-| Plik | Zmiany |
-|------|--------|
-| `config/automations_battery.yaml` | Watchdog Aquarea, CWU harmonogram 13:02 |
-| `docs/DOKUMENTACJA_KOMPLETNA.md` | v3.13, sekcje 4.6-4.7, changelog |
-| `docs/DOKUMENTACJA_KOMPLETNA_PUBLIC.md` | v3.13, zanonimizowana wersja |
-| `docs/chat.md` | Podsumowanie sesji |
+### Problem
+Blok `if month in [11,12,1,2]: return charge_from_pv` krótko-obwodował algorytm najtańszych godzin RCE. Bateria magazynowała PV w drogich godzinach (0.35-0.47 zł o 8-10h) zamiast sprzedawać i czekać na tanie godziny (0.07-0.25 zł o 12-15h).
 
----
-
-## 6. Komendy użyte w sesji
-
-### Sprawdzanie logów Aquarea
-```bash
-ssh -o ProxyCommand="cloudflared access ssh --hostname rpi-ssh.bodino.us.kg" bodino@rpi-ssh.bodino.us.kg \
-  "sudo docker logs homeassistant --since='2025-12-17T12:00:00' 2>&1 | grep -i aquarea"
-```
-
-### Upload i restart HA
-```bash
-scp -o ProxyCommand="cloudflared access ssh --hostname rpi-ssh.bodino.us.kg" \
-  config/automations_battery.yaml bodino@rpi-ssh.bodino.us.kg:~/homeassistant/
-ssh ... "sudo docker restart homeassistant"
-```
+### Rozwiązanie
+Usunięto blok zimowy. Check "Jutro pochmurno" (forecast < 12 kWh) nadal chroni zimowe dni. Algorytm cheapest_hours decyduje kiedy magazynować vs sprzedawać.
 
 ---
 
-## 7. Aktualny stan systemu (na koniec sesji)
+## 6. Fix: grid_to_home — nocne cyklowanie baterii
 
-- **Integracja Aquarea:** Działa po restarcie HA
-- **Watchdog:** Aktywny (sprawdza co :47)
-- **CWU backup:** Aktywny (uruchamia o 13:02)
-- **Dokumentacja:** v3.13
+### Problem
+W trybie `grid_to_home` bateria cyklicznie ładowała/rozładowywała się w nocy:
+1. Ładowanie do target_soc → stop
+2. Mode → maximise_self_consumption z max_discharge_power=5000
+3. Bateria rozładowuje do domu
+4. SOC < target → znowu ładuje
+Bug: `discharge_soc_limit = min(target_soc, 20) = 20%` nie chroniło baterii.
+
+### Rozwiązanie
+`max_discharge_power=0` w trybie grid_to_home. Dom pobiera z sieci, bateria nietknięta. EPS działa niezależnie.
 
 ---
 
-**Koniec sesji: 2025-12-17**
+## 7. Recorder — nieograniczone dane
+
+`purge_keep_days: 30` → `auto_purge: false`. Duży dysk RPi, dane zbierają się bez limitu.
+
+---
+
+## Commity sesji
+
+| Hash | Opis |
+|------|------|
+| `7d00cb4` | Usunięcie martwego kodu RCE + optymalizacja CWU z PV |
+| `d9034c2` | Auto-kalibracja prognoz PV (EMA) + dynamiczne współczynniki korekcji |
+| `415b684` | Recorder: wyłączenie auto-purge |
+| `7b3efc2` | Fix: handle_pv_surplus() — usunięcie bloku "Zima → MAGAZYNUJ" |
+| `0e53b2c` | Fix: grid_to_home — max_discharge_power=0 (stop nocnego cyklowania) |

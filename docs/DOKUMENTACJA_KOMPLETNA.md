@@ -1,7 +1,7 @@
 # 📚 Home Assistant + Huawei Solar - Kompletna Dokumentacja
 
-**Wersja:** 3.15
-**Data aktualizacji:** 2026-02-01
+**Wersja:** 3.16
+**Data aktualizacji:** 2026-02-26
 **Autor:** Marek Bodynek + Claude Code (Anthropic AI)
 
 ---
@@ -40,6 +40,7 @@
 - [4.5 CWU z nadwyżki PV](#45-cwu-z-nadwyżki-pv)
 - [4.6 Watchdog Aquarea](#46-watchdog-aquarea)
 - [4.7 CWU harmonogram 13:02](#47-cwu-harmonogram-1302)
+- [4.8 Auto-kalibracja PV (EMA)](#48-auto-kalibracja-pv-ema)
 
 ### [5. DASHBOARD](#5-dashboard)
 - [5.1 Instalacja dashboardu](#51-instalacja-dashboardu)
@@ -305,14 +306,20 @@ Algorytm wykonywany co godzinę podejmuje decyzje na podstawie:
 Gdy mamy nadwyżkę energii z PV, algorytm decyduje czy:
 
 ### MAGAZYNOWAĆ w baterii gdy:
-- ✅ RCE ujemne lub bardzo niskie (< 0.20 zł/kWh)
-- ✅ Jutro pochmurno (prognoza < 12 kWh)
-- ✅ Wkrótce drogi wieczór (RCE wieczór > 0.55 zł/kWh)
-- ✅ Zima (listopad-luty)
-- ✅ Słaba prognoza na 6h (< 5 kWh)
+- ✅ RCE ujemne lub bardzo niskie (< 0.15 zł/kWh)
+- ✅ Jutro pochmurno (prognoza < 12 kWh) i SOC < 70%
+- ✅ Aktualna godzina jest w TOP N najtańszych godzin RCE (algorytm cheapest_hours)
 
 ### SPRZEDAĆ do sieci gdy:
-- ✅ Warunki OK, sprzedaj po aktualnym RCE × 1.23
+- ✅ Aktualna godzina jest droga wg RCE — sprzedaj po aktualnym RCE × 1.23
+
+### Algorytm najtańszych godzin (cheapest_hours):
+1. Oblicz ile kWh brakuje do Target SOC
+2. Oblicz ile godzin słonecznych potrzeba na naładowanie
+3. Pobierz ceny RCE dla godzin słonecznych (dziś/jutro)
+4. Sortuj godziny po cenie (najtańsze pierwsze)
+5. W najtańszych N godzinach → MAGAZYNUJ (bo nie opłaca się sprzedawać tanio)
+6. W pozostałych godzinach → SPRZEDAJ (bo cena lepsza)
 
 ## 2.4 Obsługa deficytu mocy
 
@@ -1032,6 +1039,53 @@ Backup harmonogramu CWU z Aquarea Smart Cloud. Uruchamia grzanie CWU o 13:02 je�
 - ΔT: 20°C (35→55°C)
 - Energia: 8.96 kWh
 - Czas teoretyczny: ~1h (pełna moc) do ~2h (50% mocy CWU)
+
+---
+
+## 4.8 Auto-kalibracja PV (EMA)
+
+**Plik:** `config/automations_battery.yaml`
+
+### Opis funkcjonalności:
+System automatycznej kalibracji współczynników korekcji prognoz PV za pomocą Exponential Moving Average (EMA). Współczynniki dostosowują się miesięcznie na podstawie porównania prognoz z rzeczywistą produkcją.
+
+### Automatyzacje:
+
+**1. `pv_calibration_init_csv`** — Inicjalizacja CSV przy starcie HA
+- Trigger: Start Home Assistant
+- Tworzy plik `/config/data/pv_forecast_accuracy.csv` z nagłówkami
+
+**2. `pv_calibration_morning_snapshot`** — Snapshot poranny (08:00)
+- Trigger: 08:00
+- Zapisuje sumę surowych prognoz 3 płaszczyzn do `input_number.pv_raw_forecast_today`
+
+**3. `pv_calibration_evening_ema`** — Kalibracja EMA wieczorna (21:30)
+- Trigger: 21:30
+- Porównuje surową prognozę z rzeczywistą produkcją
+- Oblicza ratio: `real / forecast` (zakres 0.30–1.10)
+- Aktualizuje współczynnik EMA: `nowy = 0.7 × stary + 0.3 × ratio`
+- Loguje wynik do CSV
+
+### Parametry:
+| Parametr | Wartość |
+|----------|---------|
+| Waga EMA (stary) | 0.7 |
+| Waga EMA (nowy) | 0.3 |
+| Min ratio | 0.30 |
+| Max ratio | 1.10 |
+| Storage | `input_text.pv_monthly_corrections` (JSON) |
+| Log | `/config/data/pv_forecast_accuracy.csv` |
+
+### Wartości początkowe współczynników:
+| Miesiąc | Współczynnik |
+|---------|-------------|
+| Styczeń | 0.50 |
+| Luty | 0.60 |
+| Marzec | 0.75 |
+| Kwiecień-Wrzesień | 0.85-0.90 |
+| Październik | 0.75 |
+| Listopad | 0.60 |
+| Grudzień | 0.50 |
 
 ---
 
@@ -2939,6 +2993,63 @@ Szczegółowa dokumentacja dostępna w:
 - ✅ Dokumentacja dla developerów i automatyzacji
 - ✅ Integracja z Byte Rover dla zarządzania kontekstem
 
+## v3.16 (2026-02-26) - Auto-kalibracja PV + fixy algorytmu baterii
+
+### Zmiany
+
+**1. Auto-kalibracja prognoz PV (EMA)**
+- Dodano `input_text.pv_monthly_corrections` — JSON z 12 miesięcznymi współczynnikami korekcji
+- Dodano `input_number.pv_raw_forecast_today` — poranny snapshot surowej prognozy (08:00)
+- Sensor `pv_wspolczynnik_korekcji` zmieniony z hardcoded dict na dynamiczny z input_text
+- 3 nowe automatyzacje: init CSV, snapshot poranny (08:00), kalibracja EMA wieczorna (21:30)
+- Shell commands do logowania CSV historii kalibracji (`/config/data/pv_forecast_accuracy.csv`)
+- Wzór EMA: `nowy = 0.7 × stary + 0.3 × (real/forecast)`, zakres 0.30–1.10
+
+**2. Usunięcie martwego kodu RCE**
+- Usunięto 13 nieużywanych stałych (7 RCE + 6 FORECAST) z `battery_algorithm.py`
+- Stałe były zdefiniowane ale nigdy nie używane w logice decyzyjnej
+
+**3. Optymalizacja CWU z PV**
+- Próg nadwyżki PV dla CWU zmniejszony z 2000W na 1500W
+- Dodany warunek: SOC >= Target SOC (priorytet: bateria > CWU)
+- Bateria ładuje się najpierw, dopiero potem nadwyżka idzie na CWU
+
+**4. Fix: handle_pv_surplus() — usunięcie bloku "Zima → MAGAZYNUJ"**
+- Blok zimowy (miesiące 11,12,1,2) krótko-obwodował algorytm najtańszych godzin RCE
+- Powodował magazynowanie PV w drogich godzinach (0.35-0.47 zł) zamiast sprzedaży
+- Teraz algorytm cheapest_hours decyduje kiedy magazynować vs sprzedawać
+- Check "Jutro pochmurno" nadal chroni zimowe dni (forecast < 12 kWh)
+
+**5. Fix: grid_to_home — stop nocnego cyklowania baterii**
+- W trybie grid_to_home `max_discharge_power` zmieniony z 5000 na 0
+- Bug: `discharge_soc_limit = min(target_soc, 20) = 20%` nie chronił baterii
+- Bateria cyklicznie ładowała/rozładowywała się w nocy (widoczne na wykresie)
+- Teraz: max_discharge_power=0 blokuje rozładowanie, dom pobiera z sieci
+- EPS (backup przy awarii sieci) działa niezależnie od tego ustawienia
+
+**6. Recorder — wyłączenie auto-purge**
+- `purge_keep_days: 30` → `auto_purge: false`
+- Dane historyczne zbierane bez limitu (duży dysk RPi)
+
+### Pliki zmodyfikowane
+
+| Plik | Zmiany |
+|------|--------|
+| `config/python_scripts/battery_algorithm.py` | Usunięto martwy kod RCE, fix zimowy, fix grid_to_home |
+| `config/automations_battery.yaml` | CWU optymalizacja + 3 automatyzacje PV kalibracji |
+| `config/template_sensors.yaml` | Dynamiczny pv_wspolczynnik_korekcji |
+| `config/input_text.yaml` | pv_monthly_corrections |
+| `config/input_numbers.yaml` | pv_raw_forecast_today |
+| `config/configuration.yaml` | Shell commands PV kalibracji + auto_purge: false |
+
+### Korzyści
+
+- ✅ Prognoza PV samouczna — współczynniki korekcji dostosowują się automatycznie
+- ✅ Sprzedaż PV w drogich godzinach RCE zamiast ślepego magazynowania zimą
+- ✅ Koniec nocnego cyklowania baterii (oszczędność cykli i energii)
+- ✅ Lepsza koordynacja bateria/CWU (priorytet baterii)
+- ✅ Nieograniczona historia danych w HA
+
 ---
 
 # WSPARCIE
@@ -2959,6 +3070,6 @@ Szczegółowa dokumentacja dostępna w:
 
 **Autor:** Marek Bodynek + Claude Code (Anthropic AI)
 **Licencja:** MIT
-**Ostatnia aktualizacja:** 2026-02-01
+**Ostatnia aktualizacja:** 2026-02-26
 
 **Powodzenia! 🚀⚡**
