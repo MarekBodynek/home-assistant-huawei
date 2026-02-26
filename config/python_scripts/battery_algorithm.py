@@ -876,9 +876,8 @@ def handle_pv_surplus(data, balance):
     Priorytet decyzji:
     1. RCE ujemne lub < 0.15 zł → MAGAZYNUJ (ultra tanio)
     2. Jutro pochmurno → MAGAZYNUJ (zabezpieczenie)
-    3. Zima → MAGAZYNUJ (każda kWh cenna)
-    4. CZY TERAZ TANIA GODZINA? → Algorytm wyboru najtańszych godzin
-    5. DEFAULT → SPRZEDAJ
+    3. CZY TERAZ TANIA GODZINA? → Algorytm wyboru najtańszych godzin RCE
+    4. DEFAULT → SPRZEDAJ
     """
     soc = data['soc']
     rce_now = data['rce_now']
@@ -903,15 +902,9 @@ def handle_pv_surplus(data, balance):
             'reason': f'Jutro pochmurno ({forecast_tomorrow:.1f} kWh) - MAGAZYNUJ'
         }
 
-    # 3. Zima → MAGAZYNUJ
-    if month in [11, 12, 1, 2] and soc < BATTERY_HIGH:
-        return {
-            'mode': 'charge_from_pv',
-            'priority': 'normal',  # Normalna sezonowa strategia
-            'reason': 'Zima - każda kWh cenna! MAGAZYNUJ'
-        }
-
-    # 4. ALGORYTM WYBORU NAJTAŃSZYCH GODZIN
+    # 3. ALGORYTM WYBORU NAJTAŃSZYCH GODZIN
+    # (blok "Zima → MAGAZYNUJ" usunięty - krótko-obwodował algorytm najtańszych godzin,
+    #  powodując magazynowanie w drogich godzinach zamiast sprzedaży)
     is_cheap_hour, reason, cheapest_hours = calculate_cheapest_hours_to_store(data)
 
     if is_cheap_hour is None:
