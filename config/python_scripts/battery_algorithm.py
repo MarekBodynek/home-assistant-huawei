@@ -1287,14 +1287,12 @@ def apply_battery_mode(strategy, data=None):
                        charge_from_grid=False)
 
     elif mode == 'grid_to_home':
-        # Użyj maximise_self_consumption żeby PV szło do domu, nie do baterii
-        # UWAGA: max_discharge_power=5000 (nie 0!) - żeby backup mode (EPS) działał
-        # OGRANICZENIE SPRZĘTOWE: discharge_soc_limit max 20% (Huawei Luna 2000)
-        discharge_limit = min(strategy.get('discharge_limit', soc_min), 20)
+        # Dom pobiera z sieci, bateria nietknięta (max_discharge_power=0)
+        # EPS (backup przy awarii sieci) działa niezależnie od tego ustawienia
         set_huawei_mode('maximise_self_consumption',
                        charge_from_grid=False,
-                       max_discharge_power=5000,
-                       discharge_soc_limit=discharge_limit)
+                       max_discharge_power=0,
+                       discharge_soc_limit=soc_min)
 
     elif mode == 'idle':
         # ===========================================
