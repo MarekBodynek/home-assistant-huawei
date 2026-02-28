@@ -351,15 +351,18 @@ def decide_strategy(data, balance):
     # Weekend energetyczny = (weekend/święto LUB piątek wieczór) ALE NIE niedziela wieczór
     is_energy_weekend = (not is_workday or is_friday_evening) and not is_sunday_evening
 
-    # W weekend energetycznym: NIE ładuj z sieci, tylko self consumption
+    # W weekend energetycznym: NIE ładuj z sieci, ale PV surplus → algorytm RCE
     # Wyjątek: SOC < 5% (obsłużone wyżej jako ładowanie krytyczne 24/7)
-    # Ładowanie do Target SOC dopiero w niedzielę 22:00+
     if is_energy_weekend:
-        return {
-            'mode': 'discharge_to_home',
-            'priority': 'normal',
-            'reason': 'Weekend - tylko self consumption, bez ładowania z sieci'
-        }
+        if balance['surplus'] > 0:
+            # Nadwyżka PV → smart RCE (sprzedaj drogo, magazynuj tanio)
+            return handle_pv_surplus(data, balance)
+        else:
+            return {
+                'mode': 'discharge_to_home',
+                'priority': 'normal',
+                'reason': 'Weekend - self consumption, bateria do domu'
+            }
 
     # ===========================================
     # NORMALNA LOGIKA (dni robocze + niedziela wieczór)
