@@ -1,7 +1,7 @@
 # 📚 Home Assistant + Huawei Solar - Kompletna Dokumentacja
 
-**Wersja:** 3.16
-**Data aktualizacji:** 2026-02-26
+**Wersja:** 3.17
+**Data aktualizacji:** 2026-03-01
 **Autor:** [Autor] + Claude Code (Anthropic AI)
 
 ---
@@ -3007,6 +3007,42 @@ Szczegółowa dokumentacja dostępna w:
 | `config/input_numbers.yaml` | pv_raw_forecast_today |
 | `config/configuration.yaml` | Shell commands PV kalibracji + auto_purge: false |
 
+## v3.17 (2026-03-01) - Porównanie taryfowe Pstryk + fixy weekendowe
+
+### Zmiany
+
+**1. Porównanie taryfowe: Pstryk (dynamiczna) vs G12w**
+- Nowe sensory: `pstryk_cena_dynamiczna`, `g12w_cena_teraz`, `pstryk_oszczednosc_za_kwh/dzienna/miesieczna`
+- Wzór Pstryk: `(RCE/1000 + 0.08 marża + 0.07 dystrybucja + 0.005 akcyza) × 1.23 VAT`
+- 4 input_numbers do akumulacji kosztów (dzienne + miesięczne, oba taryfowe)
+- Automatyzacja godzinowa: kalkulacja kosztów importu per taryfa
+- Resety: dzienne (00:00) i miesięczne (1. dnia miesiąca)
+
+**2. Weekend: smart PV surplus z algorytmem najtańszych godzin RCE**
+- Zmiana weekendowej logiki: nadwyżka PV → `handle_pv_surplus()` (algorytm RCE)
+- Wcześniej: ślepe `discharge_to_home` (marnowanie okazji sprzedaży w drogich godzinach)
+- Teraz: sprzedaj drogo, magazynuj tanio — identycznie jak w dni robocze
+
+**3. Fix: weekendowy próg ochronny SOC**
+- Problem: bateria rozładowywała się przez noc weekendową do soc_min (14-15%), potem awaryjne ładowanie z sieci
+- Nowy próg: gdy SOC <= `soc_min + 10%` (25% w marcu) i brak PV → `grid_to_home`
+- Dom pobiera z sieci, bateria zachowuje rezerwę na dzień
+
+**4. Dashboard: dynamiczne daty na wykresach RCE**
+- "Ceny RCE (Dziś)" → "Ceny RCE (DD.MM.YYYY)" z aktualną datą
+- "Ceny RCE (Jutro)" → "Ceny RCE (DD.MM.YYYY)" z datą jutrzejszą
+- Implementacja: EVAL JavaScript w apex_config.title.text
+
+### Pliki zmodyfikowane
+
+| Plik | Zmiany |
+|------|--------|
+| `config/python_scripts/battery_algorithm.py` | Weekend PV surplus → handle_pv_surplus(), próg ochronny SOC |
+| `config/template_sensors.yaml` | 5 sensorów porównania taryfowego Pstryk vs G12w |
+| `config/input_numbers.yaml` | 4 input_numbers kosztów dziennych/miesięcznych |
+| `config/automations_battery.yaml` | Kalkulacja kosztów godzinowa + resety dzienne/miesięczne |
+| `config/lovelace_huawei.yaml` | Dynamiczne daty na wykresach RCE |
+
 ---
 
 # WSPARCIE
@@ -3027,6 +3063,6 @@ Szczegółowa dokumentacja dostępna w:
 
 **Autor:** [Autor] + Claude Code (Anthropic AI)
 **Licencja:** MIT
-**Ostatnia aktualizacja:** 2026-02-26
+**Ostatnia aktualizacja:** 2026-03-01
 
 **Powodzenia! 🚀⚡**

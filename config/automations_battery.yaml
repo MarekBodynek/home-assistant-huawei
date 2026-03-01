@@ -878,6 +878,38 @@
         tariff: "{{ states('sensor.strefa_taryfowa') }}"
         temperature: "{{ states('sensor.bateria_temperatura_maksymalna') | float(0) | round(1) }}"
         rce_price: "{{ states('sensor.rce_pse_cena') | float(0) | round(2) }}"
+    # Porównanie taryfowe: G12w vs Pstryk (akumulacja kosztów importu)
+    - variables:
+        grid_import: "{{ states('sensor.zuzycie_godzinowe') | float(0) }}"
+        g12w_rate: >
+          {% set zone = states('sensor.strefa_taryfowa') %}
+          {% if zone == 'L1' %}1.16{% else %}0.78{% endif %}
+        pstryk_rate: >
+          {% set rce_kwh = states('sensor.rce_pse_cena') | float(400) / 1000 %}
+          {{ ((rce_kwh + 0.155) * 1.23) | round(4) }}
+    - variables:
+        g12w_cost_hour: "{{ (grid_import | float * g12w_rate | float) | round(4) }}"
+        pstryk_cost_hour: "{{ (grid_import | float * pstryk_rate | float) | round(4) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.g12w_koszt_import_dzienny
+      data:
+        value: "{{ (states('input_number.g12w_koszt_import_dzienny') | float(0) + g12w_cost_hour | float) | round(3) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.pstryk_koszt_import_dzienny
+      data:
+        value: "{{ (states('input_number.pstryk_koszt_import_dzienny') | float(0) + pstryk_cost_hour | float) | round(3) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.g12w_koszt_import_miesiac
+      data:
+        value: "{{ (states('input_number.g12w_koszt_import_miesiac') | float(0) + g12w_cost_hour | float) | round(3) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.pstryk_koszt_import_miesiac
+      data:
+        value: "{{ (states('input_number.pstryk_koszt_import_miesiac') | float(0) + pstryk_cost_hour | float) | round(3) }}"
   mode: single
 
 # ============================================
@@ -1416,3 +1448,50 @@
           - Stary współczynnik: {{ old_factor }}
           - Nowy współczynnik: {{ new_factor }}
         notification_id: pv_calibration_ema
+
+# ============================================
+# PORÓWNANIE TARYFOWE: G12w vs Pstryk - RESETY
+# ============================================
+
+# Reset dzienny o północy
+- id: tariff_comparison_daily_reset
+  alias: "[Tariff] Reset dzienny porównania G12w vs Pstryk"
+  description: "Zeruje dzienne koszty importu o północy"
+  trigger:
+    - platform: time
+      at: "00:00:00"
+  action:
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.g12w_koszt_import_dzienny
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.pstryk_koszt_import_dzienny
+      data:
+        value: 0
+  mode: single
+
+# Reset miesięczny 1-go dnia o północy
+- id: tariff_comparison_monthly_reset
+  alias: "[Tariff] Reset miesięczny porównania G12w vs Pstryk"
+  description: "Zeruje miesięczne koszty importu 1-go dnia miesiąca"
+  trigger:
+    - platform: time
+      at: "00:00:01"
+  condition:
+    - condition: template
+      value_template: "{{ now().day == 1 }}"
+  action:
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.g12w_koszt_import_miesiac
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.pstryk_koszt_import_miesiac
+      data:
+        value: 0
+  mode: single

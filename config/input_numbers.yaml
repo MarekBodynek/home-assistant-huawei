@@ -52,3 +52,41 @@ pv_raw_forecast_today:
   initial: 0
   unit_of_measurement: "kWh"
   icon: mdi:solar-power-variant
+
+# === PORÓWNANIE TARYFOWE: G12w vs Pstryk ===
+
+g12w_koszt_import_dzienny:
+  name: "G12w koszt importu dzienny"
+  min: 0
+  max: 200
+  step: 0.001
+  initial: 0
+  unit_of_measurement: "PLN"
+  icon: mdi:cash
+
+pstryk_koszt_import_dzienny:
+  name: "Pstryk koszt importu dzienny"
+  min: 0
+  max: 200
+  step: 0.001
+  initial: 0
+  unit_of_measurement: "PLN"
+  icon: mdi:lightning-bolt
+
+g12w_koszt_import_miesiac:
+  name: "G12w koszt importu miesięczny"
+  min: 0
+  max: 5000
+  step: 0.001
+  initial: 0
+  unit_of_measurement: "PLN"
+  icon: mdi:cash-multiple
+
+pstryk_koszt_import_miesiac:
+  name: "Pstryk koszt importu miesięczny"
+  min: 0
+  max: 5000
+  step: 0.001
+  initial: 0
+  unit_of_measurement: "PLN"
+  icon: mdi:lightning-bolt-outline

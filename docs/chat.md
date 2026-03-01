@@ -1,85 +1,59 @@
-# Chat Session - 2026-02-26
+# Chat Session - 2026-03-01
 
 ## Podsumowanie sesji
 
-Sesja skupiona na optymalizacji algorytmu baterii i auto-kalibracji prognoz PV.
+Sesja skupiona na porównaniu taryfowym Pstryk vs G12w, fixach weekendowej logiki baterii i poprawkach dashboardu.
 
 ---
 
-## 1. Analiza propozycji "Claudii" (AI agent)
+## 1. Porównanie taryfowe: Pstryk (dynamiczna) vs G12w
 
-Użytkownik udostępnił dokument analizy algorytmu baterii przygotowany przez agenta AI "Claudia". Ocena propozycji:
+### Cel
+Monitoring i porównanie kosztów energii gdybyśmy byli na taryfie dynamicznej Pstryk vs aktualna G12w.
 
-| Propozycja | Status | Uwagi |
-|-----------|--------|-------|
-| Dynamiczne czasy słońca | Odrzucone | Niski wpływ, statyczne wartości wystarczające |
-| Recorder 90 dni | Zmienione | auto_purge: false (nieograniczone dane) |
-| Dynamiczne progi RCE | Odrzucone | Stałe RCE były martwym kodem (nigdy nieużywane) |
-| ML improvements | Odroczone | |
-| Predykcja cen RCE | Odrzucone | Ceny podawane dobę wcześniej |
-| Feedback loop | Odroczone | |
-| Optymalizacja CWU | Wdrożone | Już istniało, dodano drobne usprawnienia |
-
----
-
-## 2. Auto-kalibracja prognoz PV (EMA)
-
-### Problem
-Forecast.Solar systematycznie zawyża prognozy. Hardcoded współczynniki korekcji (0.50-0.90) nie adaptują się do warunków.
-
-### Rozwiązanie
-System EMA (Exponential Moving Average) — porównuje prognozę z realną produkcją i automatycznie dostosowuje współczynniki.
+### Wzór Pstryk
+`(RCE/1000 + 0.08 marża + 0.07 dystrybucja + 0.005 akcyza) × 1.23 VAT`
 
 ### Implementacja
-- `input_text.pv_monthly_corrections` — JSON z 12 współczynnikami
-- `input_number.pv_raw_forecast_today` — snapshot poranny surowej prognozy
-- `sensor.pv_wspolczynnik_korekcji` — dynamiczny z input_text
-- 3 automatyzacje: init CSV, snapshot 08:00, kalibracja EMA 21:30
-- Wzór: `nowy = 0.7 × stary + 0.3 × (real/forecast)`
+- 5 template sensors: `pstryk_cena_dynamiczna`, `g12w_cena_teraz`, `pstryk_oszczednosc_za_kwh/dzienna/miesieczna`
+- 4 input_numbers: koszty dzienne/miesięczne per taryfa
+- Automatyzacja godzinowa (xx:59): kalkulacja importu × cena per taryfa, akumulacja
+- Resety: dzienne (00:00), miesięczne (1. dnia)
+
+### Break-even
+- L1: Pstryk tańszy gdy RCE < 788 PLN/MWh
+- L2: Pstryk tańszy gdy RCE < 479 PLN/MWh
 
 ---
 
-## 3. Usunięcie martwego kodu RCE
-
-13 stałych (RCE_NEGATIVE, RCE_LOW, itd. + FORECAST_EXCELLENT, itd.) było zdefiniowanych ale nigdy nieużywanych w logice. Usunięto. FORECAST_POOR=12 zachowany (używany w handle_pv_surplus).
-
----
-
-## 4. Optymalizacja CWU z PV
-
-- Próg nadwyżki PV: 2000W → 1500W
-- Dodany warunek: SOC >= Target SOC (priorytet baterii nad CWU)
-
----
-
-## 5. Fix: handle_pv_surplus() — blok "Zima → MAGAZYNUJ"
+## 2. Weekend: smart PV surplus z algorytmem RCE
 
 ### Problem
-Blok `if month in [11,12,1,2]: return charge_from_pv` krótko-obwodował algorytm najtańszych godzin RCE. Bateria magazynowała PV w drogich godzinach (0.35-0.47 zł o 8-10h) zamiast sprzedawać i czekać na tanie godziny (0.07-0.25 zł o 12-15h).
+Weekendowa logika zawsze zwracała `discharge_to_home` — marnowała okazje sprzedaży PV w drogich godzinach RCE.
 
 ### Rozwiązanie
-Usunięto blok zimowy. Check "Jutro pochmurno" (forecast < 12 kWh) nadal chroni zimowe dni. Algorytm cheapest_hours decyduje kiedy magazynować vs sprzedawać.
+Nadwyżka PV → `handle_pv_surplus()` (algorytm najtańszych godzin RCE) — identycznie jak w dni robocze. Brak nadwyżki → `discharge_to_home` jak dotychczas.
 
 ---
 
-## 6. Fix: grid_to_home — nocne cyklowanie baterii
+## 3. Fix: weekendowy próg ochronny SOC
 
 ### Problem
-W trybie `grid_to_home` bateria cyklicznie ładowała/rozładowywała się w nocy:
-1. Ładowanie do target_soc → stop
-2. Mode → maximise_self_consumption z max_discharge_power=5000
-3. Bateria rozładowuje do domu
-4. SOC < target → znowu ładuje
-Bug: `discharge_soc_limit = min(target_soc, 20) = 20%` nie chroniło baterii.
+Bateria rozładowywała się przez całą noc weekendową (discharge_to_home) aż do soc_min (14-15%). Potem awaryjne ładowanie z sieci 5kW.
+
+### Przyczyna
+Weekendowa logika nie sprawdzała poziomu SOC — zawsze `discharge_to_home` gdy brak surplus.
 
 ### Rozwiązanie
-`max_discharge_power=0` w trybie grid_to_home. Dom pobiera z sieci, bateria nietknięta. EPS działa niezależnie.
+Nowy próg: gdy SOC <= `soc_min + 10%` (25% w marcu) i brak PV → `grid_to_home` (dom z sieci, bateria nietknięta). Zapobiega głębokiemu rozładowaniu w nocy.
 
 ---
 
-## 7. Recorder — nieograniczone dane
+## 4. Dashboard: dynamiczne daty na wykresach RCE
 
-`purge_keep_days: 30` → `auto_purge: false`. Duży dysk RPi, dane zbierają się bez limitu.
+- "Ceny RCE (Dziś)" → "Ceny RCE (DD.MM.YYYY)"
+- "Ceny RCE (Jutro)" → "Ceny RCE (DD.MM.YYYY)"
+- EVAL JavaScript w apex_config.title.text
 
 ---
 
@@ -87,8 +61,17 @@ Bug: `discharge_soc_limit = min(target_soc, 20) = 20%` nie chroniło baterii.
 
 | Hash | Opis |
 |------|------|
-| `7d00cb4` | Usunięcie martwego kodu RCE + optymalizacja CWU z PV |
-| `d9034c2` | Auto-kalibracja prognoz PV (EMA) + dynamiczne współczynniki korekcji |
-| `415b684` | Recorder: wyłączenie auto-purge |
-| `7b3efc2` | Fix: handle_pv_surplus() — usunięcie bloku "Zima → MAGAZYNUJ" |
-| `0e53b2c` | Fix: grid_to_home — max_discharge_power=0 (stop nocnego cyklowania) |
+| `99d979c` | Weekend: smart PV surplus z algorytmem najtańszych godzin RCE |
+| (nowy) | Pstryk porównanie taryfowe + fix weekendowy SOC + daty RCE + docs v3.17 |
+
+---
+
+## Poprzednia sesja (2026-02-26)
+
+Pełna historia w `docs/DOKUMENTACJA_KOMPLETNA.md` sekcja v3.16:
+- Auto-kalibracja PV (EMA)
+- Usunięcie martwego kodu RCE
+- Optymalizacja CWU z PV
+- Fix: handle_pv_surplus() — blok "Zima → MAGAZYNUJ"
+- Fix: grid_to_home — nocne cyklowanie baterii
+- Recorder: auto_purge: false

@@ -1002,6 +1002,79 @@
       device_class: connectivity
 
 # ============================================
+# PORÓWNANIE TARYFOWE: G12w vs Pstryk Dynamiczna
+# ============================================
+# Symulacja kosztów — co zapłaciłbyś z taryfą dynamiczną Pstryk?
+# Pstryk netto = RCE/kWh + 0.08 (marża) + 0.07 (dystrybucja) + 0.005 (akcyza)
+# G12w: L1 = 1.16 PLN/kWh, L2 = 0.78 PLN/kWh (brutto, z rachunku)
+
+- sensor:
+    - name: "Pstryk cena dynamiczna"
+      unique_id: pstryk_dynamic_price
+      unit_of_measurement: "PLN/kWh"
+      state: >
+        {% set rce_kwh = states('sensor.rce_pse_cena') | float(400) / 1000 %}
+        {{ ((rce_kwh + 0.155) * 1.23) | round(4) }}
+      icon: mdi:lightning-bolt
+      attributes:
+        friendly_name: "Pstryk cena dynamiczna (brutto)"
+        rce_pln_mwh: "{{ states('sensor.rce_pse_cena') | float(0) | round(0) }}"
+        netto: "{{ (states('sensor.rce_pse_cena') | float(400) / 1000 + 0.155) | round(4) }}"
+        marza: 0.08
+        dystrybucja: 0.07
+        akcyza: 0.005
+        vat: "23%"
+
+    - name: "G12w cena teraz"
+      unique_id: g12w_current_price
+      unit_of_measurement: "PLN/kWh"
+      state: >
+        {% set zone = states('sensor.strefa_taryfowa') %}
+        {% if zone == 'L1' %}1.16{% else %}0.78{% endif %}
+      icon: mdi:cash
+      attributes:
+        friendly_name: "G12w cena aktualna (brutto)"
+        strefa: "{{ states('sensor.strefa_taryfowa') }}"
+
+    - name: "Pstryk oszczędność za kWh"
+      unique_id: pstryk_savings_per_kwh
+      unit_of_measurement: "PLN/kWh"
+      state: >
+        {% set g12w = states('sensor.g12w_cena_teraz') | float(0.78) %}
+        {% set pstryk = states('sensor.pstryk_cena_dynamiczna') | float(0.50) %}
+        {{ (g12w - pstryk) | round(4) }}
+      icon: mdi:piggy-bank
+      attributes:
+        friendly_name: "Oszczędność Pstryk vs G12w (na kWh)"
+        pstryk_tanszy: "{{ states('sensor.g12w_cena_teraz') | float(0) > states('sensor.pstryk_cena_dynamiczna') | float(0) }}"
+
+    - name: "Pstryk oszczędność dzienna"
+      unique_id: pstryk_daily_savings
+      unit_of_measurement: "PLN"
+      state: >
+        {% set g12w = states('input_number.g12w_koszt_import_dzienny') | float(0) %}
+        {% set pstryk = states('input_number.pstryk_koszt_import_dzienny') | float(0) %}
+        {{ (g12w - pstryk) | round(2) }}
+      icon: mdi:piggy-bank-outline
+      attributes:
+        friendly_name: "Oszczędność Pstryk dzienna"
+        g12w_koszt: "{{ states('input_number.g12w_koszt_import_dzienny') | float(0) | round(2) }}"
+        pstryk_koszt: "{{ states('input_number.pstryk_koszt_import_dzienny') | float(0) | round(2) }}"
+
+    - name: "Pstryk oszczędność miesięczna"
+      unique_id: pstryk_monthly_savings
+      unit_of_measurement: "PLN"
+      state: >
+        {% set g12w = states('input_number.g12w_koszt_import_miesiac') | float(0) %}
+        {% set pstryk = states('input_number.pstryk_koszt_import_miesiac') | float(0) %}
+        {{ (g12w - pstryk) | round(2) }}
+      icon: mdi:piggy-bank
+      attributes:
+        friendly_name: "Oszczędność Pstryk miesięczna"
+        g12w_koszt: "{{ states('input_number.g12w_koszt_import_miesiac') | float(0) | round(2) }}"
+        pstryk_koszt: "{{ states('input_number.pstryk_koszt_import_miesiac') | float(0) | round(2) }}"
+
+# ============================================
 # EVENT LOG - Historia zdarzeń systemowych
 # ============================================
 

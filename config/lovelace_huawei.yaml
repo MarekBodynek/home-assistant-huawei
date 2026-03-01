@@ -205,12 +205,15 @@ views:
               - type: custom:apexcharts-card
                 header:
                   show: true
-                  title: Ceny RCE (Dziś)
                   show_states: false
                 graph_span: 24h
                 span:
                   start: day
                 apex_config:
+                  title:
+                    text: |
+                      EVAL:(() => { const d = new Date(); return 'Ceny RCE (' + String(d.getDate()).padStart(2,'0') + '.' + String(d.getMonth()+1).padStart(2,'0') + '.' + d.getFullYear() + ')'; })()
+                    align: left
                   chart:
                     height: 200
                   plotOptions:
@@ -270,13 +273,16 @@ views:
               - type: custom:apexcharts-card
                 header:
                   show: true
-                  title: Ceny RCE (Jutro)
                   show_states: false
                 graph_span: 24h
                 span:
                   start: day
                   offset: +1d
                 apex_config:
+                  title:
+                    text: |
+                      EVAL:(() => { const d = new Date(); d.setDate(d.getDate()+1); return 'Ceny RCE (' + String(d.getDate()).padStart(2,'0') + '.' + String(d.getMonth()+1).padStart(2,'0') + '.' + d.getFullYear() + ')'; })()
+                    align: left
                   chart:
                     height: 200
                   plotOptions:

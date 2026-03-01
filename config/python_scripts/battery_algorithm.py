@@ -357,6 +357,14 @@ def decide_strategy(data, balance):
         if balance['surplus'] > 0:
             # Nadwyżka PV → smart RCE (sprzedaj drogo, magazynuj tanio)
             return handle_pv_surplus(data, balance)
+        elif soc <= soc_min + 10:
+            # SOC za niski — oszczędzaj baterię, dom pobiera z sieci
+            return {
+                'mode': 'grid_to_home',
+                'discharge_limit': soc_min,
+                'priority': 'normal',
+                'reason': f'Weekend - SOC {soc:.0f}% <= {soc_min + 10}% - oszczędzaj baterię, dom z sieci'
+            }
         else:
             return {
                 'mode': 'discharge_to_home',
