@@ -3043,6 +3043,21 @@ Szczegółowa dokumentacja dostępna w:
 | `config/automations_battery.yaml` | Kalkulacja kosztów godzinowa + resety dzienne/miesięczne |
 | `config/lovelace_huawei.yaml` | Dynamiczne daty na wykresach RCE |
 
+**5. Fix: shell_command — szablony Jinja**
+- `save_hourly_data`: zamiana `data:` na inline `states()` (shell_command nie ma dostępu do data: z automatyzacji)
+- `log_pv_calibration`: buffer `input_text.pv_calibration_line` (automatyzacja zapisuje CSV line, shell_command czyta ze states)
+
+**6. Ochrona przed brute force**
+- `login_attempts_threshold: 5` w sekcji `http:` — auto-ban IP po 5 nieudanych próbach
+
+### Pliki zmodyfikowane (uzupełnienie)
+
+| Plik | Zmiany |
+|------|--------|
+| `config/configuration.yaml` | shell_command fix + login_attempts_threshold: 5 |
+| `config/input_text.yaml` | pv_calibration_line (buffer dla shell_command) |
+| `config/automations_battery.yaml` | Usunięto data: z save_hourly_data, buffer dla log_pv_calibration |
+
 ---
 
 # WSPARCIE
@@ -3063,6 +3078,6 @@ Szczegółowa dokumentacja dostępna w:
 
 **Autor:** [Autor] + Claude Code (Anthropic AI)
 **Licencja:** MIT
-**Ostatnia aktualizacja:** 2026-03-01
+**Ostatnia aktualizacja:** 2026-03-02
 
 **Powodzenia! 🚀⚡**

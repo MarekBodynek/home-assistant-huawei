@@ -86,3 +86,11 @@ pv_monthly_corrections:
   initial: '{"1":0.50,"2":0.60,"3":0.75,"4":0.85,"5":0.90,"6":0.90,"7":0.90,"8":0.90,"9":0.85,"10":0.75,"11":0.60,"12":0.50}'
   max: 255
   icon: mdi:chart-line
+
+# Buffer dla shell_command.log_pv_calibration
+# (shell_command nie ma dostępu do data: — automatyzacja zapisuje tu CSV line)
+pv_calibration_line:
+  name: "PV Kalibracja - linia CSV"
+  initial: ""
+  max: 255
+  icon: mdi:file-delimited
