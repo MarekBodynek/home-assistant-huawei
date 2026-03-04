@@ -53,6 +53,25 @@ EVAL JavaScript w `apex_config.title.text` — "Ceny RCE (04.03.2026)" zamiast "
 
 ---
 
+## 6. Testy algorytmu baterii (pytest)
+
+Kompleksowe testy `battery_algorithm.py` — 79 testów, 0 failures.
+
+### Naprawione testy (4)
+- `test_rce_thresholds` → `test_forecast_poor_threshold` (usunięte stałe RCE)
+- `test_forecast_thresholds` → `test_battery_critical_threshold` (usunięte stałe FORECAST)
+- `test_cloudy_tomorrow_store` → `test_cloudy_tomorrow_uses_cheapest_hours` (usunięty short-circuit)
+- `test_winter_store` → `test_normal_rce_goes_through_cheapest_hours` (usunięty short-circuit)
+
+### Nowe klasy testowe (5 klas, 26 testów)
+- **TestCalculateCheapestHoursToStore** (6): identyfikacja najtańszych godzin, current_hour_not_cheap, cheap_stores_expensive_sells, battery_full, no_rce_data, after_sunset_tomorrow
+- **TestGetFirstCheapPvHour** (5): earliest_cheap_hour, no_rce_data, no_forecast, winter/summer sunrise exclusion
+- **TestSurvivalSoc** (5): high_pv_uses_survival, low_pv_uses_full_target, midnight_forecast_today, soc_at_survival_stops, excellent_pv_grid_to_home
+- **TestDailyCycleIntegration** (5): night_survival_morning_drain, first_cheap_hour_stores, expensive_before_cheap_sells, ultra_low_rce_override, full_cycle_night_to_cheap
+- **TestCheapestHoursEdgeCases** (5): same_price, single_hour, survival_soc_clamp, weekend_no_survival, plnmwh_conversion
+
+---
+
 ## Commity sesji
 
 | Hash | Opis |

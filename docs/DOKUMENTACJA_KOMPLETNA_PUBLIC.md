@@ -3060,6 +3060,12 @@ Szczegółowa dokumentacja dostępna w:
 - Efekt: bateria rano zasila dom w L1, o 11h jest pusta, ładuje z PV za darmo
 - Próg: PV forecast ≥ 10 kWh (bez PV → ładuj normalnie)
 
+**9. Testy algorytmu baterii (pytest)**
+- 79 testów (53 istniejące + 26 nowych), 0 failures
+- Naprawiono 4 testy po usunięciu short-circuitów i stałych
+- Nowe klasy: `TestCalculateCheapestHoursToStore`, `TestGetFirstCheapPvHour`, `TestSurvivalSoc`, `TestDailyCycleIntegration`, `TestCheapestHoursEdgeCases`
+- Pokrycie: najtańsze godziny RCE, survival_soc, pełny cykl dobowy, edge cases
+
 ### Pliki zmodyfikowane (uzupełnienie)
 
 | Plik | Zmiany |
@@ -3068,6 +3074,7 @@ Szczegółowa dokumentacja dostępna w:
 | `config/input_text.yaml` | pv_calibration_line (buffer dla shell_command) |
 | `config/automations_battery.yaml` | Usunięto data: z save_hourly_data, buffer dla log_pv_calibration |
 | `config/python_scripts/battery_algorithm.py` | Usunięto "Jutro pochmurno", get_first_cheap_pv_hour(), survival_soc |
+| `tests/test_battery_algorithm.py` | 4 fixy + 26 nowych testów (79 total) |
 
 ---
 
@@ -3089,6 +3096,6 @@ Szczegółowa dokumentacja dostępna w:
 
 **Autor:** [Autor] + Claude Code (Anthropic AI)
 **Licencja:** MIT
-**Ostatnia aktualizacja:** 2026-03-02
+**Ostatnia aktualizacja:** 2026-03-04
 
 **Powodzenia! 🚀⚡**
