@@ -451,70 +451,54 @@ def decide_strategy(data, balance):
             pv_forecast = forecast_today
             forecast_label = "dziś"
 
-        # === SEZON GRZEWCZY: ZAWSZE ŁADUJ ===
-        # PC CO potrzebuje energii rano, a zimowe PV jest słabe
-        if heating_mode == 'heating_season' and soc < target_soc:
-            if pv_forecast < 15:
-                priority = 'normal'  # Normalne ładowanie w sezonie grzewczym
-                reason = f'Noc L2 + sezon grzewczy + pochmurno {forecast_label} ({pv_forecast:.1f} kWh) - ładuj do {target_soc}%!'
-            else:
-                priority = 'normal'  # Normalna decyzja
-                reason = f'Noc L2 + sezon grzewczy - ładuj do {target_soc}% (PC potrzebuje energii rano)'
-            return {
-                'mode': 'charge_from_grid',
-                'target_soc': target_soc,
-                'priority': priority,
-                'reason': reason
-            }
+        # === OBLICZ SURVIVAL SOC (pusta bateria na najtańsze PV godziny) ===
+        # Gdy PV >= 10 kWh: ładuj nocą TYLKO tyle, żeby przetrwać do najtańszych godzin RCE
+        # Reszta zostanie naładowana DARMOWYM PV w tanich godzinach
+        night_target = target_soc  # domyślnie: pełny target
+        survival_info = ""
 
-        # === POZA SEZONEM GRZEWCZYM: INTELIGENTNE ŁADOWANIE ===
-        # Jeśli prognoza PV dobra - pozwól słońcu naładować baterię za darmo!
-        # UWAGA: Próg krytyczny SOC < 20% obsługiwany wcześniej (linie 266-272)
+        if pv_forecast >= 10:
+            first_cheap = get_first_cheap_pv_hour(data)
+            if first_cheap is not None:
+                hours_gap = max(1, first_cheap - 6)  # od świtu (6:00) do pierwszej taniej godziny
+                avg_consumption = 1.2  # kWh/h średnie zużycie domu
+                survival_kwh = hours_gap * avg_consumption
+                survival_soc = soc_min + int(survival_kwh / 15 * 100)
+                # Minimum soc_min + 5%, maksimum target_soc
+                survival_soc = max(soc_min + 5, min(target_soc, survival_soc))
+                night_target = survival_soc
+                survival_info = f" | survival={night_target}% (gap {hours_gap}h→{first_cheap}h)"
 
-        # Doskonała prognoza (>25 kWh) → NIE ŁADUJ - słońce naładuje za darmo
-        if pv_forecast >= 25:
-            return {
-                'mode': 'grid_to_home',
-                'discharge_limit': soc_min,  # Zachowaj minimum sezonowe
-                'priority': 'low',
-                'reason': f'Noc L2 + słonecznie {forecast_label} ({pv_forecast:.1f} kWh) - PV naładuje baterię za darmo! (SOC {soc:.0f}%)'
-            }
-
-        # Bardzo dobra prognoza (>20 kWh) → NIE ŁADUJ
-        if pv_forecast >= 20:
+        # === DOSKONAŁA PROGNOZA PV (>= 15 kWh) → NIE ŁADUJ Z SIECI ===
+        # PV naładuje baterię za darmo — dom pobiera z sieci przez noc
+        if pv_forecast >= 15 and soc >= night_target:
             return {
                 'mode': 'grid_to_home',
-                'discharge_limit': soc_min,  # Zachowaj minimum sezonowe
+                'discharge_limit': soc_min,
                 'priority': 'low',
-                'reason': f'Noc L2 + dobra prognoza {forecast_label} ({pv_forecast:.1f} kWh) - PV wystarczy! (SOC {soc:.0f}%)'
+                'reason': f'Noc L2 + PV {forecast_label} {pv_forecast:.1f} kWh - SOC {soc:.0f}% >= target {night_target}%{survival_info}'
             }
 
-        # Dobra prognoza (>15 kWh) → NIE ŁADUJ
-        if pv_forecast >= 15:
-            return {
-                'mode': 'grid_to_home',
-                'discharge_limit': soc_min,  # Zachowaj minimum sezonowe
-                'priority': 'low',
-                'reason': f'Noc L2 + prognoza {forecast_label} {pv_forecast:.1f} kWh - PV powinno wystarczyć (SOC {soc:.0f}%)'
-            }
-
-        # Słaba prognoza (<15 kWh) → ŁADUJ
-        if soc < target_soc:
+        # === ŁADUJ Z SIECI (do night_target zamiast target_soc) ===
+        if soc < night_target:
             if pv_forecast < 10:
-                priority = 'normal'  # Było 'critical' - normalne ładowanie
-                reason = f'Noc L2 + bardzo pochmurno {forecast_label} ({pv_forecast:.1f} kWh) - ładuj do {target_soc}%!'
-            elif pv_forecast < 15:
-                priority = 'normal'  # Było 'high' - normalne ładowanie
-                reason = f'Noc L2 + pochmurno {forecast_label} ({pv_forecast:.1f} kWh) - ładuj do {target_soc}%'
+                reason = f'Noc L2 + pochmurno {forecast_label} ({pv_forecast:.1f} kWh) - ładuj do {night_target}%'
             else:
-                priority = 'normal'  # Było 'medium'
-                reason = f'Noc L2 + SOC {soc:.0f}% < próg - ładuj do {target_soc}%'
+                reason = f'Noc L2 + PV {forecast_label} {pv_forecast:.1f} kWh - ładuj do {night_target}% (survival){survival_info}'
             return {
                 'mode': 'charge_from_grid',
-                'target_soc': target_soc,
-                'priority': priority,
+                'target_soc': night_target,
+                'priority': 'normal',
                 'reason': reason
             }
+
+        # SOC >= night_target — dom pobiera z sieci, bateria nietknięta
+        return {
+            'mode': 'grid_to_home',
+            'discharge_limit': soc_min,
+            'priority': 'low',
+            'reason': f'Noc L2 - SOC {soc:.0f}% >= target {night_target}%{survival_info}'
+        }
 
     # L2 POŁUDNIE (13-15h) - INTELIGENTNE ZARZĄDZANIE: PV vs SIEĆ
     if tariff == 'L2' and hour in [13, 14] and soc < soc_max:
@@ -568,6 +552,116 @@ def decide_strategy(data, balance):
             'priority': 'low',
             'reason': 'PV = Load, idealny balans'
         }
+
+
+def get_first_cheap_pv_hour(data):
+    """
+    Zwraca najwcześniejszą z najtańszych godzin RCE na jutro (do planowania nocnego ładowania).
+    Używa cen RCE jutro + oblicza ile godzin potrzeba na naładowanie baterii.
+    Returns: int (godzina, np. 11) lub None jeśli brak danych.
+    """
+    try:
+        soc_min = data['soc_min']
+        soc_max = data['soc_max']
+        month = data.get('month', 3)
+
+        # Czasy słoneczne (te same co w calculate_cheapest_hours_to_store)
+        if month in [11, 12, 1, 2]:
+            sunrise_hour = 7
+            sunset_hour = 16
+        elif month in [3, 4]:
+            sunrise_hour = 6
+            sunset_hour = 18
+        elif month in [5, 6, 7, 8]:
+            sunrise_hour = 5
+            sunset_hour = 20
+        else:
+            sunrise_hour = 6
+            sunset_hour = 17
+
+        sun_hours = sunset_hour - sunrise_hour
+        battery_capacity = 15  # kWh
+        energy_to_store = (soc_max - soc_min) / 100 * battery_capacity
+
+        forecast_tomorrow = data.get('forecast_tomorrow', 0)
+        if forecast_tomorrow <= 0:
+            return None
+
+        avg_pv_per_hour = forecast_tomorrow / sun_hours
+        hours_needed = min(int(energy_to_store / avg_pv_per_hour) + 1, sun_hours)
+        hours_needed = max(1, hours_needed)
+
+        # Pobierz ceny RCE jutro
+        rce_sensor = hass.states.get('sensor.rce_pse_cena_jutro')
+        if not rce_sensor or rce_sensor.state in ['unavailable', 'unknown', None]:
+            rce_sensor = hass.states.get('sensor.rce_pse_cena')
+        if not rce_sensor:
+            return None
+
+        all_prices = rce_sensor.attributes.get('prices', [])
+        if not all_prices:
+            return None
+
+        # Oblicz jutrzejszą datę
+        date_state = hass.states.get('sensor.date')
+        today_str = date_state.state if date_state else "2026-01-01"
+        year = int(today_str[0:4])
+        month_num = int(today_str[5:7])
+        day_num = int(today_str[8:10])
+        days_in_month = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        if (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0):
+            days_in_month[2] = 29
+        day_num = day_num + 1
+        if day_num > days_in_month[month_num]:
+            day_num = 1
+            month_num = month_num + 1
+            if month_num > 12:
+                month_num = 1
+                year = year + 1
+        tomorrow_str = f"{year:04d}-{month_num:02d}-{day_num:02d}"
+
+        # Zbierz średnie ceny per godzina (godziny słoneczne jutro)
+        hourly_sums = {}
+        hourly_counts = {}
+        for entry in all_prices:
+            try:
+                price_val = entry.get('rce_pln') or entry.get('price')
+                if price_val is None:
+                    continue
+                dtime_str = entry.get('dtime', '')
+                if ' ' in dtime_str:
+                    date_part = dtime_str.split(' ')[0]
+                    price_hour = int(dtime_str.split(' ')[1].split(':')[0])
+                else:
+                    continue
+                price_float = float(price_val)
+                if price_float > 10:
+                    price_float = price_float / 1000
+                if date_part == tomorrow_str and sunrise_hour <= price_hour < sunset_hour:
+                    if price_hour not in hourly_sums:
+                        hourly_sums[price_hour] = 0
+                        hourly_counts[price_hour] = 0
+                    hourly_sums[price_hour] = hourly_sums[price_hour] + price_float
+                    hourly_counts[price_hour] = hourly_counts[price_hour] + 1
+            except:
+                continue
+
+        if not hourly_sums:
+            return None
+
+        sun_prices = []
+        for h in hourly_sums:
+            sun_prices.append({'hour': h, 'price': hourly_sums[h] / hourly_counts[h]})
+
+        # Sortuj po cenie, wybierz N najtańszych
+        sun_prices_sorted = sorted(sun_prices, key=lambda x: x['price'])
+        cheapest_hours = [p['hour'] for p in sun_prices_sorted[:hours_needed]]
+
+        # Zwróć najwcześniejszą z najtańszych
+        return min(cheapest_hours)
+
+    except:
+        return None
 
 
 def calculate_cheapest_hours_to_store(data):
@@ -905,17 +999,11 @@ def handle_pv_surplus(data, balance):
             'reason': f'RCE ultra niskie ({rce_now:.3f} zł) - nie oddawaj za bezcen! MAGAZYNUJ'
         }
 
-    # 2. Jutro pochmurno → MAGAZYNUJ
-    if forecast_tomorrow < FORECAST_POOR and soc < BATTERY_HIGH:
-        return {
-            'mode': 'charge_from_pv',
-            'priority': 'normal',  # Normalna decyzja oparta na prognozie
-            'reason': f'Jutro pochmurno ({forecast_tomorrow:.1f} kWh) - MAGAZYNUJ'
-        }
+    # 2. "Jutro pochmurno → MAGAZYNUJ" — USUNIĘTO (krótko-obwodował algorytm najtańszych godzin)
+    # Algorytm najtańszych godzin sam obsługuje pochmurne jutro przez wyższy target_soc
+    # (więcej hours_needed → więcej godzin magazynowania, ale w TANICH godzinach RCE)
 
     # 3. ALGORYTM WYBORU NAJTAŃSZYCH GODZIN
-    # (blok "Zima → MAGAZYNUJ" usunięty - krótko-obwodował algorytm najtańszych godzin,
-    #  powodując magazynowanie w drogich godzinach zamiast sprzedaży)
     is_cheap_hour, reason, cheapest_hours = calculate_cheapest_hours_to_store(data)
 
     if is_cheap_hour is None:

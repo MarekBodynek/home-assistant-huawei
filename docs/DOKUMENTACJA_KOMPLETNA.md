@@ -3094,6 +3094,19 @@ Szczegółowa dokumentacja dostępna w:
 - `login_attempts_threshold: 5` w sekcji `http:` — auto-ban IP po 5 nieudanych próbach
 - Zidentyfikowany atak: IP `77.92.55.156` (TKK.net.pl) — 2400+ prób od 22.02.2026
 
+**7. Fix: usunięcie "Jutro pochmurno → MAGAZYNUJ" z handle_pv_surplus()**
+- Blok krótko-obwodował algorytm najtańszych godzin (tak jak wcześniej "Zima → MAGAZYNUJ")
+- Powodował magazynowanie PV o 9h (RCE 0.50) zamiast sprzedaży i magazynowania o 11-13h (RCE 0.05)
+- Algorytm najtańszych godzin sam obsługuje pochmurne jutro przez wyższy target_soc
+
+**8. Nocne ładowanie: survival_soc (pusta bateria na tanie PV godziny)**
+- Nowa funkcja `get_first_cheap_pv_hour()` — znajduje najwcześniejszą tanią godzinę RCE jutro
+- Nocne ładowanie: zamiast target_soc (60-70%), ładuj do survival_soc (~55%)
+- `survival_soc = soc_min + (hours_gap × avg_consumption / battery_capacity × 100)`
+- Efekt: bateria rano zasila dom w L1, o 11h jest pusta, ładuje z PV za darmo
+- Próg: PV forecast ≥ 10 kWh (bez PV → ładuj normalnie)
+- Dotyczy obu trybów (sezon grzewczy i poza nim)
+
 ### Pliki zmodyfikowane (uzupełnienie)
 
 | Plik | Zmiany |
@@ -3101,6 +3114,7 @@ Szczegółowa dokumentacja dostępna w:
 | `config/configuration.yaml` | shell_command fix + login_attempts_threshold: 5 |
 | `config/input_text.yaml` | pv_calibration_line (buffer dla shell_command) |
 | `config/automations_battery.yaml` | Usunięto data: z save_hourly_data, buffer dla log_pv_calibration |
+| `config/python_scripts/battery_algorithm.py` | Usunięto "Jutro pochmurno", get_first_cheap_pv_hour(), survival_soc |
 
 ---
 
